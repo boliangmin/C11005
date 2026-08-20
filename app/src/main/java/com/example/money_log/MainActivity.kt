@@ -825,7 +825,6 @@ private fun AddScreen(
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("金额") },
                     prefix = { Text("¥ ") },
-                    placeholder = { Text("0.00") },
                     isError = invalid,
                     supportingText = if (invalid) ({ Text("请输入大于 0 的金额") }) else null,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
