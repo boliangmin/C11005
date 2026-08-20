@@ -106,4 +106,26 @@ class ExampleUnitTest {
 
         assertEquals(currentTime, initialDateForNewEntry(emptyList(), currentTime))
     }
+
+    @Test
+    fun isDateAfterToday_rejectsTomorrowButAllowsAnyTimeToday() {
+        val currentTime = timestamp(2026, Calendar.AUGUST, 21)
+        val laterToday = Calendar.getInstance().apply {
+            timeInMillis = currentTime
+            set(Calendar.HOUR_OF_DAY, 23)
+        }.timeInMillis
+
+        assertFalse(isDateAfterToday(timestamp(2026, Calendar.AUGUST, 20), currentTime))
+        assertFalse(isDateAfterToday(laterToday, currentTime))
+        assertTrue(isDateAfterToday(timestamp(2026, Calendar.AUGUST, 22), currentTime))
+        assertTrue(isDateAfterToday(timestamp(2026, Calendar.SEPTEMBER, 1), currentTime))
+    }
+
+    @Test
+    fun initialDateForNewEntry_futureMonthFallsBackToCurrentDate() {
+        val currentTime = timestamp(2026, Calendar.AUGUST, 21)
+        val futureEntry = Entry("1", "支出", "餐饮", 20.0, timestamp(2026, Calendar.SEPTEMBER, 8))
+
+        assertEquals(currentTime, initialDateForNewEntry(listOf(futureEntry), currentTime))
+    }
 }

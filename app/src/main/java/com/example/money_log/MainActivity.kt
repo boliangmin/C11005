@@ -3,6 +3,7 @@
 import android.app.DatePickerDialog
 import android.content.Context
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -865,6 +866,9 @@ private fun AddScreen(
                 onClick = {
                     val value = amount.toDoubleOrNull()
                     if (value == null || value <= 0) invalid = true
+                    else if (isDateAfterToday(date)) {
+                        Toast.makeText(context, "不能添加晚于今天的账单", Toast.LENGTH_SHORT).show()
+                    }
                     else onSave(Entry(UUID.randomUUID().toString(), kind, selected!!.name, value, date))
                 },
                 modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp).height(56.dp),
@@ -982,9 +986,22 @@ private fun validAmountInput(value: String): Boolean {
     val parts = value.split('.')
     return parts[0].length <= 9 && (parts.size == 1 || parts[1].length <= 2)
 }
+
+internal fun isDateAfterToday(date: Long, currentTime: Long = System.currentTimeMillis()): Boolean {
+    fun startOfDay(millis: Long) = Calendar.getInstance().apply {
+        timeInMillis = millis
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
+
+    return startOfDay(date) > startOfDay(currentTime)
+}
+
 internal fun initialDateForNewEntry(entries: List<Entry>, currentTime: Long = System.currentTimeMillis()): Long {
     val previousEntryDate = entries.lastOrNull()?.date ?: return currentTime
-    return Calendar.getInstance().apply {
+    val previousMonthFirst = Calendar.getInstance().apply {
         timeInMillis = previousEntryDate
         set(Calendar.DAY_OF_MONTH, 1)
         set(Calendar.HOUR_OF_DAY, 12)
@@ -992,12 +1009,29 @@ internal fun initialDateForNewEntry(entries: List<Entry>, currentTime: Long = Sy
         set(Calendar.SECOND, 0)
         set(Calendar.MILLISECOND, 0)
     }.timeInMillis
+    return if (isDateAfterToday(previousMonthFirst, currentTime)) currentTime else previousMonthFirst
 }
-private fun pickDate(context: Context, millis: Long, selected: (Long) -> Unit) {
-    val c = Calendar.getInstance().apply { timeInMillis = millis }
+
+private fun pickDate(
+    context: Context,
+    millis: Long,
+    currentTime: Long = System.currentTimeMillis(),
+    selected: (Long) -> Unit,
+) {
+    val initialDate = if (isDateAfterToday(millis, currentTime)) currentTime else millis
+    val c = Calendar.getInstance().apply { timeInMillis = initialDate }
+    val maximumDate = Calendar.getInstance().apply {
+        timeInMillis = currentTime
+        set(Calendar.HOUR_OF_DAY, 23)
+        set(Calendar.MINUTE, 59)
+        set(Calendar.SECOND, 59)
+        set(Calendar.MILLISECOND, 999)
+    }.timeInMillis
     DatePickerDialog(context, { _, y, m, d ->
         selected(Calendar.getInstance().apply { set(y, m, d, 12, 0, 0); set(Calendar.MILLISECOND, 0) }.timeInMillis)
-    }, c[Calendar.YEAR], c[Calendar.MONTH], c[Calendar.DAY_OF_MONTH]).show()
+    }, c[Calendar.YEAR], c[Calendar.MONTH], c[Calendar.DAY_OF_MONTH]).apply {
+        datePicker.maxDate = maximumDate
+    }.show()
 }
 private fun defaultIcon(value: String) = legacyDefaultIcons[value] ?: "◉"
 internal fun updateEntriesCategory(
