@@ -191,7 +191,6 @@ private fun LedgerApp() {
                 expenseCategories = expenses,
                 incomeCategories = incomes,
                 initialDate = addInitialDate,
-                onBack = { page = addReturnPage },
                 onNewCategory = { kind, category ->
                     val target = if (kind == "支出") expenses else incomes
                     target.add(category)
@@ -767,7 +766,6 @@ private fun AddScreen(
     expenseCategories: List<LedgerCategory>,
     incomeCategories: List<LedgerCategory>,
     initialDate: Long,
-    onBack: () -> Unit,
     onNewCategory: (String, LedgerCategory) -> Unit,
     onSave: (Entry) -> Unit,
 ) {
@@ -781,28 +779,13 @@ private fun AddScreen(
     val dateInteractionSource = remember { MutableInteractionSource() }
     val categories = if (kind == "支出") expenseCategories else incomeCategories
 
+    BackHandler(enabled = selected != null) {
+        selected = null
+        amount = ""
+        invalid = false
+    }
+
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
-        Row(
-            Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            TextButton(onBack) { Text("取消", color = Ink, fontSize = 17.sp) }
-            Text("记一笔", Modifier.weight(1f), textAlign = TextAlign.Center, fontSize = 21.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.width(64.dp))
-        }
-        TabRow(
-            selectedTabIndex = if (kind == "支出") 0 else 1,
-            containerColor = Color.White,
-            contentColor = Ink,
-        ) {
-            listOf("支出", "收入").forEach { option ->
-                Tab(
-                    selected = kind == option,
-                    onClick = { kind = option; selected = null; invalid = false },
-                    text = { Text(option, fontSize = 18.sp, fontWeight = if (kind == option) FontWeight.Bold else FontWeight.Normal) },
-                )
-            }
-        }
         Text("${kind}分类", Modifier.padding(start = 20.dp, top = 20.dp, bottom = 10.dp), color = Muted)
         val rowCount = (categories.size + 4) / 4
         val visibleRows = rowCount.coerceAtMost(4)
@@ -871,10 +854,24 @@ private fun AddScreen(
                     }
                     else onSave(Entry(UUID.randomUUID().toString(), kind, selected!!.name, value, date))
                 },
-                modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp).height(56.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp).height(56.dp),
                 shape = RoundedCornerShape(18.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Yellow, contentColor = Ink),
             ) { Text("完成记账", fontSize = 18.sp, fontWeight = FontWeight.Bold) }
+        }
+        TabRow(
+            selectedTabIndex = if (kind == "支出") 0 else 1,
+            modifier = Modifier.navigationBarsPadding(),
+            containerColor = Color.White,
+            contentColor = Ink,
+        ) {
+            listOf("支出", "收入").forEach { option ->
+                Tab(
+                    selected = kind == option,
+                    onClick = { kind = option; selected = null; invalid = false },
+                    text = { Text(option, fontSize = 18.sp, fontWeight = if (kind == option) FontWeight.Bold else FontWeight.Normal) },
+                )
+            }
         }
     }
     if (showDialog) {
