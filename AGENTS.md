@@ -4,16 +4,17 @@
 
 每次完成代码或配置修改后，严格执行以下流程：
 
-1. 在仓库根目录运行 `.\gradlew.bat testDebugUnitTest archiveDebugApk --rerun-tasks`，执行单元测试、Debug 编译和 APK 归档。测试、编译或归档失败时立即停止，不得安装 APK、不得提交。
-2. 每次成功编译后，必须在根目录 `Apk_Output` 中新增且仅新增一个名称符合 `C11005_Debug_yyyyMMddHHmmss.apk` 的 APK。不得删除、覆盖或重命名旧 APK；`Apk_Output` 中的 APK 必须保持 Git 忽略，不得提交。
-3. 确认新归档 APK 与本次生成的 `app/build/outputs/apk/debug/app-debug.apk` 内容一致，并确认仅有一台状态为 `device` 的目标手机连接到 ADB。
-4. 使用本次新归档的 APK 和应用包名 `com.example.money_log` 检查手机上的安装状态：
+1. 在仓库根目录运行 `.\gradlew.bat testDebugUnitTest archiveDebugApk --rerun-tasks`。该流程必须先删除根目录 `Apk_Output` 中的全部历史 APK，再执行单元测试、Debug 编译和 APK 归档。测试、编译或归档失败时立即停止，不得安装 APK、不得提交。
+2. 清理过程只允许删除 `Apk_Output` 第一层的 `.apk` 和归档临时文件，必须保留 `.gitignore`，不得递归删除目录。清理完成、编译开始前，目录中不得存在任何 APK。
+3. 每次成功编译后，`Apk_Output` 中必须有且仅有一个名称符合 `C11005_Debug_yyyyMMddHHmmss.apk` 的新 APK；若流程失败则目录中不得留下 APK。可据此判断最近一次编译归档是否成功。该 APK 必须保持 Git 忽略，不得提交。
+4. 确认唯一归档 APK 与本次生成的 `app/build/outputs/apk/debug/app-debug.apk` 内容一致，并确认仅有一台状态为 `device` 的目标手机连接到 ADB。
+5. 使用唯一归档 APK 和应用包名 `com.example.money_log` 检查手机上的安装状态：
    - 手机未安装应用时，使用 `adb install <本次新归档APK>` 完成首次安装。
    - 手机已安装应用时，只能使用 `adb install -r <本次新归档APK>` 原位更新，禁止先执行 `adb uninstall` 再安装。
    - 首次切换到新签名且旧版本签名不兼容时，可以进行一次卸载后首次安装；执行前必须明确说明卸载会删除应用本地数据。除此情形外不得卸载应用。
-5. APK 安装失败时立即停止，不得改装旧 APK，也不得提交本次修改。
-6. 仅在测试、编译、归档和安装全部成功后，使用 `auto_commit.ps1` 自动提交全部本次修改。提交信息必须遵循 `AUTO_COMMIT_RULES.md`，使用 `C11005-NNNN` 递增编号和“修改日期 / 修改编号 / 修改内容 / 细节 / 修改备注”格式。
-7. 自动提交后保持修改只存在于本地仓库，不得自动执行 `git push`。只有用户在当前任务中明确要求 push 时，才允许推送到 GitHub。
+6. APK 安装失败时立即停止，不得改装其他 APK，也不得提交本次修改。
+7. 仅在测试、编译、归档和安装全部成功后，使用 `auto_commit.ps1` 自动提交全部本次修改。提交信息必须遵循 `AUTO_COMMIT_RULES.md`，使用 `C11005-NNNN` 递增编号和“修改日期 / 修改编号 / 修改内容 / 细节 / 修改备注”格式。
+8. 自动提交后保持修改只存在于本地仓库，不得自动执行 `git push`。只有用户在当前任务中明确要求 push 时，才允许推送到 GitHub。
 
 ## 2. README 修改记录
 

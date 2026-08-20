@@ -28,9 +28,9 @@
 
 每次修改完成后，必须严格按以下顺序执行：
 
-1. 运行 `.\gradlew.bat testDebugUnitTest archiveDebugApk --rerun-tasks`，执行单元测试、Debug 编译，并将 APK 归档到根目录 `Apk_Output`。
-2. 每次成功编译必须新增一个 `C11005_Debug_yyyyMMddHHmmss.apk`，不得删除或覆盖旧 APK；所有归档 APK 均保持 Git 忽略，不参与提交。
-3. 仅在测试、编译和归档成功后，使用本次新归档 APK 安装到已连接手机：未安装时执行首次安装；已安装时必须使用 `adb install -r` 覆盖更新。只有首次切换到新签名且旧版签名不兼容时，才允许在明确说明会删除本地数据后执行一次卸载和首次安装；除此情形外禁止先卸载再安装。
+1. 运行 `.\gradlew.bat testDebugUnitTest archiveDebugApk --rerun-tasks`。流程开始时先清除根目录 `Apk_Output` 第一层的历史 APK 和归档临时文件，再执行单元测试、Debug 编译和归档。
+2. 测试、编译和归档全部成功后，`Apk_Output` 中必须有且仅有一个 `C11005_Debug_yyyyMMddHHmmss.apk`；流程失败时不得留下 APK。该 APK 保持 Git 忽略，不参与提交。
+3. 仅在测试、编译和归档成功后，使用目录中的唯一 APK 安装到已连接手机：未安装时执行首次安装；已安装时必须使用 `adb install -r` 覆盖更新。只有首次切换到新签名且旧版签名不兼容时，才允许在明确说明会删除本地数据后执行一次卸载和首次安装；除此情形外禁止先卸载再安装。
 4. 仅在 APK 安装成功后，按照本文件的提交规则执行 `auto_commit.ps1`。
 5. 自动提交流程不得执行 `git push`；只有收到用户明确的 push 指令时才允许推送 GitHub。
 

@@ -1,2 +1,3 @@
 # Keep generated APK archives local.
 *.apk
+*.apk.tmp

@@ -7,6 +7,8 @@ import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
 import org.gradle.work.DisableCachingByDefault
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Properties
@@ -34,12 +36,70 @@ abstract class ArchiveDebugApkTask : DefaultTask() {
         check(destinationDirectory.isDirectory || destinationDirectory.mkdirs()) {
             "Unable to create APK output directory: ${destinationDirectory.absolutePath}"
         }
+        val existingApks = destinationDirectory.listFiles { file ->
+            file.isFile && file.extension.equals("apk", ignoreCase = true)
+        }.orEmpty()
+        check(existingApks.isEmpty()) {
+            "APK output directory must be empty before archiving: ${destinationDirectory.absolutePath}"
+        }
 
         val timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"))
         val destination = destinationDirectory.resolve("C11005_Debug_${timestamp}.apk")
+        val temporaryDestination = destinationDirectory.resolve(".${destination.name}.tmp")
         check(!destination.exists()) { "Timestamped APK already exists: ${destination.absolutePath}" }
-        source.copyTo(destination, overwrite = false)
+        check(!temporaryDestination.exists()) {
+            "Temporary APK archive already exists: ${temporaryDestination.absolutePath}"
+        }
+        try {
+            source.copyTo(temporaryDestination, overwrite = false)
+            Files.move(
+                temporaryDestination.toPath(),
+                destination.toPath(),
+                StandardCopyOption.ATOMIC_MOVE,
+            )
+        }
+        catch (error: Exception) {
+            if (temporaryDestination.exists() && !temporaryDestination.delete()) {
+                error.addSuppressed(
+                    IllegalStateException("Unable to remove incomplete APK archive: ${temporaryDestination.absolutePath}"),
+                )
+            }
+            throw error
+        }
+        val archivedApks = destinationDirectory.listFiles { file ->
+            file.isFile && file.extension.equals("apk", ignoreCase = true)
+        }.orEmpty()
+        check(archivedApks.size == 1 && archivedApks.single().canonicalFile == destination.canonicalFile) {
+            "APK output directory must contain exactly one completed APK."
+        }
         println("Archived Debug APK: ${destination.absolutePath}")
+    }
+}
+
+@DisableCachingByDefault(because = "Historical APK archives must be removed before each Debug build.")
+abstract class ClearApkOutputTask : DefaultTask() {
+    @get:Internal
+    abstract val outputDirectory: DirectoryProperty
+
+    @TaskAction
+    fun clear() {
+        val directory = outputDirectory.get().asFile
+        check(directory.isDirectory || directory.mkdirs()) {
+            "Unable to create APK output directory: ${directory.absolutePath}"
+        }
+        val targets = directory.listFiles { file ->
+            file.isFile &&
+                (file.extension.equals("apk", ignoreCase = true) || file.name.endsWith(".apk.tmp"))
+        }.orEmpty()
+        targets.forEach { target ->
+            check(target.delete()) { "Unable to delete historical APK: ${target.absolutePath}" }
+        }
+        check(directory.listFiles { file ->
+            file.isFile && file.extension.equals("apk", ignoreCase = true)
+        }.orEmpty().isEmpty()) {
+            "APK output directory still contains historical APK files."
+        }
+        println("Cleared ${targets.size} historical APK archive(s) from ${directory.absolutePath}")
     }
 }
 
@@ -150,6 +210,16 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
+}
+
+val cleanApkOutput = tasks.register<ClearApkOutputTask>("cleanApkOutput") {
+    group = "build"
+    description = "Removes historical APK archives before a new Debug build starts."
+    outputDirectory.set(rootProject.layout.projectDirectory.dir("Apk_Output"))
+}
+
+tasks.matching { it.name == "assembleDebug" }.configureEach {
+    dependsOn(cleanApkOutput)
 }
 
 tasks.register<ArchiveDebugApkTask>("archiveDebugApk") {
