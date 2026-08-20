@@ -32,6 +32,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import com.example.money_log.ui.theme.Money_LogTheme
 import org.json.JSONArray
 import org.json.JSONObject
@@ -769,113 +770,49 @@ private fun AddScreen(
     onNewCategory: (String, LedgerCategory) -> Unit,
     onSave: (Entry) -> Unit,
 ) {
-    val context = LocalContext.current
     var kind by remember { mutableStateOf("支出") }
     var selected by remember { mutableStateOf<LedgerCategory?>(null) }
     var amount by remember { mutableStateOf("") }
     var date by remember(initialDate) { mutableLongStateOf(initialDate) }
     var showDialog by remember { mutableStateOf(false) }
     var invalid by remember { mutableStateOf(false) }
-    val dateInteractionSource = remember { MutableInteractionSource() }
     val categories = if (kind == "支出") expenseCategories else incomeCategories
     val selectedCategory = selected
 
-    BackHandler(enabled = selectedCategory != null) {
-        selected = null
-        amount = ""
-        date = initialDate
-        invalid = false
-    }
-
-    if (selectedCategory == null) {
-        Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
-            CategorySelectionSection(
-                title = "支出分类",
-                categories = expenseCategories,
-                modifier = Modifier.weight(2f),
-                onCategorySelected = {
-                    kind = "支出"
-                    amount = ""
-                    date = initialDate
-                    invalid = false
-                    selected = it
-                },
-                onAdd = {
-                    kind = "支出"
-                    showDialog = true
-                },
-            )
-            HorizontalDivider(color = Color(0xFFD6D6D8))
-            CategorySelectionSection(
-                title = "收入分类",
-                categories = incomeCategories,
-                modifier = Modifier.weight(1f),
-                onCategorySelected = {
-                    kind = "收入"
-                    amount = ""
-                    date = initialDate
-                    invalid = false
-                    selected = it
-                },
-                onAdd = {
-                    kind = "收入"
-                    showDialog = true
-                },
-            )
-        }
-    } else {
-        Column(Modifier.fillMaxSize().statusBarsPadding()) {
-            Column(Modifier.weight(1f).padding(20.dp)) {
-                Text("${selectedCategory.symbol}  ${selectedCategory.name}", fontSize = 21.sp, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(22.dp))
-                OutlinedTextField(
-                    value = amount,
-                    onValueChange = {
-                        if (validAmountInput(it)) amount = it
-                        invalid = false
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("金额") },
-                    prefix = { Text("¥ ") },
-                    isError = invalid,
-                    supportingText = if (invalid) ({ Text("请输入大于 0 的金额") }) else null,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
-                )
-                Spacer(Modifier.height(14.dp))
-                Box(Modifier.fillMaxWidth().clickable(interactionSource = dateInteractionSource, indication = null) { pickDate(context, date) { date = it } }) {
-                    OutlinedTextField(
-                        value = day(date),
-                        onValueChange = {},
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = false,
-                        label = { Text("日期") },
-                        trailingIcon = { Text("选择") },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            disabledTextColor = Ink,
-                            disabledBorderColor = Color(0xFFB9BBC0),
-                            disabledLabelColor = Muted,
-                            disabledTrailingIconColor = Ink,
-                            disabledContainerColor = Color.Transparent,
-                        ),
-                    )
-                }
-            }
-            Button(
-                onClick = {
-                    val value = amount.toDoubleOrNull()
-                    if (value == null || value <= 0) invalid = true
-                    else if (isDateAfterToday(date)) {
-                        Toast.makeText(context, "不能添加晚于今天的账单", Toast.LENGTH_SHORT).show()
-                    }
-                    else onSave(Entry(UUID.randomUUID().toString(), kind, selectedCategory.name, value, date))
-                },
-                modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp).height(56.dp),
-                shape = RoundedCornerShape(18.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Yellow, contentColor = Ink),
-            ) { Text("完成记账", fontSize = 18.sp, fontWeight = FontWeight.Bold) }
-        }
+    Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
+        CategorySelectionSection(
+            title = "支出分类",
+            categories = expenseCategories,
+            modifier = Modifier.weight(1f),
+            onCategorySelected = {
+                kind = "支出"
+                amount = ""
+                date = initialDate
+                invalid = false
+                selected = it
+            },
+            onAdd = {
+                kind = "支出"
+                showDialog = true
+            },
+        )
+        HorizontalDivider(color = Color(0xFFD6D6D8))
+        CategorySelectionSection(
+            title = "收入分类",
+            categories = incomeCategories,
+            modifier = Modifier.weight(1f),
+            onCategorySelected = {
+                kind = "收入"
+                amount = ""
+                date = initialDate
+                invalid = false
+                selected = it
+            },
+            onAdd = {
+                kind = "收入"
+                showDialog = true
+            },
+        )
     }
     if (showDialog) {
         CategoryDialog(
@@ -889,6 +826,30 @@ private fun AddScreen(
                 invalid = false
                 selected = it
                 showDialog = false
+            },
+        )
+    }
+    if (selectedCategory != null) {
+        EntryInputDialog(
+            kind = kind,
+            category = selectedCategory,
+            amount = amount,
+            date = date,
+            invalid = invalid,
+            onAmountChange = {
+                if (validAmountInput(it)) amount = it
+                invalid = false
+            },
+            onDateSelected = { date = it },
+            onInvalidAmount = { invalid = true },
+            onDismiss = {
+                selected = null
+                amount = ""
+                date = initialDate
+                invalid = false
+            },
+            onSave = { value ->
+                onSave(Entry(UUID.randomUUID().toString(), kind, selectedCategory.name, value, date))
             },
         )
     }
@@ -916,6 +877,87 @@ private fun CategorySelectionSection(
                 CategoryCard(category.name, category.symbol, false) { onCategorySelected(category) }
             }
             item { CategoryCard("添加", "+", false, onAdd) }
+        }
+    }
+}
+
+@Composable
+private fun EntryInputDialog(
+    kind: String,
+    category: LedgerCategory,
+    amount: String,
+    date: Long,
+    invalid: Boolean,
+    onAmountChange: (String) -> Unit,
+    onDateSelected: (Long) -> Unit,
+    onInvalidAmount: () -> Unit,
+    onDismiss: () -> Unit,
+    onSave: (Double) -> Unit,
+) {
+    val context = LocalContext.current
+    val dateInteractionSource = remember { MutableInteractionSource() }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(28.dp),
+            color = Bg,
+            shadowElevation = 10.dp,
+        ) {
+            Column(Modifier.padding(24.dp)) {
+                Text("${category.symbol}  ${category.name}", fontSize = 21.sp, fontWeight = FontWeight.Bold)
+                Text(kind, color = Muted, fontSize = 13.sp)
+                Spacer(Modifier.height(22.dp))
+                OutlinedTextField(
+                    value = amount,
+                    onValueChange = onAmountChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("金额") },
+                    prefix = { Text("¥ ") },
+                    isError = invalid,
+                    supportingText = if (invalid) ({ Text("请输入大于 0 的金额") }) else null,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true,
+                    shape = RoundedCornerShape(14.dp),
+                )
+                Spacer(Modifier.height(14.dp))
+                Box(
+                    Modifier.fillMaxWidth().clickable(
+                        interactionSource = dateInteractionSource,
+                        indication = null,
+                    ) { pickDate(context, date, selected = onDateSelected) },
+                ) {
+                    OutlinedTextField(
+                        value = day(date),
+                        onValueChange = {},
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = false,
+                        label = { Text("日期") },
+                        trailingIcon = { Text("选择") },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            disabledTextColor = Ink,
+                            disabledBorderColor = Color(0xFFB9BBC0),
+                            disabledLabelColor = Muted,
+                            disabledTrailingIconColor = Ink,
+                            disabledContainerColor = Color.Transparent,
+                        ),
+                    )
+                }
+                Spacer(Modifier.height(24.dp))
+                Button(
+                    onClick = {
+                        val value = amount.toDoubleOrNull()
+                        if (value == null || value <= 0) onInvalidAmount()
+                        else if (isDateAfterToday(date)) {
+                            Toast.makeText(context, "不能添加晚于今天的账单", Toast.LENGTH_SHORT).show()
+                        }
+                        else onSave(value)
+                    },
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Yellow, contentColor = Ink),
+                ) { Text("完成记账", fontSize = 18.sp, fontWeight = FontWeight.Bold) }
+            }
         }
     }
 }
