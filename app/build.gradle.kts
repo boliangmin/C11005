@@ -1,8 +1,46 @@
+import org.gradle.api.DefaultTask
+import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.tasks.InputFile
+import org.gradle.api.tasks.Internal
+import org.gradle.api.tasks.PathSensitive
+import org.gradle.api.tasks.PathSensitivity
+import org.gradle.api.tasks.TaskAction
+import org.gradle.work.DisableCachingByDefault
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+}
+
+@DisableCachingByDefault(because = "Each successful build must create a new timestamped APK archive.")
+abstract class ArchiveDebugApkTask : DefaultTask() {
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val sourceApk: RegularFileProperty
+
+    @get:Internal
+    abstract val outputDirectory: DirectoryProperty
+
+    @TaskAction
+    fun archive() {
+        val source = sourceApk.get().asFile
+        check(source.isFile) { "Debug APK was not generated: ${source.absolutePath}" }
+
+        val destinationDirectory = outputDirectory.get().asFile
+        check(destinationDirectory.isDirectory || destinationDirectory.mkdirs()) {
+            "Unable to create APK output directory: ${destinationDirectory.absolutePath}"
+        }
+
+        val timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"))
+        val destination = destinationDirectory.resolve("C11005_Debug_${timestamp}.apk")
+        check(!destination.exists()) { "Timestamped APK already exists: ${destination.absolutePath}" }
+        source.copyTo(destination, overwrite = false)
+        println("Archived Debug APK: ${destination.absolutePath}")
+    }
 }
 
 val signingDirectory = rootProject.file("signing").canonicalFile
@@ -112,4 +150,12 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
+}
+
+tasks.register<ArchiveDebugApkTask>("archiveDebugApk") {
+    group = "build"
+    description = "Builds and archives a timestamped Debug APK without deleting older archives."
+    dependsOn("assembleDebug")
+    sourceApk.set(layout.buildDirectory.file("outputs/apk/debug/app-debug.apk"))
+    outputDirectory.set(rootProject.layout.projectDirectory.dir("Apk_Output"))
 }
