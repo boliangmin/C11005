@@ -1041,7 +1041,7 @@ private fun EntryActionDialog(
 ) {
     AlertDialog(
         onDismissRequest = dismiss,
-        title = { Text("${entry.category}账单") },
+        title = { Text(entry.category) },
         text = {
             CategoryActionItem(
                 symbol = "✎",
@@ -1078,8 +1078,6 @@ private fun EntryEditDialog(
         title = { Text("修改账单") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
-                Text("账单类型固定为${entry.kind}", fontSize = 13.sp, color = Muted)
-                Spacer(Modifier.height(14.dp))
                 Text("分类", fontWeight = FontWeight.Medium, color = Ink)
                 Spacer(Modifier.height(8.dp))
                 LazyVerticalGrid(
@@ -1396,7 +1394,6 @@ private fun EntryInputDialog(
         ) {
             Column(Modifier.padding(24.dp)) {
                 Text("${category.symbol}  ${category.name}", fontSize = 21.sp, fontWeight = FontWeight.Bold)
-                Text(kind, color = Muted, fontSize = 13.sp)
                 Spacer(Modifier.height(22.dp))
                 OutlinedTextField(
                     value = amount,
