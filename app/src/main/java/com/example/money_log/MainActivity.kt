@@ -1272,11 +1272,7 @@ private fun AddScreen(
             dismiss = { showDialog = false },
             confirm = {
                 onNewCategory(kind, it)
-                amount = ""
-                date = initialDate
-                note = ""
-                invalid = false
-                selected = it
+                selected = null
                 showDialog = false
             },
         )
