@@ -439,9 +439,8 @@ private fun DetailsScreen(
 @Composable
 private fun DetailsFeatureBar() {
     Row(
-        modifier = Modifier.fillMaxWidth().height(46.dp).padding(horizontal = 14.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
-        verticalAlignment = Alignment.CenterVertically,
     ) {
         DetailsFeatureItem(Modifier.weight(1f), R.drawable.ic_bill_outline, "账单", selected = true)
         DetailsFeatureItem(Modifier.weight(1f), R.drawable.ic_ledger_outline, "账本")
@@ -458,12 +457,11 @@ private fun DetailsFeatureItem(
     selected: Boolean = false,
 ) {
     Column(
-        modifier = modifier.fillMaxHeight(),
+        modifier = modifier.padding(vertical = 2.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
     ) {
         Box(
-            modifier = Modifier.size(24.dp).background(
+            modifier = Modifier.size(38.dp).background(
                 color = if (selected) Color(0xFFFFF1B8) else Color.White,
                 shape = CircleShape,
             ),
@@ -472,16 +470,15 @@ private fun DetailsFeatureItem(
             Icon(
                 painter = painterResource(iconResource),
                 contentDescription = label,
-                modifier = Modifier.size(14.dp),
+                modifier = Modifier.size(21.dp),
                 tint = if (selected) Color(0xFF8A6A20) else Ink,
             )
         }
-        Spacer(Modifier.height(1.dp))
+        Spacer(Modifier.height(3.dp))
         Text(
             label,
             color = if (selected) Ink else Muted,
-            fontSize = 9.sp,
-            lineHeight = 10.sp,
+            fontSize = 12.sp,
             fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
         )
     }
@@ -495,7 +492,7 @@ private fun BottomBar(
     onMore: () -> Unit,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().navigationBarsPadding().height(46.dp).background(Color.White),
+        modifier = Modifier.fillMaxWidth().navigationBarsPadding().height(92.dp).background(Color.White),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         BottomItem(Modifier.weight(1f), "▤", "明细", selected = selected == AppPage.DETAILS, onClick = onDetails)
@@ -965,20 +962,14 @@ private fun BottomItem(
         verticalArrangement = Arrangement.Center,
     ) {
         Box(
-            modifier = Modifier.size(26.dp).background(
+            modifier = Modifier.size(54.dp).background(
                 color = when { center -> Yellow; selected -> Color(0xFFFFF4C8); else -> Color.Transparent },
                 shape = CircleShape,
             ),
             contentAlignment = Alignment.Center,
-        ) { Text(symbol, fontSize = if (center) 20.sp else 16.sp, color = Ink) }
-        Spacer(Modifier.height(1.dp))
-        Text(
-            label,
-            color = if (selected) Ink else Muted,
-            fontSize = 9.sp,
-            lineHeight = 10.sp,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-        )
+        ) { Text(symbol, fontSize = if (center) 32.sp else 24.sp, color = Ink) }
+        Spacer(Modifier.height(2.dp))
+        Text(label, color = if (selected) Ink else Muted, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
     }
 }
 
