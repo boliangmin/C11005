@@ -1,20 +1,52 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
 }
 
-val debugKeystore = file("debug.keystore")
-val debugStorePassword = providers.gradleProperty("C11005_DEBUG_STORE_PASSWORD")
+val signingDirectory = rootProject.file("signing").canonicalFile
+val signingPropertiesFile = signingDirectory.resolve("keystore.properties")
+val signingProperties = Properties().apply {
+    if (signingPropertiesFile.isFile) {
+        signingPropertiesFile.inputStream().use { load(it) }
+    }
+}
+val debugStoreFileName = signingProperties.getProperty("storeFile")
+    ?.trim()
+    ?.takeIf { it.isNotEmpty() }
+    ?: "C11005-debug.keystore"
+val debugKeystore = signingDirectory.resolve(debugStoreFileName).canonicalFile
+require(debugKeystore.toPath().startsWith(signingDirectory.toPath())) {
+    "The debug keystore must be stored inside the signing directory."
+}
+val debugStorePassword = signingProperties.getProperty("storePassword")
+    ?.trim()
+    ?.takeIf { it.isNotEmpty() }
+    ?: providers.gradleProperty("C11005_DEBUG_STORE_PASSWORD")
     .orElse(providers.environmentVariable("C11005_DEBUG_STORE_PASSWORD"))
     .orNull
-val debugKeyAlias = providers.gradleProperty("C11005_DEBUG_KEY_ALIAS")
+val debugKeyAlias = signingProperties.getProperty("keyAlias")
+    ?.trim()
+    ?.takeIf { it.isNotEmpty() }
+    ?: providers.gradleProperty("C11005_DEBUG_KEY_ALIAS")
     .orElse(providers.environmentVariable("C11005_DEBUG_KEY_ALIAS"))
     .orNull
-val debugKeyPassword = providers.gradleProperty("C11005_DEBUG_KEY_PASSWORD")
+val debugKeyPassword = signingProperties.getProperty("keyPassword")
+    ?.trim()
+    ?.takeIf { it.isNotEmpty() }
+    ?: providers.gradleProperty("C11005_DEBUG_KEY_PASSWORD")
     .orElse(providers.environmentVariable("C11005_DEBUG_KEY_PASSWORD"))
     .orNull
 val hasCustomDebugSigning = debugKeystore.isFile &&
     listOf(debugStorePassword, debugKeyAlias, debugKeyPassword).all { !it.isNullOrBlank() }
+
+if (signingPropertiesFile.isFile && !debugKeystore.isFile) {
+    logger.warn("Custom debug keystore is not present in the signing directory; using the Android default debug signing key.")
+}
+if (debugKeystore.isFile && !hasCustomDebugSigning) {
+    throw GradleException("The debug keystore exists, but its local signing configuration is incomplete.")
+}
 
 android {
     namespace = "com.example.money_log"

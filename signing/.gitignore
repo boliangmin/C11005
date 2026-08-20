@@ -1,0 +1,6 @@
+# Private signing material must remain local.
+*
+!.gitignore
+!README.md
+!keystore.properties.example
+
