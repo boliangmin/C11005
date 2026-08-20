@@ -922,7 +922,6 @@ private fun CategoryDialog(
                     onValueChange = { if (!lockName && it.length <= 8) input = it },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text(if (lockName) "类型名称（固定）" else "类型名称") },
-                    placeholder = { Text(if (kind == "支出") "例如：交通" else "例如：奖金") },
                     readOnly = lockName,
                     singleLine = true,
                 )
