@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -54,6 +55,7 @@ private val Ink = Color(0xFF2D3037)
 private val Muted = Color(0xFF777A81)
 private val IncomeGreen = Color(0xFF2E8B57)
 private val Danger = Color(0xFFC43D3D)
+private val NoteAccent = Color(0xFF8A6A20)
 
 private enum class AppPage { DETAILS, ADD, MORE, CATEGORIES, TRASH }
 private const val UncategorizedName = "未分类"
@@ -599,7 +601,7 @@ private fun RecycleBinEntryCard(
                     Text(entry.category, fontSize = 17.sp, fontWeight = FontWeight.Medium)
                     Text("${entry.kind} · ${day(entry.date)}", fontSize = 13.sp, color = Muted)
                     if (entry.note.isNotBlank()) {
-                        Text(entry.note, fontSize = 12.sp, color = Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(entry.note, fontSize = 12.sp, color = NoteAccent, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
                 Text(
@@ -966,7 +968,14 @@ private fun EntryCard(
                 Box(
                     Modifier.size(42.dp).background(Color(0xFFFFE8E8), CircleShape),
                     contentAlignment = Alignment.Center,
-                ) { Text("×", fontSize = 28.sp, color = Danger) }
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_remove_circle_outline),
+                        contentDescription = "删除账单",
+                        modifier = Modifier.size(25.dp),
+                        tint = Danger,
+                    )
+                }
             }
         }
         Card(
@@ -1007,7 +1016,7 @@ private fun EntryCard(
                     Text(entry.category, fontSize = 17.sp, fontWeight = FontWeight.Medium)
                     Text("${entry.kind} · ${day(entry.date)}", fontSize = 13.sp, color = Muted)
                     if (entry.note.isNotBlank()) {
-                        Text(entry.note, fontSize = 12.sp, color = Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(entry.note, fontSize = 12.sp, color = NoteAccent, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
                 Text(
