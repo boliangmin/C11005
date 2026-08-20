@@ -12,24 +12,32 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -38,6 +46,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlin.math.roundToInt
 
 private val Yellow = Color(0xFFF5CE3E)
 private val Bg = Color(0xFFF7F7F7)
@@ -50,7 +59,14 @@ private enum class AppPage { DETAILS, ADD, MORE, CATEGORIES }
 private const val UncategorizedName = "未分类"
 private const val UncategorizedIcon = "⭕"
 
-data class Entry(val id: String, val kind: String, val category: String, val amount: Double, val date: Long)
+data class Entry(
+    val id: String,
+    val kind: String,
+    val category: String,
+    val amount: Double,
+    val date: Long,
+    val note: String = "",
+)
 data class LedgerCategory(val name: String, val symbol: String)
 private data class CategoryEditTarget(val kind: String, val category: LedgerCategory)
 private data class CategoryDeleteRequest(val target: CategoryEditTarget, val isFinalConfirmation: Boolean = false)
@@ -126,14 +142,26 @@ private class Store(context: Context) {
         val a = JSONArray(p.getString("entries", null)!!)
         List(a.length()) {
             val o = a.getJSONObject(it)
-            Entry(o.getString("id"), o.optString("kind", "支出"), o.getString("category"), o.getDouble("amount"), o.getLong("date"))
+            Entry(
+                id = o.getString("id"),
+                kind = o.optString("kind", "支出"),
+                category = o.getString("category"),
+                amount = o.getDouble("amount"),
+                date = o.getLong("date"),
+                note = o.optString("note", ""),
+            )
         }
     }.getOrDefault(emptyList())
     fun saveEntries(value: List<Entry>) {
         val a = JSONArray()
         value.forEach { e ->
             a.put(JSONObject().apply {
-                put("id", e.id); put("kind", e.kind); put("category", e.category); put("amount", e.amount); put("date", e.date)
+                put("id", e.id)
+                put("kind", e.kind)
+                put("category", e.category)
+                put("amount", e.amount)
+                put("date", e.date)
+                put("note", e.note)
             })
         }
         p.edit().putString("entries", a.toString()).apply()
@@ -181,8 +209,14 @@ private fun LedgerApp() {
                     page = AppPage.ADD
                 },
                 onMore = { page = AppPage.MORE },
-                onEditEntryCategory = { entry, category ->
-                    val updatedEntries = updateSingleEntryCategory(entries, entry.id, category.name)
+                onUpdateEntry = { updatedEntry ->
+                    val updatedEntries = updateEntry(entries, updatedEntry)
+                    entries.clear()
+                    entries.addAll(updatedEntries)
+                    store.saveEntries(entries)
+                },
+                onDeleteEntry = { entry ->
+                    val updatedEntries = deleteEntry(entries, entry.id)
                     entries.clear()
                     entries.addAll(updatedEntries)
                     store.saveEntries(entries)
@@ -196,6 +230,14 @@ private fun LedgerApp() {
                     val target = if (kind == "支出") expenses else incomes
                     target.add(category)
                     store.saveCategories(kind, target)
+                },
+                onEditCategoryIcon = { kind, current, updated ->
+                    val target = if (kind == "支出") expenses else incomes
+                    val categoryIndex = target.indexOf(current)
+                    if (categoryIndex >= 0) {
+                        target[categoryIndex] = updated.copy(name = current.name)
+                        store.saveCategories(kind, target)
+                    }
                 },
                 onSave = {
                     entries.add(it)
@@ -253,9 +295,13 @@ private fun DetailsScreen(
     incomeCategories: List<LedgerCategory>,
     onAdd: () -> Unit,
     onMore: () -> Unit,
-    onEditEntryCategory: (Entry, LedgerCategory) -> Unit,
+    onUpdateEntry: (Entry) -> Unit,
+    onDeleteEntry: (Entry) -> Unit,
 ) {
+    var actionEntry by remember { mutableStateOf<Entry?>(null) }
     var editingEntry by remember { mutableStateOf<Entry?>(null) }
+    var deleteEntryRequest by remember { mutableStateOf<Entry?>(null) }
+    var revealedEntryId by remember { mutableStateOf<String?>(null) }
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
         Box(
             Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 20.dp, vertical = 18.dp),
@@ -282,7 +328,17 @@ private fun DetailsScreen(
                     val categories = if (entry.kind == "收入") incomeCategories else expenseCategories
                     val symbol = categories.firstOrNull { it.name == entry.category }?.symbol
                         ?: defaultIcon(entry.category)
-                    EntryCard(entry, symbol) { editingEntry = entry }
+                    EntryCard(
+                        entry = entry,
+                        symbol = symbol,
+                        revealed = revealedEntryId == entry.id,
+                        onRevealChange = { reveal -> revealedEntryId = if (reveal) entry.id else null },
+                        onLongClick = {
+                            revealedEntryId = null
+                            actionEntry = entry
+                        },
+                        onDeleteClick = { deleteEntryRequest = entry },
+                    )
                 }
             }
         }
@@ -293,15 +349,39 @@ private fun DetailsScreen(
             onMore = onMore,
         )
     }
+    actionEntry?.let { entry ->
+        EntryActionDialog(
+            entry = entry,
+            dismiss = { actionEntry = null },
+            onEdit = {
+                actionEntry = null
+                editingEntry = entry
+            },
+        )
+    }
     editingEntry?.let { entry ->
         val categories = if (entry.kind == "收入") incomeCategories else expenseCategories
-        EntryCategoryDialog(
+        EntryEditDialog(
             entry = entry,
             categories = categories,
             dismiss = { editingEntry = null },
-            confirm = { category ->
-                onEditEntryCategory(entry, category)
+            confirm = { updatedEntry ->
+                onUpdateEntry(updatedEntry)
                 editingEntry = null
+            },
+        )
+    }
+    deleteEntryRequest?.let { entry ->
+        DeleteEntryDialog(
+            entry = entry,
+            dismiss = {
+                deleteEntryRequest = null
+                revealedEntryId = null
+            },
+            confirm = {
+                onDeleteEntry(entry)
+                deleteEntryRequest = null
+                revealedEntryId = null
             },
         )
     }
@@ -664,58 +744,141 @@ private fun BottomItem(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun EntryCard(entry: Entry, symbol: String, onLongClick: () -> Unit) {
+private fun EntryCard(
+    entry: Entry,
+    symbol: String,
+    revealed: Boolean,
+    onRevealChange: (Boolean) -> Unit,
+    onLongClick: () -> Unit,
+    onDeleteClick: () -> Unit,
+) {
     val income = entry.kind == "收入"
     val interactionSource = remember { MutableInteractionSource() }
-    Card(
-        modifier = Modifier.fillMaxWidth().combinedClickable(
-            interactionSource = interactionSource,
-            indication = null,
-            onClick = {},
-            onLongClick = onLongClick,
-        ),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        shape = RoundedCornerShape(16.dp),
-    ) {
-        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+    val maximumReveal = with(LocalDensity.current) { 72.dp.toPx() }
+    var horizontalOffset by remember(entry.id) { mutableFloatStateOf(0f) }
+
+    LaunchedEffect(revealed, maximumReveal) {
+        horizontalOffset = if (revealed) maximumReveal else 0f
+    }
+
+    Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))) {
+        Box(
+            modifier = Modifier.matchParentSize().background(Danger),
+            contentAlignment = Alignment.CenterStart,
+        ) {
             Box(
-                Modifier.size(46.dp).background(if (income) Color(0xFFE4F4E9) else Color(0xFFFFF4C8), CircleShape),
+                modifier = Modifier.fillMaxHeight().width(72.dp).clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onDeleteClick,
+                ),
                 contentAlignment = Alignment.Center,
-            ) { Text(symbol, fontSize = 23.sp) }
-            Column(Modifier.weight(1f).padding(start = 14.dp)) {
-                Text(entry.category, fontSize = 17.sp, fontWeight = FontWeight.Medium)
-                Text("${entry.kind} · ${day(entry.date)}", fontSize = 13.sp, color = Muted)
+            ) { Text("🗑️", fontSize = 24.sp) }
+        }
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .offset { IntOffset(horizontalOffset.roundToInt(), 0) }
+                .pointerInput(entry.id, maximumReveal) {
+                    detectHorizontalDragGestures(
+                        onHorizontalDrag = { _, dragAmount ->
+                            horizontalOffset = (horizontalOffset + dragAmount).coerceIn(0f, maximumReveal)
+                        },
+                        onDragEnd = {
+                            val shouldReveal = horizontalOffset >= maximumReveal / 2f
+                            horizontalOffset = if (shouldReveal) maximumReveal else 0f
+                            onRevealChange(shouldReveal)
+                        },
+                        onDragCancel = {
+                            horizontalOffset = if (revealed) maximumReveal else 0f
+                        },
+                    )
+                }
+                .combinedClickable(
+                    interactionSource = interactionSource,
+                    indication = null,
+                    onClick = { if (revealed) onRevealChange(false) },
+                    onLongClick = onLongClick,
+                ),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+            shape = RoundedCornerShape(16.dp),
+        ) {
+            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier.size(46.dp).background(if (income) Color(0xFFE4F4E9) else Color(0xFFFFF4C8), CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) { Text(symbol, fontSize = 23.sp) }
+                Column(Modifier.weight(1f).padding(start = 14.dp)) {
+                    Text(entry.category, fontSize = 17.sp, fontWeight = FontWeight.Medium)
+                    Text("${entry.kind} · ${day(entry.date)}", fontSize = 13.sp, color = Muted)
+                    if (entry.note.isNotBlank()) {
+                        Text(entry.note, fontSize = 12.sp, color = Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+                Text(
+                    "${if (income) "+" else "−"}¥${money(entry.amount)}",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (income) IncomeGreen else Ink,
+                )
             }
-            Text(
-                "${if (income) "+" else "−"}¥${money(entry.amount)}",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = if (income) IncomeGreen else Ink,
-            )
         }
     }
 }
 
 @Composable
-private fun EntryCategoryDialog(
+private fun EntryActionDialog(
+    entry: Entry,
+    dismiss: () -> Unit,
+    onEdit: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = dismiss,
+        title = { Text("${entry.category}账单") },
+        text = {
+            CategoryActionItem(
+                symbol = "✎",
+                title = "修改账单",
+                subtitle = "修改分类、金额、日期和备注",
+                onClick = onEdit,
+            )
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(dismiss) { Text("取消") } },
+    )
+}
+
+@Composable
+private fun EntryEditDialog(
     entry: Entry,
     categories: List<LedgerCategory>,
     dismiss: () -> Unit,
-    confirm: (LedgerCategory) -> Unit,
+    confirm: (Entry) -> Unit,
 ) {
+    val context = LocalContext.current
     val currentCategory = categories.firstOrNull { it.name == entry.category }
     var selected by remember(entry.id, entry.category) { mutableStateOf(currentCategory) }
+    var amount by remember(entry.id) { mutableStateOf(entry.amount.toString()) }
+    var date by remember(entry.id) { mutableLongStateOf(entry.date) }
+    var note by remember(entry.id) { mutableStateOf(entry.note) }
+    var invalid by remember(entry.id) { mutableStateOf(false) }
+    val dateInteractionSource = remember { MutableInteractionSource() }
+    val changed = selected?.name != entry.category || amount.toDoubleOrNull() != entry.amount ||
+        date != entry.date || note.trim() != entry.note
+
     AlertDialog(
         onDismissRequest = dismiss,
-        title = { Text("修改交易分类") },
+        title = { Text("修改账单") },
         text = {
-            Column {
-                Text("该交易仍为${entry.kind}，只修改所属分类", fontSize = 13.sp, color = Muted)
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                Text("账单类型固定为${entry.kind}", fontSize = 13.sp, color = Muted)
                 Spacer(Modifier.height(14.dp))
+                Text("分类", fontWeight = FontWeight.Medium, color = Ink)
+                Spacer(Modifier.height(8.dp))
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(4),
-                    modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 210.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
@@ -728,13 +891,89 @@ private fun EntryCategoryDialog(
                         )
                     }
                 }
+                Spacer(Modifier.height(14.dp))
+                OutlinedTextField(
+                    value = amount,
+                    onValueChange = {
+                        if (validAmountInput(it)) amount = it
+                        invalid = false
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("金额") },
+                    prefix = { Text("¥ ") },
+                    isError = invalid,
+                    supportingText = if (invalid) ({ Text("请输入大于 0 的金额") }) else null,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true,
+                    shape = RoundedCornerShape(14.dp),
+                )
+                Spacer(Modifier.height(14.dp))
+                Box(
+                    Modifier.fillMaxWidth().clickable(
+                        interactionSource = dateInteractionSource,
+                        indication = null,
+                    ) { pickDate(context, date) { date = it } },
+                ) {
+                    OutlinedTextField(
+                        value = day(date),
+                        onValueChange = {},
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = false,
+                        label = { Text("日期") },
+                        trailingIcon = { Text("选择") },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            disabledTextColor = Ink,
+                            disabledBorderColor = Color(0xFFB9BBC0),
+                            disabledLabelColor = Muted,
+                            disabledTrailingIconColor = Ink,
+                            disabledContainerColor = Color.Transparent,
+                        ),
+                    )
+                }
+                Spacer(Modifier.height(14.dp))
+                OutlinedTextField(
+                    value = note,
+                    onValueChange = { if (it.length <= 100) note = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("备注") },
+                    maxLines = 3,
+                    shape = RoundedCornerShape(14.dp),
+                )
             }
         },
         confirmButton = {
             TextButton(
-                onClick = { confirm(selected!!) },
-                enabled = selected != null && selected!!.name != entry.category,
+                onClick = {
+                    val value = amount.toDoubleOrNull()
+                    if (value == null || value <= 0) invalid = true
+                    else if (isDateAfterToday(date)) {
+                        Toast.makeText(context, "不能添加晚于今天的账单", Toast.LENGTH_SHORT).show()
+                    }
+                    else confirm(entry.copy(category = selected!!.name, amount = value, date = date, note = note.trim()))
+                },
+                enabled = selected != null && changed,
             ) { Text("保存") }
+        },
+        dismissButton = { TextButton(dismiss) { Text("取消") } },
+    )
+}
+
+@Composable
+private fun DeleteEntryDialog(entry: Entry, dismiss: () -> Unit, confirm: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = dismiss,
+        title = { Text("确认删除账单？") },
+        text = {
+            Text(
+                "将删除${day(entry.date)}的${entry.category}账单，金额为¥${money(entry.amount)}。删除后无法恢复。",
+                color = Muted,
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = confirm,
+                colors = ButtonDefaults.textButtonColors(contentColor = Danger),
+            ) { Text("删除") }
         },
         dismissButton = { TextButton(dismiss) { Text("取消") } },
     )
@@ -768,14 +1007,18 @@ private fun AddScreen(
     incomeCategories: List<LedgerCategory>,
     initialDate: Long,
     onNewCategory: (String, LedgerCategory) -> Unit,
+    onEditCategoryIcon: (String, LedgerCategory, LedgerCategory) -> Unit,
     onSave: (Entry) -> Unit,
 ) {
     var kind by remember { mutableStateOf("支出") }
     var selected by remember { mutableStateOf<LedgerCategory?>(null) }
     var amount by remember { mutableStateOf("") }
     var date by remember(initialDate) { mutableLongStateOf(initialDate) }
+    var note by remember { mutableStateOf("") }
     var showDialog by remember { mutableStateOf(false) }
     var invalid by remember { mutableStateOf(false) }
+    var categoryActionTarget by remember { mutableStateOf<CategoryEditTarget?>(null) }
+    var editingIconTarget by remember { mutableStateOf<CategoryEditTarget?>(null) }
     val categories = if (kind == "支出") expenseCategories else incomeCategories
     val selectedCategory = selected
 
@@ -788,9 +1031,11 @@ private fun AddScreen(
                 kind = "支出"
                 amount = ""
                 date = initialDate
+                note = ""
                 invalid = false
                 selected = it
             },
+            onCategoryLongPressed = { categoryActionTarget = CategoryEditTarget("支出", it) },
             onAdd = {
                 kind = "支出"
                 showDialog = true
@@ -805,9 +1050,11 @@ private fun AddScreen(
                 kind = "收入"
                 amount = ""
                 date = initialDate
+                note = ""
                 invalid = false
                 selected = it
             },
+            onCategoryLongPressed = { categoryActionTarget = CategoryEditTarget("收入", it) },
             onAdd = {
                 kind = "收入"
                 showDialog = true
@@ -823,6 +1070,7 @@ private fun AddScreen(
                 onNewCategory(kind, it)
                 amount = ""
                 date = initialDate
+                note = ""
                 invalid = false
                 selected = it
                 showDialog = false
@@ -835,21 +1083,48 @@ private fun AddScreen(
             category = selectedCategory,
             amount = amount,
             date = date,
+            note = note,
             invalid = invalid,
             onAmountChange = {
                 if (validAmountInput(it)) amount = it
                 invalid = false
             },
             onDateSelected = { date = it },
+            onNoteChange = { if (it.length <= 100) note = it },
             onInvalidAmount = { invalid = true },
             onDismiss = {
                 selected = null
                 amount = ""
                 date = initialDate
+                note = ""
                 invalid = false
             },
             onSave = { value ->
-                onSave(Entry(UUID.randomUUID().toString(), kind, selectedCategory.name, value, date))
+                onSave(Entry(UUID.randomUUID().toString(), kind, selectedCategory.name, value, date, note.trim()))
+            },
+        )
+    }
+    categoryActionTarget?.let { target ->
+        CategoryIconActionDialog(
+            category = target.category,
+            dismiss = { categoryActionTarget = null },
+            onEditIcon = {
+                categoryActionTarget = null
+                editingIconTarget = target
+            },
+        )
+    }
+    editingIconTarget?.let { target ->
+        val targetCategories = if (target.kind == "支出") expenseCategories else incomeCategories
+        CategoryDialog(
+            kind = target.kind,
+            existing = targetCategories.filterNot { it == target.category }.map { it.name },
+            initial = target.category,
+            lockName = true,
+            dismiss = { editingIconTarget = null },
+            confirm = { updated ->
+                onEditCategoryIcon(target.kind, target.category, updated)
+                editingIconTarget = null
             },
         )
     }
@@ -861,6 +1136,7 @@ private fun CategorySelectionSection(
     categories: List<LedgerCategory>,
     modifier: Modifier = Modifier,
     onCategorySelected: (LedgerCategory) -> Unit,
+    onCategoryLongPressed: (LedgerCategory) -> Unit,
     onAdd: () -> Unit,
 ) {
     Column(modifier.fillMaxWidth()) {
@@ -874,7 +1150,13 @@ private fun CategorySelectionSection(
         ) {
             items(categories.size) { index ->
                 val category = categories[index]
-                CategoryCard(category.name, category.symbol, false) { onCategorySelected(category) }
+                CategoryCard(
+                    label = category.name,
+                    symbol = category.symbol,
+                    active = false,
+                    click = { onCategorySelected(category) },
+                    longClick = { onCategoryLongPressed(category) },
+                )
             }
             item { CategoryCard("添加", "+", false, onAdd) }
         }
@@ -887,9 +1169,11 @@ private fun EntryInputDialog(
     category: LedgerCategory,
     amount: String,
     date: Long,
+    note: String,
     invalid: Boolean,
     onAmountChange: (String) -> Unit,
     onDateSelected: (Long) -> Unit,
+    onNoteChange: (String) -> Unit,
     onInvalidAmount: () -> Unit,
     onDismiss: () -> Unit,
     onSave: (Double) -> Unit,
@@ -943,6 +1227,15 @@ private fun EntryInputDialog(
                         ),
                     )
                 }
+                Spacer(Modifier.height(14.dp))
+                OutlinedTextField(
+                    value = note,
+                    onValueChange = onNoteChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("备注") },
+                    maxLines = 3,
+                    shape = RoundedCornerShape(14.dp),
+                )
                 Spacer(Modifier.height(24.dp))
                 Button(
                     onClick = {
@@ -963,10 +1256,44 @@ private fun EntryInputDialog(
 }
 
 @Composable
-private fun CategoryCard(label: String, symbol: String, active: Boolean, click: () -> Unit) {
+private fun CategoryIconActionDialog(
+    category: LedgerCategory,
+    dismiss: () -> Unit,
+    onEditIcon: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = dismiss,
+        title = { Text("${category.symbol}  ${category.name}") },
+        text = {
+            CategoryActionItem(
+                symbol = "✎",
+                title = "修改图标",
+                subtitle = "为该类型选择新的图标",
+                onClick = onEditIcon,
+            )
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(dismiss) { Text("取消") } },
+    )
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun CategoryCard(
+    label: String,
+    symbol: String,
+    active: Boolean,
+    click: () -> Unit,
+    longClick: (() -> Unit)? = null,
+) {
     val interactionSource = remember { MutableInteractionSource() }
     Card(
-        Modifier.fillMaxWidth().height(96.dp).clickable(interactionSource = interactionSource, indication = null, onClick = click),
+        Modifier.fillMaxWidth().height(96.dp).combinedClickable(
+            interactionSource = interactionSource,
+            indication = null,
+            onClick = click,
+            onLongClick = longClick,
+        ),
         colors = CardDefaults.cardColors(containerColor = if (active) Yellow else Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         shape = RoundedCornerShape(16.dp),
@@ -1000,7 +1327,7 @@ private fun CategoryDialog(
         onDismissRequest = dismiss,
         title = {
             Text(
-                if (lockName) "修改未分类图标"
+                if (lockName) "修改${kind}类型图标"
                 else "${if (initial == null) "添加" else "修改"}${kind}类型"
             )
         },
@@ -1124,5 +1451,9 @@ internal fun updateSingleEntryCategory(
 ) = entries.map { entry ->
     if (entry.id == entryId) entry.copy(category = updatedCategory) else entry
 }
+internal fun updateEntry(entries: List<Entry>, updatedEntry: Entry) = entries.map { entry ->
+    if (entry.id == updatedEntry.id) updatedEntry else entry
+}
+internal fun deleteEntry(entries: List<Entry>, entryId: String) = entries.filterNot { it.id == entryId }
 private fun money(value: Double) = String.format(Locale.getDefault(), "%.2f", value)
 private fun day(value: Long) = SimpleDateFormat("yyyy年MM月dd日", Locale.CHINA).format(Date(value))

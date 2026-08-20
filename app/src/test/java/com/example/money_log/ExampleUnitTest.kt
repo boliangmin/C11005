@@ -84,6 +84,26 @@ class ExampleUnitTest {
     }
 
     @Test
+    fun updateEntry_replacesAllEditableFieldsAndPreservesOtherEntries() {
+        val target = Entry("1", "支出", "交通", 12.0, 1L, "原备注")
+        val other = Entry("2", "收入", "工资", 20.0, 2L, "保留")
+        val updated = target.copy(category = "餐饮", amount = 18.5, date = 3L, note = "新备注")
+
+        val result = updateEntry(listOf(target, other), updated)
+
+        assertEquals(listOf(updated, other), result)
+    }
+
+    @Test
+    fun deleteEntry_removesOnlyTheMatchingEntry() {
+        val target = Entry("1", "支出", "餐饮", 12.0, 1L, "删除")
+        val other = Entry("2", "支出", "住房", 20.0, 2L, "保留")
+
+        assertEquals(listOf(other), deleteEntry(listOf(target, other), target.id))
+        assertEquals(listOf(target, other), deleteEntry(listOf(target, other), "missing"))
+    }
+
+    @Test
     fun initialDateForNewEntry_usesFirstDayOfMostRecentlySavedEntryMonth() {
         val augustEntry = Entry("1", "支出", "餐饮", 20.0, timestamp(2026, Calendar.AUGUST, 15))
         val mostRecentlySavedJulyEntry = Entry("2", "支出", "交通", 30.0, timestamp(2026, Calendar.JULY, 8))
