@@ -357,12 +357,7 @@ private fun DetailsScreen(
     var deleteEntryRequest by remember { mutableStateOf<Entry?>(null) }
     var revealedEntryId by remember { mutableStateOf<String?>(null) }
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
-        Box(
-            Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 20.dp, vertical = 18.dp),
-            contentAlignment = Alignment.CenterStart,
-        ) {
-            Text("明细账单", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Ink)
-        }
+        DetailsFeatureBar()
         if (entries.isEmpty()) {
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -442,6 +437,54 @@ private fun DetailsScreen(
 }
 
 @Composable
+private fun DetailsFeatureBar() {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        DetailsFeatureItem(Modifier.weight(1f), R.drawable.ic_bill_outline, "账单", selected = true)
+        DetailsFeatureItem(Modifier.weight(1f), R.drawable.ic_ledger_outline, "账本")
+        DetailsFeatureItem(Modifier.weight(1f), R.drawable.ic_statistics_outline, "统计")
+        DetailsFeatureItem(Modifier.weight(1f), R.drawable.ic_more_outline, "更多")
+    }
+}
+
+@Composable
+private fun DetailsFeatureItem(
+    modifier: Modifier,
+    iconResource: Int,
+    label: String,
+    selected: Boolean = false,
+) {
+    Column(
+        modifier = modifier.padding(vertical = 2.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(
+            modifier = Modifier.size(38.dp).background(
+                color = if (selected) Color(0xFFFFF1B8) else Color.White,
+                shape = CircleShape,
+            ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painter = painterResource(iconResource),
+                contentDescription = label,
+                modifier = Modifier.size(21.dp),
+                tint = if (selected) Color(0xFF8A6A20) else Ink,
+            )
+        }
+        Spacer(Modifier.height(3.dp))
+        Text(
+            label,
+            color = if (selected) Ink else Muted,
+            fontSize = 12.sp,
+            fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
+        )
+    }
+}
+
+@Composable
 private fun BottomBar(
     selected: AppPage,
     onDetails: () -> Unit,
@@ -466,12 +509,6 @@ private fun MoreScreen(
     onTrash: () -> Unit,
 ) {
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
-        Box(
-            Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 20.dp, vertical = 18.dp),
-            contentAlignment = Alignment.CenterStart,
-        ) {
-            Text("更多", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Ink)
-        }
         Column(Modifier.weight(1f).padding(16.dp)) {
             MoreMenuItem(
                 symbol = "▦",
