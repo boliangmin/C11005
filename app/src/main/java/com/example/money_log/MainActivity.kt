@@ -778,38 +778,55 @@ private fun AddScreen(
     var invalid by remember { mutableStateOf(false) }
     val dateInteractionSource = remember { MutableInteractionSource() }
     val categories = if (kind == "支出") expenseCategories else incomeCategories
+    val selectedCategory = selected
 
-    BackHandler(enabled = selected != null) {
+    BackHandler(enabled = selectedCategory != null) {
         selected = null
         amount = ""
+        date = initialDate
         invalid = false
     }
 
-    Column(Modifier.fillMaxSize().statusBarsPadding()) {
-        Text("${kind}分类", Modifier.padding(start = 20.dp, top = 20.dp, bottom = 10.dp), color = Muted)
-        val rowCount = (categories.size + 4) / 4
-        val visibleRows = rowCount.coerceAtMost(4)
-        val gridHeight = (visibleRows * 96 + (visibleRows - 1) * 10).dp
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(4),
-            modifier = Modifier.fillMaxWidth().height(gridHeight),
-            contentPadding = PaddingValues(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            items(categories.size) { index ->
-                val category = categories[index]
-                CategoryCard(category.name, category.symbol, selected == category) { selected = category }
-            }
-            item { CategoryCard("添加", "+", false) { showDialog = true } }
+    if (selectedCategory == null) {
+        Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
+            CategorySelectionSection(
+                title = "支出分类",
+                categories = expenseCategories,
+                modifier = Modifier.weight(2f),
+                onCategorySelected = {
+                    kind = "支出"
+                    amount = ""
+                    date = initialDate
+                    invalid = false
+                    selected = it
+                },
+                onAdd = {
+                    kind = "支出"
+                    showDialog = true
+                },
+            )
+            HorizontalDivider(color = Color(0xFFD6D6D8))
+            CategorySelectionSection(
+                title = "收入分类",
+                categories = incomeCategories,
+                modifier = Modifier.weight(1f),
+                onCategorySelected = {
+                    kind = "收入"
+                    amount = ""
+                    date = initialDate
+                    invalid = false
+                    selected = it
+                },
+                onAdd = {
+                    kind = "收入"
+                    showDialog = true
+                },
+            )
         }
-        if (selected == null) {
-            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                Text("请选择一个${kind}类型", color = Muted)
-            }
-        } else {
+    } else {
+        Column(Modifier.fillMaxSize().statusBarsPadding()) {
             Column(Modifier.weight(1f).padding(20.dp)) {
-                Text("${selected!!.symbol}  ${selected!!.name}", fontSize = 21.sp, fontWeight = FontWeight.Bold)
+                Text("${selectedCategory.symbol}  ${selectedCategory.name}", fontSize = 21.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(22.dp))
                 OutlinedTextField(
                     value = amount,
@@ -852,26 +869,12 @@ private fun AddScreen(
                     else if (isDateAfterToday(date)) {
                         Toast.makeText(context, "不能添加晚于今天的账单", Toast.LENGTH_SHORT).show()
                     }
-                    else onSave(Entry(UUID.randomUUID().toString(), kind, selected!!.name, value, date))
+                    else onSave(Entry(UUID.randomUUID().toString(), kind, selectedCategory.name, value, date))
                 },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp).height(56.dp),
+                modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp).height(56.dp),
                 shape = RoundedCornerShape(18.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Yellow, contentColor = Ink),
             ) { Text("完成记账", fontSize = 18.sp, fontWeight = FontWeight.Bold) }
-        }
-        TabRow(
-            selectedTabIndex = if (kind == "支出") 0 else 1,
-            modifier = Modifier.navigationBarsPadding(),
-            containerColor = Color.White,
-            contentColor = Ink,
-        ) {
-            listOf("支出", "收入").forEach { option ->
-                Tab(
-                    selected = kind == option,
-                    onClick = { kind = option; selected = null; invalid = false },
-                    text = { Text(option, fontSize = 18.sp, fontWeight = if (kind == option) FontWeight.Bold else FontWeight.Normal) },
-                )
-            }
         }
     }
     if (showDialog) {
@@ -879,8 +882,41 @@ private fun AddScreen(
             kind = kind,
             existing = categories.map { it.name },
             dismiss = { showDialog = false },
-            confirm = { onNewCategory(kind, it); selected = it; showDialog = false },
+            confirm = {
+                onNewCategory(kind, it)
+                amount = ""
+                date = initialDate
+                invalid = false
+                selected = it
+                showDialog = false
+            },
         )
+    }
+}
+
+@Composable
+private fun CategorySelectionSection(
+    title: String,
+    categories: List<LedgerCategory>,
+    modifier: Modifier = Modifier,
+    onCategorySelected: (LedgerCategory) -> Unit,
+    onAdd: () -> Unit,
+) {
+    Column(modifier.fillMaxWidth()) {
+        Text(title, Modifier.padding(start = 20.dp, top = 16.dp, bottom = 10.dp), color = Muted)
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(4),
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            items(categories.size) { index ->
+                val category = categories[index]
+                CategoryCard(category.name, category.symbol, false) { onCategorySelected(category) }
+            }
+            item { CategoryCard("添加", "+", false, onAdd) }
+        }
     }
 }
 
