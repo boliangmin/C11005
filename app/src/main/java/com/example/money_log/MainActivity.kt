@@ -55,7 +55,7 @@ private val Muted = Color(0xFF777A81)
 private val IncomeGreen = Color(0xFF2E8B57)
 private val Danger = Color(0xFFC43D3D)
 
-private enum class AppPage { DETAILS, ADD, MORE, CATEGORIES }
+private enum class AppPage { DETAILS, ADD, MORE, CATEGORIES, TRASH }
 private const val UncategorizedName = "未分类"
 private const val UncategorizedIcon = "⭕"
 
@@ -68,6 +68,7 @@ data class Entry(
     val note: String = "",
 )
 data class LedgerCategory(val name: String, val symbol: String)
+internal data class EntryTransferResult(val activeEntries: List<Entry>, val trashEntries: List<Entry>)
 private data class CategoryEditTarget(val kind: String, val category: LedgerCategory)
 private data class CategoryDeleteRequest(val target: CategoryEditTarget, val isFinalConfirmation: Boolean = false)
 
@@ -138,8 +139,8 @@ private class Store(context: Context) {
         }
         p.edit().putString(key, categories.toString()).apply()
     }
-    fun entries() = runCatching {
-        val a = JSONArray(p.getString("entries", null)!!)
+    private fun readEntries(key: String) = runCatching {
+        val a = JSONArray(p.getString(key, null)!!)
         List(a.length()) {
             val o = a.getJSONObject(it)
             Entry(
@@ -152,7 +153,8 @@ private class Store(context: Context) {
             )
         }
     }.getOrDefault(emptyList())
-    fun saveEntries(value: List<Entry>) {
+
+    private fun entryListJson(value: List<Entry>): String {
         val a = JSONArray()
         value.forEach { e ->
             a.put(JSONObject().apply {
@@ -164,7 +166,21 @@ private class Store(context: Context) {
                 put("note", e.note)
             })
         }
-        p.edit().putString("entries", a.toString()).apply()
+        return a.toString()
+    }
+
+    private fun saveEntryList(key: String, value: List<Entry>) =
+        p.edit().putString(key, entryListJson(value)).apply()
+
+    fun entries() = readEntries("entries")
+    fun saveEntries(value: List<Entry>) = saveEntryList("entries", value)
+    fun trashEntries() = readEntries("trashEntries")
+    fun saveTrashEntries(value: List<Entry>) = saveEntryList("trashEntries", value)
+    fun saveEntryCollections(activeEntries: List<Entry>, trashEntries: List<Entry>) {
+        p.edit()
+            .putString("entries", entryListJson(activeEntries))
+            .putString("trashEntries", entryListJson(trashEntries))
+            .apply()
     }
 }
 
@@ -184,6 +200,7 @@ private fun LedgerApp() {
     val expenses = remember { mutableStateListOf<LedgerCategory>().apply { addAll(store.categories("支出")) } }
     val incomes = remember { mutableStateListOf<LedgerCategory>().apply { addAll(store.categories("收入")) } }
     val entries = remember { mutableStateListOf<Entry>().apply { addAll(store.entries()) } }
+    val trashEntries = remember { mutableStateListOf<Entry>().apply { addAll(store.trashEntries()) } }
     var page by remember { mutableStateOf(AppPage.DETAILS) }
     var addReturnPage by remember { mutableStateOf(AppPage.DETAILS) }
     var addInitialDate by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -192,6 +209,7 @@ private fun LedgerApp() {
         page = when (page) {
             AppPage.ADD -> addReturnPage
             AppPage.CATEGORIES -> AppPage.MORE
+            AppPage.TRASH -> AppPage.MORE
             AppPage.MORE -> AppPage.DETAILS
             AppPage.DETAILS -> AppPage.DETAILS
         }
@@ -216,10 +234,12 @@ private fun LedgerApp() {
                     store.saveEntries(entries)
                 },
                 onDeleteEntry = { entry ->
-                    val updatedEntries = deleteEntry(entries, entry.id)
+                    val result = moveEntryToTrash(entries, trashEntries, entry.id)
                     entries.clear()
-                    entries.addAll(updatedEntries)
-                    store.saveEntries(entries)
+                    entries.addAll(result.activeEntries)
+                    trashEntries.clear()
+                    trashEntries.addAll(result.trashEntries)
+                    store.saveEntryCollections(entries, trashEntries)
                 },
             )
             AppPage.ADD -> AddScreen(
@@ -253,6 +273,7 @@ private fun LedgerApp() {
                     page = AppPage.ADD
                 },
                 onViewCategories = { page = AppPage.CATEGORIES },
+                onTrash = { page = AppPage.TRASH },
             )
             AppPage.CATEGORIES -> CategoryOverviewScreen(
                 expenseCategories = expenses,
@@ -268,20 +289,48 @@ private fun LedgerApp() {
                         target[categoryIndex] = safeUpdated
                         store.saveCategories(kind, target)
                         val updatedEntries = updateEntriesCategory(entries, kind, current.name, safeUpdated.name)
+                        val updatedTrashEntries = updateEntriesCategory(trashEntries, kind, current.name, safeUpdated.name)
                         entries.clear()
                         entries.addAll(updatedEntries)
+                        trashEntries.clear()
+                        trashEntries.addAll(updatedTrashEntries)
                         store.saveEntries(entries)
+                        store.saveTrashEntries(trashEntries)
                     }
                 },
                 onDeleteCategory = { kind, category ->
                     val target = if (kind == "支出") expenses else incomes
                     if (category.name != UncategorizedName && target.remove(category)) {
                         val updatedEntries = updateEntriesCategory(entries, kind, category.name, UncategorizedName)
+                        val updatedTrashEntries = updateEntriesCategory(trashEntries, kind, category.name, UncategorizedName)
                         entries.clear()
                         entries.addAll(updatedEntries)
+                        trashEntries.clear()
+                        trashEntries.addAll(updatedTrashEntries)
                         store.saveCategories(kind, target)
                         store.saveEntries(entries)
+                        store.saveTrashEntries(trashEntries)
                     }
+                },
+            )
+            AppPage.TRASH -> RecycleBinScreen(
+                entries = trashEntries,
+                expenseCategories = expenses,
+                incomeCategories = incomes,
+                onBack = { page = AppPage.MORE },
+                onRestore = { entry ->
+                    val result = restoreEntryFromTrash(entries, trashEntries, entry.id)
+                    entries.clear()
+                    entries.addAll(result.activeEntries)
+                    trashEntries.clear()
+                    trashEntries.addAll(result.trashEntries)
+                    store.saveEntryCollections(entries, trashEntries)
+                },
+                onDeletePermanently = { entry ->
+                    val updatedTrash = deleteEntry(trashEntries, entry.id)
+                    trashEntries.clear()
+                    trashEntries.addAll(updatedTrash)
+                    store.saveTrashEntries(trashEntries)
                 },
             )
         }
@@ -405,7 +454,12 @@ private fun BottomBar(
 }
 
 @Composable
-private fun MoreScreen(onDetails: () -> Unit, onAdd: () -> Unit, onViewCategories: () -> Unit) {
+private fun MoreScreen(
+    onDetails: () -> Unit,
+    onAdd: () -> Unit,
+    onViewCategories: () -> Unit,
+    onTrash: () -> Unit,
+) {
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
         Box(
             Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 20.dp, vertical = 18.dp),
@@ -419,6 +473,13 @@ private fun MoreScreen(onDetails: () -> Unit, onAdd: () -> Unit, onViewCategorie
                 title = "查看分类",
                 subtitle = "查看已添加的支出与收入类型",
                 onClick = onViewCategories,
+            )
+            Spacer(Modifier.height(12.dp))
+            MoreMenuItem(
+                symbol = "♲",
+                title = "回收站",
+                subtitle = "恢复或彻底删除已删除的账单",
+                onClick = onTrash,
             )
         }
         BottomBar(
@@ -452,6 +513,134 @@ private fun MoreMenuItem(symbol: String, title: String, subtitle: String, onClic
         }
         Text("›", fontSize = 28.sp, color = Muted)
     }
+}
+
+@Composable
+private fun RecycleBinScreen(
+    entries: List<Entry>,
+    expenseCategories: List<LedgerCategory>,
+    incomeCategories: List<LedgerCategory>,
+    onBack: () -> Unit,
+    onRestore: (Entry) -> Unit,
+    onDeletePermanently: (Entry) -> Unit,
+) {
+    var permanentDeleteRequest by remember { mutableStateOf<Entry?>(null) }
+
+    Column(Modifier.fillMaxSize().statusBarsPadding()) {
+        Row(
+            Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(onBack) { Text("返回", color = Ink, fontSize = 17.sp) }
+            Text("回收站", Modifier.weight(1f), textAlign = TextAlign.Center, fontSize = 21.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.width(64.dp))
+        }
+        if (entries.isEmpty()) {
+            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("♲", fontSize = 52.sp, color = Muted)
+                    Spacer(Modifier.height(8.dp))
+                    Text("回收站为空", fontSize = 18.sp, color = Muted)
+                }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp),
+                contentPadding = PaddingValues(vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                items(entries.asReversed(), key = { it.id }) { entry ->
+                    val categories = if (entry.kind == "收入") incomeCategories else expenseCategories
+                    val symbol = categories.firstOrNull { it.name == entry.category }?.symbol
+                        ?: defaultIcon(entry.category)
+                    RecycleBinEntryCard(
+                        entry = entry,
+                        symbol = symbol,
+                        onRestore = { onRestore(entry) },
+                        onDeletePermanently = { permanentDeleteRequest = entry },
+                    )
+                }
+            }
+        }
+    }
+    permanentDeleteRequest?.let { entry ->
+        PermanentlyDeleteEntryDialog(
+            entry = entry,
+            dismiss = { permanentDeleteRequest = null },
+            confirm = {
+                onDeletePermanently(entry)
+                permanentDeleteRequest = null
+            },
+        )
+    }
+}
+
+@Composable
+private fun RecycleBinEntryCard(
+    entry: Entry,
+    symbol: String,
+    onRestore: () -> Unit,
+    onDeletePermanently: () -> Unit,
+) {
+    val income = entry.kind == "收入"
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        shape = RoundedCornerShape(16.dp),
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier.size(46.dp).background(if (income) Color(0xFFE4F4E9) else Color(0xFFFFF4C8), CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) { Text(symbol, fontSize = 23.sp) }
+                Column(Modifier.weight(1f).padding(start = 14.dp)) {
+                    Text(entry.category, fontSize = 17.sp, fontWeight = FontWeight.Medium)
+                    Text("${entry.kind} · ${day(entry.date)}", fontSize = 13.sp, color = Muted)
+                    if (entry.note.isNotBlank()) {
+                        Text(entry.note, fontSize = 12.sp, color = Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+                Text(
+                    "${if (income) "+" else "−"}¥${money(entry.amount)}",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (income) IncomeGreen else Ink,
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onDeletePermanently) { Text("彻底删除", color = Danger) }
+                Spacer(Modifier.width(8.dp))
+                TextButton(
+                    onClick = onRestore,
+                    colors = ButtonDefaults.textButtonColors(contentColor = Ink),
+                ) { Text("恢复") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PermanentlyDeleteEntryDialog(entry: Entry, dismiss: () -> Unit, confirm: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = dismiss,
+        title = { Text("彻底删除账单？") },
+        text = {
+            Text(
+                "将永久删除${day(entry.date)}的${entry.category}账单，删除后无法恢复。",
+                color = Muted,
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = confirm,
+                colors = ButtonDefaults.textButtonColors(contentColor = Danger),
+            ) { Text("彻底删除") }
+        },
+        dismissButton = { TextButton(dismiss) { Text("取消") } },
+    )
 }
 
 @Composable
@@ -758,13 +947,13 @@ private fun EntryCard(
     var horizontalOffset by remember(entry.id) { mutableFloatStateOf(0f) }
 
     LaunchedEffect(revealed, maximumReveal) {
-        horizontalOffset = if (revealed) maximumReveal else 0f
+        horizontalOffset = if (revealed) -maximumReveal else 0f
     }
 
     Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))) {
         Box(
-            modifier = Modifier.matchParentSize().background(Danger),
-            contentAlignment = Alignment.CenterStart,
+            modifier = Modifier.matchParentSize().background(Color(0xFFFFFAFA)),
+            contentAlignment = Alignment.CenterEnd,
         ) {
             Box(
                 modifier = Modifier.fillMaxHeight().width(72.dp).clickable(
@@ -773,7 +962,12 @@ private fun EntryCard(
                     onClick = onDeleteClick,
                 ),
                 contentAlignment = Alignment.Center,
-            ) { Text("🗑️", fontSize = 24.sp) }
+            ) {
+                Box(
+                    Modifier.size(42.dp).background(Color(0xFFFFE8E8), CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) { Text("×", fontSize = 28.sp, color = Danger) }
+            }
         }
         Card(
             modifier = Modifier
@@ -782,15 +976,15 @@ private fun EntryCard(
                 .pointerInput(entry.id, maximumReveal) {
                     detectHorizontalDragGestures(
                         onHorizontalDrag = { _, dragAmount ->
-                            horizontalOffset = (horizontalOffset + dragAmount).coerceIn(0f, maximumReveal)
+                            horizontalOffset = (horizontalOffset + dragAmount).coerceIn(-maximumReveal, 0f)
                         },
                         onDragEnd = {
-                            val shouldReveal = horizontalOffset >= maximumReveal / 2f
-                            horizontalOffset = if (shouldReveal) maximumReveal else 0f
+                            val shouldReveal = horizontalOffset <= -maximumReveal / 2f
+                            horizontalOffset = if (shouldReveal) -maximumReveal else 0f
                             onRevealChange(shouldReveal)
                         },
                         onDragCancel = {
-                            horizontalOffset = if (revealed) maximumReveal else 0f
+                            horizontalOffset = if (revealed) -maximumReveal else 0f
                         },
                     )
                 }
@@ -965,7 +1159,7 @@ private fun DeleteEntryDialog(entry: Entry, dismiss: () -> Unit, confirm: () -> 
         title = { Text("确认删除账单？") },
         text = {
             Text(
-                "将删除${day(entry.date)}的${entry.category}账单，金额为¥${money(entry.amount)}。删除后无法恢复。",
+                "将删除${day(entry.date)}的${entry.category}账单，金额为¥${money(entry.amount)}。删除后可在回收站恢复。",
                 color = Muted,
             )
         },
@@ -1455,5 +1649,25 @@ internal fun updateEntry(entries: List<Entry>, updatedEntry: Entry) = entries.ma
     if (entry.id == updatedEntry.id) updatedEntry else entry
 }
 internal fun deleteEntry(entries: List<Entry>, entryId: String) = entries.filterNot { it.id == entryId }
+internal fun moveEntryToTrash(
+    activeEntries: List<Entry>,
+    trashEntries: List<Entry>,
+    entryId: String,
+): EntryTransferResult {
+    val entry = activeEntries.firstOrNull { it.id == entryId }
+        ?: return EntryTransferResult(activeEntries, trashEntries)
+    val updatedTrash = if (trashEntries.any { it.id == entry.id }) trashEntries else trashEntries + entry
+    return EntryTransferResult(deleteEntry(activeEntries, entryId), updatedTrash)
+}
+internal fun restoreEntryFromTrash(
+    activeEntries: List<Entry>,
+    trashEntries: List<Entry>,
+    entryId: String,
+): EntryTransferResult {
+    val entry = trashEntries.firstOrNull { it.id == entryId }
+        ?: return EntryTransferResult(activeEntries, trashEntries)
+    val updatedActive = if (activeEntries.any { it.id == entry.id }) activeEntries else activeEntries + entry
+    return EntryTransferResult(updatedActive, deleteEntry(trashEntries, entryId))
+}
 private fun money(value: Double) = String.format(Locale.getDefault(), "%.2f", value)
 private fun day(value: Long) = SimpleDateFormat("yyyy年MM月dd日", Locale.CHINA).format(Date(value))

@@ -104,6 +104,29 @@ class ExampleUnitTest {
     }
 
     @Test
+    fun moveEntryToTrash_movesTheWholeEntryWithoutChangingOtherRecords() {
+        val target = Entry("1", "支出", "餐饮", 12.0, 1L, "保留备注")
+        val other = Entry("2", "收入", "工资", 20.0, 2L)
+        val existingTrash = Entry("3", "支出", "住房", 30.0, 3L)
+
+        val result = moveEntryToTrash(listOf(target, other), listOf(existingTrash), target.id)
+
+        assertEquals(listOf(other), result.activeEntries)
+        assertEquals(listOf(existingTrash, target), result.trashEntries)
+    }
+
+    @Test
+    fun restoreEntryFromTrash_movesTheWholeEntryBackToActiveRecords() {
+        val active = Entry("1", "支出", "餐饮", 12.0, 1L)
+        val trashed = Entry("2", "收入", "工资", 20.0, 2L, "待恢复")
+
+        val result = restoreEntryFromTrash(listOf(active), listOf(trashed), trashed.id)
+
+        assertEquals(listOf(active, trashed), result.activeEntries)
+        assertTrue(result.trashEntries.isEmpty())
+    }
+
+    @Test
     fun initialDateForNewEntry_usesFirstDayOfMostRecentlySavedEntryMonth() {
         val augustEntry = Entry("1", "支出", "餐饮", 20.0, timestamp(2026, Calendar.AUGUST, 15))
         val mostRecentlySavedJulyEntry = Entry("2", "支出", "交通", 30.0, timestamp(2026, Calendar.JULY, 8))
