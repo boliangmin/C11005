@@ -156,6 +156,7 @@ private fun LedgerApp() {
     val entries = remember { mutableStateListOf<Entry>().apply { addAll(store.entries()) } }
     var page by remember { mutableStateOf(AppPage.DETAILS) }
     var addReturnPage by remember { mutableStateOf(AppPage.DETAILS) }
+    var addInitialDate by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
     BackHandler(enabled = page != AppPage.DETAILS) {
         page = when (page) {
@@ -172,7 +173,11 @@ private fun LedgerApp() {
                 entries = entries,
                 expenseCategories = expenses,
                 incomeCategories = incomes,
-                onAdd = { addReturnPage = AppPage.DETAILS; page = AppPage.ADD },
+                onAdd = {
+                    addReturnPage = AppPage.DETAILS
+                    addInitialDate = initialDateForNewEntry(entries)
+                    page = AppPage.ADD
+                },
                 onMore = { page = AppPage.MORE },
                 onEditEntryCategory = { entry, category ->
                     val updatedEntries = updateSingleEntryCategory(entries, entry.id, category.name)
@@ -184,6 +189,7 @@ private fun LedgerApp() {
             AppPage.ADD -> AddScreen(
                 expenseCategories = expenses,
                 incomeCategories = incomes,
+                initialDate = addInitialDate,
                 onBack = { page = addReturnPage },
                 onNewCategory = { kind, category ->
                     val target = if (kind == "支出") expenses else incomes
@@ -198,7 +204,11 @@ private fun LedgerApp() {
             )
             AppPage.MORE -> MoreScreen(
                 onDetails = { page = AppPage.DETAILS },
-                onAdd = { addReturnPage = AppPage.MORE; page = AppPage.ADD },
+                onAdd = {
+                    addReturnPage = AppPage.MORE
+                    addInitialDate = initialDateForNewEntry(entries)
+                    page = AppPage.ADD
+                },
                 onViewCategories = { page = AppPage.CATEGORIES },
             )
             AppPage.CATEGORIES -> CategoryOverviewScreen(
@@ -755,6 +765,7 @@ private fun EntryCategoryChoice(
 private fun AddScreen(
     expenseCategories: List<LedgerCategory>,
     incomeCategories: List<LedgerCategory>,
+    initialDate: Long,
     onBack: () -> Unit,
     onNewCategory: (String, LedgerCategory) -> Unit,
     onSave: (Entry) -> Unit,
@@ -763,7 +774,7 @@ private fun AddScreen(
     var kind by remember { mutableStateOf("支出") }
     var selected by remember { mutableStateOf<LedgerCategory?>(null) }
     var amount by remember { mutableStateOf("") }
-    var date by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var date by remember(initialDate) { mutableLongStateOf(initialDate) }
     var showDialog by remember { mutableStateOf(false) }
     var invalid by remember { mutableStateOf(false) }
     val dateInteractionSource = remember { MutableInteractionSource() }
@@ -970,6 +981,17 @@ private fun validAmountInput(value: String): Boolean {
     if (value.any { !it.isDigit() && it != '.' } || value.count { it == '.' } > 1) return false
     val parts = value.split('.')
     return parts[0].length <= 9 && (parts.size == 1 || parts[1].length <= 2)
+}
+internal fun initialDateForNewEntry(entries: List<Entry>, currentTime: Long = System.currentTimeMillis()): Long {
+    val previousEntryDate = entries.lastOrNull()?.date ?: return currentTime
+    return Calendar.getInstance().apply {
+        timeInMillis = previousEntryDate
+        set(Calendar.DAY_OF_MONTH, 1)
+        set(Calendar.HOUR_OF_DAY, 12)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
 }
 private fun pickDate(context: Context, millis: Long, selected: (Long) -> Unit) {
     val c = Calendar.getInstance().apply { timeInMillis = millis }
