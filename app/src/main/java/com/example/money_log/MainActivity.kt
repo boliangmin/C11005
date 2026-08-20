@@ -56,6 +56,9 @@ private val Muted = Color(0xFF777A81)
 private val IncomeGreen = Color(0xFF2E8B57)
 private val Danger = Color(0xFFC43D3D)
 private val NoteAccent = Color(0xFF8A6A20)
+private val DeleteActionBackground = Color(0xFFFFF8F3)
+private val DeleteIconBackground = Color(0xFFFFE5D8)
+private val DeleteIconColor = Color(0xFFB65A45)
 
 private enum class AppPage { DETAILS, ADD, MORE, CATEGORIES, TRASH }
 private const val UncategorizedName = "未分类"
@@ -954,7 +957,7 @@ private fun EntryCard(
 
     Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))) {
         Box(
-            modifier = Modifier.matchParentSize().background(Color(0xFFFFFAFA)),
+            modifier = Modifier.matchParentSize().background(DeleteActionBackground),
             contentAlignment = Alignment.CenterEnd,
         ) {
             Box(
@@ -966,14 +969,14 @@ private fun EntryCard(
                 contentAlignment = Alignment.Center,
             ) {
                 Box(
-                    Modifier.size(42.dp).background(Color(0xFFFFE8E8), CircleShape),
+                    Modifier.size(44.dp).background(DeleteIconBackground, CircleShape),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        painter = painterResource(R.drawable.ic_remove_circle_outline),
+                        painter = painterResource(R.drawable.ic_delete_bin_outline),
                         contentDescription = "删除账单",
-                        modifier = Modifier.size(25.dp),
-                        tint = Danger,
+                        modifier = Modifier.size(27.dp),
+                        tint = DeleteIconColor,
                     )
                 }
             }
