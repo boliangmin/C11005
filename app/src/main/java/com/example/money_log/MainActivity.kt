@@ -478,8 +478,10 @@ private fun DetailsFeatureItem(
         Text(
             label,
             color = if (selected) Ink else Muted,
-            fontSize = 12.sp,
+            fontSize = 10.sp,
             fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
+            lineHeight = 12.sp,
+            maxLines = 1,
         )
     }
 }
@@ -969,7 +971,14 @@ private fun BottomItem(
             contentAlignment = Alignment.Center,
         ) { Text(symbol, fontSize = if (center) 32.sp else 24.sp, color = Ink) }
         Spacer(Modifier.height(2.dp))
-        Text(label, color = if (selected) Ink else Muted, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
+        Text(
+            label,
+            color = if (selected) Ink else Muted,
+            fontSize = 12.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+            lineHeight = 14.sp,
+            maxLines = 1,
+        )
     }
 }
 
