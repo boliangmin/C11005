@@ -55,9 +55,6 @@ private val Ink = Color(0xFF2D3037)
 private val IncomeAmountGreen = Color(0xFF57B881)
 private val Muted = Color(0xFF777A81)
 private val Danger = Color(0xFFC43D3D)
-private val DeleteActionBackground = Color(0xFFFFF8F3)
-private val DeleteIconBackground = Color(0xFFFFE5D8)
-private val DeleteIconColor = Color(0xFFB65A45)
 
 internal enum class ColorTheme(
     val storageKey: String,
@@ -1416,7 +1413,7 @@ private fun EntryCard(
 
     Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))) {
         Box(
-            modifier = Modifier.matchParentSize().background(DeleteActionBackground),
+            modifier = Modifier.matchParentSize().background(colorTheme.subtleAccent),
             contentAlignment = Alignment.CenterEnd,
         ) {
             Box(
@@ -1428,14 +1425,14 @@ private fun EntryCard(
                 contentAlignment = Alignment.Center,
             ) {
                 Box(
-                    Modifier.size(44.dp).background(DeleteIconBackground, CircleShape),
+                    Modifier.size(44.dp).background(colorTheme.softAccent, CircleShape),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
                         painter = painterResource(R.drawable.ic_delete_bin_outline),
                         contentDescription = "删除账单",
                         modifier = Modifier.size(27.dp),
-                        tint = DeleteIconColor,
+                        tint = colorTheme.accentDark,
                     )
                 }
             }
