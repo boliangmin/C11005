@@ -1424,17 +1424,12 @@ private fun EntryCard(
                 ),
                 contentAlignment = Alignment.Center,
             ) {
-                Box(
-                    Modifier.size(44.dp).background(colorTheme.softAccent, CircleShape),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_delete_bin_outline),
-                        contentDescription = "删除账单",
-                        modifier = Modifier.size(27.dp),
-                        tint = colorTheme.accentDark,
-                    )
-                }
+                Icon(
+                    painter = painterResource(R.drawable.ic_delete_bin_outline),
+                    contentDescription = "删除账单",
+                    modifier = Modifier.size(27.dp),
+                    tint = colorTheme.accentDark,
+                )
             }
         }
         Card(
