@@ -10,6 +10,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -55,7 +56,7 @@ private val Ink = Color(0xFF2D3037)
 private val IncomeAmountGreen = Color(0xFF57B881)
 private val Muted = Color(0xFF777A81)
 private val Danger = Color(0xFFC43D3D)
-private val NeutralIconBackground = Color(0xFFF0F0F0)
+private val NeutralIconBorder = Color(0xFFE5E5E5)
 
 internal enum class ColorTheme(
     val storageKey: String,
@@ -1464,7 +1465,10 @@ private fun EntryCard(
         ) {
             Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(
-                    Modifier.size(46.dp).background(NeutralIconBackground, CircleShape),
+                    Modifier
+                        .size(46.dp)
+                        .background(Color.White, CircleShape)
+                        .border(0.5.dp, NeutralIconBorder, CircleShape),
                     contentAlignment = Alignment.Center,
                 ) { Text(symbol, fontSize = 28.sp) }
                 Column(Modifier.weight(1f).padding(start = 14.dp)) {
