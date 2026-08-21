@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.example.money_log.ui.theme.Money_LogTheme
 import org.json.JSONArray
 import org.json.JSONObject
@@ -327,8 +328,9 @@ private fun LedgerApp(
     }
 
     Surface(Modifier.fillMaxSize(), color = Bg) {
-        when (page) {
-            AppPage.DETAILS -> DetailsScreen(
+        Box(Modifier.fillMaxSize()) {
+            when (page) {
+            AppPage.DETAILS, AppPage.ADD -> DetailsScreen(
                 entries = entries,
                 expenseCategories = expenses,
                 incomeCategories = incomes,
@@ -357,29 +359,6 @@ private fun LedgerApp(
                     trashEntries.clear()
                     trashEntries.addAll(result.trashEntries)
                     store.saveEntryCollections(entries, trashEntries)
-                },
-            )
-            AppPage.ADD -> AddScreen(
-                expenseCategories = expenses,
-                incomeCategories = incomes,
-                initialDate = addInitialDate,
-                onNewCategory = { kind, category ->
-                    val target = if (kind == "支出") expenses else incomes
-                    target.add(category)
-                    store.saveCategories(kind, target)
-                },
-                onEditCategoryIcon = { kind, current, updated ->
-                    val target = if (kind == "支出") expenses else incomes
-                    val categoryIndex = target.indexOf(current)
-                    if (categoryIndex >= 0) {
-                        target[categoryIndex] = updated.copy(name = current.name)
-                        store.saveCategories(kind, target)
-                    }
-                },
-                onSave = {
-                    entries.add(it)
-                    store.saveEntries(entries)
-                    page = AppPage.DETAILS
                 },
             )
             AppPage.MORE -> MoreScreen(
@@ -453,6 +432,33 @@ private fun LedgerApp(
                 selectedTheme = selectedColorTheme,
                 onThemeSelected = onColorThemeSelected,
             )
+            }
+            if (page == AppPage.ADD) {
+                AddScreen(
+                    expenseCategories = expenses,
+                    incomeCategories = incomes,
+                    initialDate = addInitialDate,
+                    onDismiss = { page = addReturnPage },
+                    onNewCategory = { kind, category ->
+                        val target = if (kind == "支出") expenses else incomes
+                        target.add(category)
+                        store.saveCategories(kind, target)
+                    },
+                    onEditCategoryIcon = { kind, current, updated ->
+                        val target = if (kind == "支出") expenses else incomes
+                        val categoryIndex = target.indexOf(current)
+                        if (categoryIndex >= 0) {
+                            target[categoryIndex] = updated.copy(name = current.name)
+                            store.saveCategories(kind, target)
+                        }
+                    },
+                    onSave = {
+                        entries.add(it)
+                        store.saveEntries(entries)
+                        page = AppPage.DETAILS
+                    },
+                )
+            }
         }
     }
 }
@@ -1711,6 +1717,7 @@ private fun AddScreen(
     expenseCategories: List<LedgerCategory>,
     incomeCategories: List<LedgerCategory>,
     initialDate: Long,
+    onDismiss: () -> Unit,
     onNewCategory: (String, LedgerCategory) -> Unit,
     onEditCategoryIcon: (String, LedgerCategory, LedgerCategory) -> Unit,
     onSave: (Entry) -> Unit,
@@ -1727,44 +1734,56 @@ private fun AddScreen(
     val categories = if (kind == "支出") expenseCategories else incomeCategories
     val selectedCategory = selected
 
-    Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
-        CategorySelectionSection(
-            title = "支出分类",
-            categories = expenseCategories,
-            modifier = Modifier.weight(1f),
-            onCategorySelected = {
-                kind = "支出"
-                amount = ""
-                date = initialDate
-                note = ""
-                invalid = false
-                selected = it
-            },
-            onCategoryLongPressed = { categoryActionTarget = CategoryEditTarget("支出", it) },
-            onAdd = {
-                kind = "支出"
-                showDialog = true
-            },
-        )
-        HorizontalDivider(color = Color(0xFFD6D6D8))
-        CategorySelectionSection(
-            title = "收入分类",
-            categories = incomeCategories,
-            modifier = Modifier.weight(1f),
-            onCategorySelected = {
-                kind = "收入"
-                amount = ""
-                date = initialDate
-                note = ""
-                invalid = false
-                selected = it
-            },
-            onCategoryLongPressed = { categoryActionTarget = CategoryEditTarget("收入", it) },
-            onAdd = {
-                kind = "收入"
-                showDialog = true
-            },
-        )
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(0.92f).fillMaxHeight(0.9f),
+            shape = RoundedCornerShape(28.dp),
+            color = Bg,
+            shadowElevation = 12.dp,
+        ) {
+            Column(Modifier.fillMaxSize()) {
+                CategorySelectionSection(
+                    title = "支出分类",
+                    categories = expenseCategories,
+                    modifier = Modifier.weight(1f),
+                    onCategorySelected = {
+                        kind = "支出"
+                        amount = ""
+                        date = initialDate
+                        note = ""
+                        invalid = false
+                        selected = it
+                    },
+                    onCategoryLongPressed = { categoryActionTarget = CategoryEditTarget("支出", it) },
+                    onAdd = {
+                        kind = "支出"
+                        showDialog = true
+                    },
+                )
+                HorizontalDivider(color = Color(0xFFD6D6D8))
+                CategorySelectionSection(
+                    title = "收入分类",
+                    categories = incomeCategories,
+                    modifier = Modifier.weight(1f),
+                    onCategorySelected = {
+                        kind = "收入"
+                        amount = ""
+                        date = initialDate
+                        note = ""
+                        invalid = false
+                        selected = it
+                    },
+                    onCategoryLongPressed = { categoryActionTarget = CategoryEditTarget("收入", it) },
+                    onAdd = {
+                        kind = "收入"
+                        showDialog = true
+                    },
+                )
+            }
+        }
     }
     if (showDialog) {
         CategoryDialog(
