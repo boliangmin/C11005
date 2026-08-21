@@ -678,9 +678,10 @@ private fun BillOptionsDialog(
         title = { Text("账单选项") },
         text = {
             CategoryActionItem(
-                symbol = "月",
+                symbol = "",
                 title = "查看月份",
                 subtitle = "当前：$currentMonth",
+                iconResource = R.drawable.ic_calendar_month_outline,
                 onClick = onViewMonth,
             )
         },
@@ -1090,6 +1091,7 @@ private fun CategoryActionItem(
     symbol: String,
     title: String,
     subtitle: String,
+    iconResource: Int? = null,
     destructive: Boolean = false,
     onClick: () -> Unit,
 ) {
@@ -1107,7 +1109,18 @@ private fun CategoryActionItem(
         Box(
             Modifier.size(42.dp).background(if (destructive) Color(0xFFFFE8E8) else colorTheme.softAccent, CircleShape),
             contentAlignment = Alignment.Center,
-        ) { Text(symbol, fontSize = 22.sp, color = contentColor) }
+        ) {
+            if (iconResource == null) {
+                Text(symbol, fontSize = 22.sp, color = contentColor)
+            } else {
+                Icon(
+                    painter = painterResource(iconResource),
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp),
+                    tint = contentColor,
+                )
+            }
+        }
         Column(Modifier.weight(1f).padding(start = 14.dp)) {
             Text(title, fontSize = 17.sp, fontWeight = FontWeight.Medium, color = contentColor)
             Text(subtitle, fontSize = 13.sp, color = Muted)
