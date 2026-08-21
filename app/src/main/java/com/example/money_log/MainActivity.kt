@@ -174,9 +174,11 @@ private val legacyDefaultIcons = mapOf(
     UncategorizedName to UncategorizedIcon,
 )
 
-internal fun ensureUncategorizedCategory(categories: List<LedgerCategory>): List<LedgerCategory> =
-    if (categories.any { it.name == UncategorizedName }) categories
-    else categories + LedgerCategory(UncategorizedName, UncategorizedIcon)
+internal fun ensureUncategorizedCategory(categories: List<LedgerCategory>): List<LedgerCategory> {
+    val uncategorized = categories.firstOrNull { it.name == UncategorizedName }
+        ?: LedgerCategory(UncategorizedName, UncategorizedIcon)
+    return categories.filterNot { it.name == UncategorizedName } + uncategorized
+}
 
 private class Store(context: Context) {
     private val p = context.getSharedPreferences("ledger", Context.MODE_PRIVATE)
@@ -375,8 +377,10 @@ private fun LedgerApp(
                 incomeCategories = incomes,
                 onNewCategory = { kind, category ->
                     val target = if (kind == "支出") expenses else incomes
-                    target.add(category)
-                    store.saveCategories(kind, target)
+                    val updatedCategories = ensureUncategorizedCategory(target + category)
+                    target.clear()
+                    target.addAll(updatedCategories)
+                    store.saveCategories(kind, updatedCategories)
                 },
                 onEditCategory = { kind, current, updated ->
                     val target = if (kind == "支出") expenses else incomes

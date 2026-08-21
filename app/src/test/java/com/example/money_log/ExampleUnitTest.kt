@@ -40,13 +40,29 @@ class ExampleUnitTest {
     }
 
     @Test
-    fun ensureUncategorizedCategory_addsItOnceAndPreservesItsIcon() {
+    fun ensureUncategorizedCategory_addsItOncePreservesItsIconAndMovesItLast() {
         val added = ensureUncategorizedCategory(listOf(LedgerCategory("餐饮", "🍜")))
         assertEquals(2, added.size)
         assertEquals(LedgerCategory("未分类", "⭕"), added.last())
 
         val customized = listOf(LedgerCategory("未分类", "⭐"))
         assertEquals(customized, ensureUncategorizedCategory(customized))
+
+        val reordered = ensureUncategorizedCategory(
+            listOf(
+                LedgerCategory("餐饮", "🍜"),
+                LedgerCategory("未分类", "⭐"),
+                LedgerCategory("交通", "🚇"),
+            ),
+        )
+        assertEquals(
+            listOf(
+                LedgerCategory("餐饮", "🍜"),
+                LedgerCategory("交通", "🚇"),
+                LedgerCategory("未分类", "⭐"),
+            ),
+            reordered,
+        )
     }
 
     @Test
