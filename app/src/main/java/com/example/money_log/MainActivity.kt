@@ -1852,16 +1852,16 @@ private fun CategorySelectionSection(
     Column(modifier.fillMaxWidth()) {
         Text(
             title,
-            Modifier.padding(start = 12.dp, top = 10.dp, bottom = 8.dp),
+            Modifier.padding(start = 20.dp, top = 10.dp, bottom = 8.dp),
             color = Muted,
             fontSize = 14.sp,
         )
         LazyVerticalGrid(
             columns = GridCells.Fixed(4),
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 10.dp, end = 10.dp, bottom = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(20.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             items(categories.size) { index ->
                 val category = categories[index]
@@ -2014,20 +2014,20 @@ private fun CategoryCard(
             ),
         colors = CardDefaults.cardColors(containerColor = if (active) colorTheme.accent else Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(10.dp),
     ) {
         Column(
             Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            Text(symbol, fontSize = 32.sp)
+            Text(symbol, fontSize = 25.sp)
             Spacer(Modifier.height(1.dp))
             Text(
                 label,
                 color = if (active) colorTheme.onAccent else Ink,
                 fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
-                fontSize = 11.sp,
+                fontSize = 9.sp,
                 maxLines = 1,
             )
         }
