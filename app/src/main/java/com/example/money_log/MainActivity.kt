@@ -366,7 +366,6 @@ private fun LedgerApp(
                 },
             )
             AppPage.MORE -> MoreScreen(
-                selectedColorTheme = selectedColorTheme,
                 onManageCategories = { page = AppPage.CATEGORIES },
                 onTheme = { page = AppPage.THEME },
                 onTrash = { page = AppPage.TRASH },
@@ -960,7 +959,6 @@ private fun FilterNumberPicker(
 
 @Composable
 private fun MoreScreen(
-    selectedColorTheme: ColorTheme,
     onManageCategories: () -> Unit,
     onTheme: () -> Unit,
     onTrash: () -> Unit,
@@ -970,7 +968,6 @@ private fun MoreScreen(
             MoreMenuItem(
                 symbol = "",
                 title = "类型管理",
-                subtitle = "管理已添加的支出与收入类型",
                 iconResource = R.drawable.ic_category_manage_outline,
                 onClick = onManageCategories,
             )
@@ -978,14 +975,12 @@ private fun MoreScreen(
             MoreMenuItem(
                 symbol = "◐",
                 title = "主题",
-                subtitle = "当前：${selectedColorTheme.title}",
                 onClick = onTheme,
             )
             Spacer(Modifier.height(12.dp))
             MoreMenuItem(
                 symbol = "♲",
                 title = "回收站",
-                subtitle = "恢复或彻底删除已删除的账单",
                 onClick = onTrash,
             )
         }
@@ -996,7 +991,6 @@ private fun MoreScreen(
 private fun MoreMenuItem(
     symbol: String,
     title: String,
-    subtitle: String,
     iconResource: Int? = null,
     onClick: () -> Unit,
 ) {
@@ -1025,11 +1019,13 @@ private fun MoreMenuItem(
                 )
             }
         }
-        Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
-            Text(title, fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Ink)
-            Spacer(Modifier.height(3.dp))
-            Text(subtitle, fontSize = 13.sp, color = Muted)
-        }
+        Text(
+            title,
+            modifier = Modifier.weight(1f).padding(horizontal = 14.dp),
+            fontSize = 17.sp,
+            fontWeight = FontWeight.Medium,
+            color = Ink,
+        )
         Text("›", fontSize = 28.sp, color = Muted)
     }
 }
