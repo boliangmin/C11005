@@ -13,6 +13,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -311,6 +312,8 @@ private fun LedgerApp(
     var page by remember { mutableStateOf(AppPage.DETAILS) }
     var addReturnPage by remember { mutableStateOf(AppPage.DETAILS) }
     var addInitialDate by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var addButtonXFraction by remember { mutableFloatStateOf(1f) }
+    var addButtonYFraction by remember { mutableFloatStateOf(1f) }
 
     BackHandler(enabled = page != AppPage.DETAILS) {
         page = when (page) {
@@ -335,6 +338,12 @@ private fun LedgerApp(
                     page = AppPage.ADD
                 },
                 onMore = { page = AppPage.MORE },
+                addButtonXFraction = addButtonXFraction,
+                addButtonYFraction = addButtonYFraction,
+                onAddButtonPositionChange = { xFraction, yFraction ->
+                    addButtonXFraction = xFraction
+                    addButtonYFraction = yFraction
+                },
                 onUpdateEntry = { updatedEntry ->
                     val updatedEntries = updateEntry(entries, updatedEntry)
                     entries.clear()
@@ -375,12 +384,7 @@ private fun LedgerApp(
             )
             AppPage.MORE -> MoreScreen(
                 selectedColorTheme = selectedColorTheme,
-                onDetails = { page = AppPage.DETAILS },
-                onAdd = {
-                    addReturnPage = AppPage.MORE
-                    addInitialDate = initialDateForNewEntry(entries)
-                    page = AppPage.ADD
-                },
+                onBack = { page = AppPage.DETAILS },
                 onViewCategories = { page = AppPage.CATEGORIES },
                 onTheme = { page = AppPage.THEME },
                 onTrash = { page = AppPage.TRASH },
@@ -459,6 +463,9 @@ private fun DetailsScreen(
     incomeCategories: List<LedgerCategory>,
     onAdd: () -> Unit,
     onMore: () -> Unit,
+    addButtonXFraction: Float,
+    addButtonYFraction: Float,
+    onAddButtonPositionChange: (Float, Float) -> Unit,
     onUpdateEntry: (Entry) -> Unit,
     onDeleteEntry: (Entry) -> Unit,
 ) {
@@ -486,62 +493,117 @@ private fun DetailsScreen(
     LaunchedEffect(entryFilter) {
         listState.scrollToItem(0)
     }
-    Column(Modifier.fillMaxSize().statusBarsPadding()) {
-        DetailsFeatureBar(onBillLongClick = { showBillOptions = true })
-        if (entries.isEmpty()) {
-            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("🧾", fontSize = 52.sp)
-                    Spacer(Modifier.height(8.dp))
-                    Text("还没有账目", fontSize = 18.sp, color = Muted)
-                    Text("点击底部“记账”添加第一笔记录", color = Color(0xFFAAADB3))
-                }
-            }
-        } else if (visibleEntries.isEmpty()) {
-            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("🗓️", fontSize = 48.sp)
-                    Spacer(Modifier.height(8.dp))
-                    Text("当前筛选暂无账单", fontSize = 18.sp, color = Muted)
-                    Text("长按顶部“账单”调整筛选", color = Color(0xFFAAADB3))
-                }
-            }
-        } else {
-            LazyColumn(
-                Modifier.weight(1f).padding(horizontal = 16.dp),
-                state = listState,
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                contentPadding = PaddingValues(vertical = 12.dp),
-            ) {
-                dayGroups.forEach { dayGroup ->
-                    item(key = "day-${dayGroup.year}-${dayGroup.month}-${dayGroup.day}") {
-                        EntryDayHeader(dayGroup.month, dayGroup.day)
+    val colorTheme = LocalColorTheme.current
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val density = LocalDensity.current
+        val addButtonSize = 52.dp
+        val edgePadding = 20.dp
+        val addButtonSizePx = with(density) { addButtonSize.toPx() }
+        val edgePaddingPx = with(density) { edgePadding.toPx() }
+        val minimumX = edgePaddingPx
+        val maximumX = (constraints.maxWidth - addButtonSizePx - edgePaddingPx).coerceAtLeast(minimumX)
+        val minimumY = WindowInsets.statusBars.getTop(density) + edgePaddingPx
+        val maximumY = (
+            constraints.maxHeight -
+                WindowInsets.navigationBars.getBottom(density) -
+                addButtonSizePx -
+                edgePaddingPx
+            ).coerceAtLeast(minimumY)
+        val addButtonX = minimumX + (maximumX - minimumX) * addButtonXFraction.coerceIn(0f, 1f)
+        val addButtonY = minimumY + (maximumY - minimumY) * addButtonYFraction.coerceIn(0f, 1f)
+        val currentAddButtonX by rememberUpdatedState(addButtonX)
+        val currentAddButtonY by rememberUpdatedState(addButtonY)
+
+        Column(Modifier.fillMaxSize().statusBarsPadding()) {
+            DetailsFeatureBar(
+                onBillLongClick = { showBillOptions = true },
+                onMoreClick = onMore,
+            )
+            if (entries.isEmpty()) {
+                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("🧾", fontSize = 52.sp)
+                        Spacer(Modifier.height(8.dp))
+                        Text("还没有账目", fontSize = 18.sp, color = Muted)
+                        Text("点击右下角“＋”添加第一笔记录", color = Color(0xFFAAADB3))
                     }
-                    items(dayGroup.entries, key = { it.id }) { entry ->
-                        val categories = if (entry.kind == "收入") incomeCategories else expenseCategories
-                        val symbol = categories.firstOrNull { it.name == entry.category }?.symbol
-                            ?: defaultIcon(entry.category)
-                        EntryCard(
-                            entry = entry,
-                            symbol = symbol,
-                            revealed = revealedEntryId == entry.id,
-                            onRevealChange = { reveal -> revealedEntryId = if (reveal) entry.id else null },
-                            onLongClick = {
-                                revealedEntryId = null
-                                actionEntry = entry
-                            },
-                            onDeleteClick = { deleteEntryRequest = entry },
-                        )
+                }
+            } else if (visibleEntries.isEmpty()) {
+                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("🗓️", fontSize = 48.sp)
+                        Spacer(Modifier.height(8.dp))
+                        Text("当前筛选暂无账单", fontSize = 18.sp, color = Muted)
+                        Text("长按顶部“账单”调整筛选", color = Color(0xFFAAADB3))
+                    }
+                }
+            } else {
+                LazyColumn(
+                    Modifier.weight(1f).padding(horizontal = 16.dp),
+                    state = listState,
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    contentPadding = PaddingValues(top = 12.dp, bottom = 92.dp),
+                ) {
+                    dayGroups.forEach { dayGroup ->
+                        item(key = "day-${dayGroup.year}-${dayGroup.month}-${dayGroup.day}") {
+                            EntryDayHeader(dayGroup.month, dayGroup.day)
+                        }
+                        items(dayGroup.entries, key = { it.id }) { entry ->
+                            val categories = if (entry.kind == "收入") incomeCategories else expenseCategories
+                            val symbol = categories.firstOrNull { it.name == entry.category }?.symbol
+                                ?: defaultIcon(entry.category)
+                            EntryCard(
+                                entry = entry,
+                                symbol = symbol,
+                                revealed = revealedEntryId == entry.id,
+                                onRevealChange = { reveal -> revealedEntryId = if (reveal) entry.id else null },
+                                onLongClick = {
+                                    revealedEntryId = null
+                                    actionEntry = entry
+                                },
+                                onDeleteClick = { deleteEntryRequest = entry },
+                            )
+                        }
                     }
                 }
             }
         }
-        BottomBar(
-            selected = AppPage.DETAILS,
-            onDetails = {},
-            onAdd = onAdd,
-            onMore = onMore,
-        )
+        FloatingActionButton(
+            onClick = onAdd,
+            modifier = Modifier
+                .offset { IntOffset(addButtonX.roundToInt(), addButtonY.roundToInt()) }
+                .size(addButtonSize)
+                .pointerInput(minimumX, maximumX, minimumY, maximumY) {
+                    var dragX = currentAddButtonX
+                    var dragY = currentAddButtonY
+                    detectDragGestures(
+                        onDragStart = {
+                            dragX = currentAddButtonX
+                            dragY = currentAddButtonY
+                        },
+                        onDrag = { _, dragAmount ->
+                            dragX = (dragX + dragAmount.x).coerceIn(minimumX, maximumX)
+                            dragY = (dragY + dragAmount.y).coerceIn(minimumY, maximumY)
+                            val xFraction = if (maximumX == minimumX) 0f else {
+                                (dragX - minimumX) / (maximumX - minimumX)
+                            }
+                            val yFraction = if (maximumY == minimumY) 0f else {
+                                (dragY - minimumY) / (maximumY - minimumY)
+                            }
+                            onAddButtonPositionChange(xFraction, yFraction)
+                        },
+                    )
+                },
+            shape = RoundedCornerShape(15.dp),
+            containerColor = colorTheme.softAccent,
+            contentColor = colorTheme.accentDark,
+            elevation = FloatingActionButtonDefaults.elevation(
+                defaultElevation = 5.dp,
+                pressedElevation = 7.dp,
+            ),
+        ) {
+            Text("+", fontSize = 28.sp, fontWeight = FontWeight.Normal)
+        }
     }
     actionEntry?.let { entry ->
         EntryActionDialog(
@@ -615,7 +677,10 @@ private fun EntryDayHeader(month: Int, day: Int) {
 }
 
 @Composable
-private fun DetailsFeatureBar(onBillLongClick: () -> Unit) {
+private fun DetailsFeatureBar(
+    onBillLongClick: () -> Unit,
+    onMoreClick: () -> Unit,
+) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -629,7 +694,12 @@ private fun DetailsFeatureBar(onBillLongClick: () -> Unit) {
         )
         DetailsFeatureItem(Modifier.weight(1f), R.drawable.ic_ledger_outline, "账本")
         DetailsFeatureItem(Modifier.weight(1f), R.drawable.ic_statistics_outline, "统计")
-        DetailsFeatureItem(Modifier.weight(1f), R.drawable.ic_more_outline, "更多")
+        DetailsFeatureItem(
+            Modifier.weight(1f),
+            R.drawable.ic_more_outline,
+            "更多",
+            onClick = onMoreClick,
+        )
     }
 }
 
@@ -640,16 +710,25 @@ private fun DetailsFeatureItem(
     iconResource: Int,
     label: String,
     selected: Boolean = false,
+    onClick: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
 ) {
     val colorTheme = LocalColorTheme.current
     val interactionSource = remember { MutableInteractionSource() }
-    val gestureModifier = if (onLongClick == null) Modifier else Modifier.combinedClickable(
-        interactionSource = interactionSource,
-        indication = null,
-        onClick = {},
-        onLongClick = onLongClick,
-    )
+    val gestureModifier = when {
+        onLongClick != null -> Modifier.combinedClickable(
+            interactionSource = interactionSource,
+            indication = null,
+            onClick = { onClick?.invoke() },
+            onLongClick = onLongClick,
+        )
+        onClick != null -> Modifier.clickable(
+            interactionSource = interactionSource,
+            indication = null,
+            onClick = onClick,
+        )
+        else -> Modifier
+    }
     Column(
         modifier = modifier.then(gestureModifier).padding(vertical = 2.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -874,32 +953,29 @@ private fun FilterNumberPicker(
 }
 
 @Composable
-private fun BottomBar(
-    selected: AppPage,
-    onDetails: () -> Unit,
-    onAdd: () -> Unit,
-    onMore: () -> Unit,
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth().navigationBarsPadding().height(92.dp).background(Color.White),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        BottomItem(Modifier.weight(1f), "▤", "明细", selected = selected == AppPage.DETAILS, onClick = onDetails)
-        BottomItem(Modifier.weight(1f), "+", "记账", center = true, onClick = onAdd)
-        BottomItem(Modifier.weight(1f), "☰", "更多", selected = selected == AppPage.MORE, onClick = onMore)
-    }
-}
-
-@Composable
 private fun MoreScreen(
     selectedColorTheme: ColorTheme,
-    onDetails: () -> Unit,
-    onAdd: () -> Unit,
+    onBack: () -> Unit,
     onViewCategories: () -> Unit,
     onTheme: () -> Unit,
     onTrash: () -> Unit,
 ) {
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
+        Row(
+            Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(onClick = onBack) { Text("返回", color = Ink, fontSize = 17.sp) }
+            Text(
+                "更多",
+                modifier = Modifier.weight(1f),
+                textAlign = TextAlign.Center,
+                fontSize = 21.sp,
+                fontWeight = FontWeight.Bold,
+                color = Ink,
+            )
+            Spacer(Modifier.width(64.dp))
+        }
         Column(Modifier.weight(1f).padding(16.dp)) {
             MoreMenuItem(
                 symbol = "▦",
@@ -922,12 +998,6 @@ private fun MoreScreen(
                 onClick = onTrash,
             )
         }
-        BottomBar(
-            selected = AppPage.MORE,
-            onDetails = onDetails,
-            onAdd = onAdd,
-            onMore = {},
-        )
     }
 }
 
@@ -1354,45 +1424,6 @@ private fun CategoryOverviewItem(
     }
 }
 
-@Composable
-private fun BottomItem(
-    modifier: Modifier,
-    symbol: String,
-    label: String,
-    selected: Boolean = false,
-    center: Boolean = false,
-    onClick: () -> Unit,
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val colorTheme = LocalColorTheme.current
-    Column(
-        modifier = modifier.fillMaxHeight().clickable(
-            interactionSource = interactionSource,
-            indication = null,
-            onClick = onClick,
-        ),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Box(
-            modifier = Modifier.size(54.dp).background(
-                color = when { center -> colorTheme.accent; selected -> colorTheme.softAccent; else -> Color.Transparent },
-                shape = CircleShape,
-            ),
-            contentAlignment = Alignment.Center,
-        ) { Text(symbol, fontSize = if (center) 32.sp else 24.sp, color = if (center) colorTheme.onAccent else Ink) }
-        Spacer(Modifier.height(2.dp))
-        Text(
-            label,
-            color = if (selected) Ink else Muted,
-            fontSize = 12.sp,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-            lineHeight = 14.sp,
-            maxLines = 1,
-        )
-    }
-}
-
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun EntryCard(
@@ -1468,7 +1499,7 @@ private fun EntryCard(
                     Modifier
                         .size(46.dp)
                         .background(Color.White, CircleShape)
-                        .border(0.5.dp, NeutralIconBorder, CircleShape),
+                        .border(0.2.dp, NeutralIconBorder, CircleShape),
                     contentAlignment = Alignment.Center,
                 ) { Text(symbol, fontSize = 28.sp) }
                 Column(Modifier.weight(1f).padding(start = 14.dp)) {
