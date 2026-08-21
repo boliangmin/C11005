@@ -52,7 +52,6 @@ import kotlin.math.roundToInt
 private val Bg = Color(0xFFF7F7F7)
 private val Ink = Color(0xFF2D3037)
 private val Muted = Color(0xFF777A81)
-private val IncomeGreen = Color(0xFF2E8B57)
 private val Danger = Color(0xFFC43D3D)
 private val DeleteActionBackground = Color(0xFFFFF8F3)
 private val DeleteIconBackground = Color(0xFFFFE5D8)
@@ -768,7 +767,7 @@ private fun RecycleBinEntryCard(
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
-                    Modifier.size(46.dp).background(if (income) Color(0xFFE4F4E9) else LocalColorTheme.current.softAccent, CircleShape),
+                    Modifier.size(46.dp).background(LocalColorTheme.current.softAccent, CircleShape),
                     contentAlignment = Alignment.Center,
                 ) { Text(symbol, fontSize = 23.sp) }
                 Column(Modifier.weight(1f).padding(start = 14.dp)) {
@@ -782,7 +781,7 @@ private fun RecycleBinEntryCard(
                     "${if (income) "+" else "−"}¥${money(entry.amount)}",
                     fontSize = 17.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = if (income) IncomeGreen else Ink,
+                    color = if (income) LocalColorTheme.current.accentDark else Ink,
                 )
             }
             Spacer(Modifier.height(12.dp))
@@ -863,7 +862,7 @@ private fun CategoryOverviewScreen(
                 CategoryOverviewSection(
                     title = "收入类型",
                     categories = incomeCategories,
-                    iconBackground = Color(0xFFE4F4E9),
+                    iconBackground = LocalColorTheme.current.softAccent,
                     onLongClick = { actionTarget = CategoryEditTarget("收入", it) },
                 )
             }
@@ -1193,7 +1192,7 @@ private fun EntryCard(
         ) {
             Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(
-                    Modifier.size(46.dp).background(if (income) Color(0xFFE4F4E9) else colorTheme.softAccent, CircleShape),
+                    Modifier.size(46.dp).background(colorTheme.softAccent, CircleShape),
                     contentAlignment = Alignment.Center,
                 ) { Text(symbol, fontSize = 23.sp) }
                 Column(Modifier.weight(1f).padding(start = 14.dp)) {
@@ -1207,7 +1206,7 @@ private fun EntryCard(
                     "${if (income) "+" else "−"}¥${money(entry.amount)}",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = if (income) IncomeGreen else Ink,
+                    color = if (income) colorTheme.accentDark else Ink,
                 )
             }
         }
