@@ -1463,9 +1463,9 @@ private fun EntryCard(
         ) {
             Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(
-                    Modifier.size(46.dp).background(colorTheme.softAccent, CircleShape),
+                    Modifier.size(46.dp),
                     contentAlignment = Alignment.Center,
-                ) { Text(symbol, fontSize = 23.sp) }
+                ) { Text(symbol, fontSize = 28.sp) }
                 Column(Modifier.weight(1f).padding(start = 14.dp)) {
                     Text(entry.category, fontSize = 17.sp, fontWeight = FontWeight.Medium)
                     if (entry.note.isNotBlank()) {
