@@ -171,4 +171,24 @@ class ExampleUnitTest {
 
         assertEquals(currentTime, initialDateForNewEntry(listOf(futureEntry), currentTime))
     }
+
+    @Test
+    fun groupEntriesByMonth_sortsNewestFirstAndSeparatesTheSameMonthAcrossYears() {
+        val july21 = Entry("1", "支出", "餐饮", 20.0, timestamp(2026, Calendar.JULY, 21))
+        val august2 = Entry("2", "支出", "交通", 30.0, timestamp(2026, Calendar.AUGUST, 2))
+        val july25 = Entry("3", "收入", "工资", 40.0, timestamp(2026, Calendar.JULY, 25))
+        val previousAugust = Entry("4", "支出", "住房", 50.0, timestamp(2025, Calendar.AUGUST, 30))
+
+        val groups = groupEntriesByMonth(listOf(july21, previousAugust, august2, july25))
+
+        assertEquals(listOf(2026 to 8, 2026 to 7, 2025 to 8), groups.map { it.year to it.month })
+        assertEquals(listOf("2"), groups[0].entries.map { it.id })
+        assertEquals(listOf("3", "1"), groups[1].entries.map { it.id })
+        assertEquals(listOf("4"), groups[2].entries.map { it.id })
+    }
+
+    @Test
+    fun shortDay_omitsTheYearAndLeadingZeroes() {
+        assertEquals("7.21", shortDay(timestamp(2026, Calendar.JULY, 21)))
+    }
 }

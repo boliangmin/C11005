@@ -74,6 +74,7 @@ data class Entry(
 )
 data class LedgerCategory(val name: String, val symbol: String)
 internal data class EntryTransferResult(val activeEntries: List<Entry>, val trashEntries: List<Entry>)
+internal data class EntryMonthGroup(val year: Int, val month: Int, val entries: List<Entry>)
 private data class CategoryEditTarget(val kind: String, val category: LedgerCategory)
 private data class CategoryDeleteRequest(val target: CategoryEditTarget, val isFinalConfirmation: Boolean = false)
 
@@ -356,6 +357,7 @@ private fun DetailsScreen(
     var editingEntry by remember { mutableStateOf<Entry?>(null) }
     var deleteEntryRequest by remember { mutableStateOf<Entry?>(null) }
     var revealedEntryId by remember { mutableStateOf<String?>(null) }
+    val monthGroups = remember(entries) { groupEntriesByMonth(entries) }
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
         DetailsFeatureBar()
         if (entries.isEmpty()) {
@@ -373,21 +375,26 @@ private fun DetailsScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
                 contentPadding = PaddingValues(vertical = 12.dp),
             ) {
-                items(entries.sortedByDescending { it.date }, key = { it.id }) { entry ->
-                    val categories = if (entry.kind == "收入") incomeCategories else expenseCategories
-                    val symbol = categories.firstOrNull { it.name == entry.category }?.symbol
-                        ?: defaultIcon(entry.category)
-                    EntryCard(
-                        entry = entry,
-                        symbol = symbol,
-                        revealed = revealedEntryId == entry.id,
-                        onRevealChange = { reveal -> revealedEntryId = if (reveal) entry.id else null },
-                        onLongClick = {
-                            revealedEntryId = null
-                            actionEntry = entry
-                        },
-                        onDeleteClick = { deleteEntryRequest = entry },
-                    )
+                monthGroups.forEach { group ->
+                    item(key = "month-${group.year}-${group.month}") {
+                        EntryMonthHeader(group.month)
+                    }
+                    items(group.entries, key = { it.id }) { entry ->
+                        val categories = if (entry.kind == "收入") incomeCategories else expenseCategories
+                        val symbol = categories.firstOrNull { it.name == entry.category }?.symbol
+                            ?: defaultIcon(entry.category)
+                        EntryCard(
+                            entry = entry,
+                            symbol = symbol,
+                            revealed = revealedEntryId == entry.id,
+                            onRevealChange = { reveal -> revealedEntryId = if (reveal) entry.id else null },
+                            onLongClick = {
+                                revealedEntryId = null
+                                actionEntry = entry
+                            },
+                            onDeleteClick = { deleteEntryRequest = entry },
+                        )
+                    }
                 }
             }
         }
@@ -433,6 +440,18 @@ private fun DetailsScreen(
                 revealedEntryId = null
             },
         )
+    }
+}
+
+@Composable
+private fun EntryMonthHeader(month: Int) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(start = 4.dp, top = 4.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("${month}月份", color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.width(10.dp))
+        HorizontalDivider(Modifier.weight(1f), color = Color(0xFFE1E2E5))
     }
 }
 
@@ -1063,7 +1082,7 @@ private fun EntryCard(
                 ) { Text(symbol, fontSize = 23.sp) }
                 Column(Modifier.weight(1f).padding(start = 14.dp)) {
                     Text(entry.category, fontSize = 17.sp, fontWeight = FontWeight.Medium)
-                    Text("${entry.kind} · ${day(entry.date)}", fontSize = 13.sp, color = Muted)
+                    Text("${entry.kind} · ${shortDay(entry.date)}", fontSize = 13.sp, color = Muted)
                     if (entry.note.isNotBlank()) {
                         Text(entry.note, fontSize = 12.sp, color = NoteAccent, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
@@ -1720,5 +1739,17 @@ internal fun restoreEntryFromTrash(
     val updatedActive = if (activeEntries.any { it.id == entry.id }) activeEntries else activeEntries + entry
     return EntryTransferResult(updatedActive, deleteEntry(trashEntries, entryId))
 }
+internal fun groupEntriesByMonth(entries: List<Entry>): List<EntryMonthGroup> =
+    entries.sortedByDescending { it.date }
+        .groupBy { entry ->
+            Calendar.getInstance().apply { timeInMillis = entry.date }.let { calendar ->
+                calendar[Calendar.YEAR] to calendar[Calendar.MONTH] + 1
+            }
+        }
+        .map { (yearMonth, monthEntries) ->
+            EntryMonthGroup(year = yearMonth.first, month = yearMonth.second, entries = monthEntries)
+        }
+
+internal fun shortDay(value: Long) = SimpleDateFormat("M.d", Locale.CHINA).format(Date(value))
 private fun money(value: Double) = String.format(Locale.getDefault(), "%.2f", value)
 private fun day(value: Long) = SimpleDateFormat("yyyy年MM月dd日", Locale.CHINA).format(Date(value))
