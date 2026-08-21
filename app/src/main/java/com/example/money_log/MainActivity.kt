@@ -439,11 +439,6 @@ private fun LedgerApp(
                     incomeCategories = incomes,
                     initialDate = addInitialDate,
                     onDismiss = { page = addReturnPage },
-                    onNewCategory = { kind, category ->
-                        val target = if (kind == "支出") expenses else incomes
-                        target.add(category)
-                        store.saveCategories(kind, target)
-                    },
                     onEditCategoryIcon = { kind, current, updated ->
                         val target = if (kind == "支出") expenses else incomes
                         val categoryIndex = target.indexOf(current)
@@ -1718,7 +1713,6 @@ private fun AddScreen(
     incomeCategories: List<LedgerCategory>,
     initialDate: Long,
     onDismiss: () -> Unit,
-    onNewCategory: (String, LedgerCategory) -> Unit,
     onEditCategoryIcon: (String, LedgerCategory, LedgerCategory) -> Unit,
     onSave: (Entry) -> Unit,
 ) {
@@ -1727,11 +1721,9 @@ private fun AddScreen(
     var amount by remember { mutableStateOf("") }
     var date by remember(initialDate) { mutableLongStateOf(initialDate) }
     var note by remember { mutableStateOf("") }
-    var showDialog by remember { mutableStateOf(false) }
     var invalid by remember { mutableStateOf(false) }
     var categoryActionTarget by remember { mutableStateOf<CategoryEditTarget?>(null) }
     var editingIconTarget by remember { mutableStateOf<CategoryEditTarget?>(null) }
-    val categories = if (kind == "支出") expenseCategories else incomeCategories
     val selectedCategory = selected
 
     Dialog(
@@ -1758,10 +1750,6 @@ private fun AddScreen(
                         selected = it
                     },
                     onCategoryLongPressed = { categoryActionTarget = CategoryEditTarget("支出", it) },
-                    onAdd = {
-                        kind = "支出"
-                        showDialog = true
-                    },
                 )
                 HorizontalDivider(color = Color(0xFFD6D6D8))
                 CategorySelectionSection(
@@ -1777,25 +1765,9 @@ private fun AddScreen(
                         selected = it
                     },
                     onCategoryLongPressed = { categoryActionTarget = CategoryEditTarget("收入", it) },
-                    onAdd = {
-                        kind = "收入"
-                        showDialog = true
-                    },
                 )
             }
         }
-    }
-    if (showDialog) {
-        CategoryDialog(
-            kind = kind,
-            existing = categories.map { it.name },
-            dismiss = { showDialog = false },
-            confirm = {
-                onNewCategory(kind, it)
-                selected = null
-                showDialog = false
-            },
-        )
     }
     if (selectedCategory != null) {
         EntryInputDialog(
@@ -1857,7 +1829,6 @@ private fun CategorySelectionSection(
     modifier: Modifier = Modifier,
     onCategorySelected: (LedgerCategory) -> Unit,
     onCategoryLongPressed: (LedgerCategory) -> Unit,
-    onAdd: () -> Unit,
 ) {
     Column(modifier.fillMaxWidth()) {
         Text(title, Modifier.padding(start = 20.dp, top = 16.dp, bottom = 10.dp), color = Muted)
@@ -1878,7 +1849,6 @@ private fun CategorySelectionSection(
                     longClick = { onCategoryLongPressed(category) },
                 )
             }
-            item { CategoryCard("添加", "+", false, onAdd) }
         }
     }
 }
