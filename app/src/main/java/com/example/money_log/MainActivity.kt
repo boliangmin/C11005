@@ -493,8 +493,8 @@ private fun DetailsScreen(
         )
     }
     var entryFilter by remember { mutableStateOf(initialFilter) }
-    val visibleEntries = remember(entries, entryFilter) { filterEntries(entries, entryFilter) }
-    val dayGroups = remember(visibleEntries) { groupEntriesByDay(visibleEntries) }
+    val visibleEntries = filterEntries(entries, entryFilter)
+    val dayGroups = groupEntriesByDay(visibleEntries)
     val listState = rememberLazyListState()
 
     LaunchedEffect(entryFilter) {
