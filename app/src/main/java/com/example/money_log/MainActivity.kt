@@ -51,6 +51,7 @@ import kotlin.math.roundToInt
 
 private val Bg = Color(0xFFF7F7F7)
 private val Ink = Color(0xFF2D3037)
+private val IncomeAmountGreen = Color(0xFF57B881)
 private val Muted = Color(0xFF777A81)
 private val Danger = Color(0xFFC43D3D)
 private val DeleteActionBackground = Color(0xFFFFF8F3)
@@ -1206,7 +1207,7 @@ private fun EntryCard(
                     "${if (income) "+" else "−"}¥${money(entry.amount)}",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = if (income) colorTheme.accentDark else Ink,
+                    color = if (income) IncomeAmountGreen else Ink,
                 )
             }
         }
