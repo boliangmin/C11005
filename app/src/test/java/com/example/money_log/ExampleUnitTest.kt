@@ -188,8 +188,19 @@ class ExampleUnitTest {
     }
 
     @Test
-    fun shortDay_omitsTheYearAndLeadingZeroes() {
-        assertEquals("7.21", shortDay(timestamp(2026, Calendar.JULY, 21)))
+    fun groupEntriesByDay_sortsNewestFirstAndCombinesEntriesFromTheSameDate() {
+        val july21Expense = Entry("1", "支出", "餐饮", 20.0, timestamp(2026, Calendar.JULY, 21))
+        val august1 = Entry("2", "支出", "交通", 30.0, timestamp(2026, Calendar.AUGUST, 1))
+        val july21Income = Entry("3", "收入", "工资", 40.0, timestamp(2026, Calendar.JULY, 21))
+        val previousJuly21 = Entry("4", "支出", "住房", 50.0, timestamp(2025, Calendar.JULY, 21))
+
+        val groups = groupEntriesByDay(listOf(july21Expense, previousJuly21, august1, july21Income))
+
+        assertEquals(
+            listOf(Triple(2026, 8, 1), Triple(2026, 7, 21), Triple(2025, 7, 21)),
+            groups.map { Triple(it.year, it.month, it.day) },
+        )
+        assertEquals(listOf("1", "3"), groups[1].entries.map { it.id })
     }
 
     @Test
