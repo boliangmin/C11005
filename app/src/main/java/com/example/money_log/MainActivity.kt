@@ -384,7 +384,6 @@ private fun LedgerApp(
             )
             AppPage.MORE -> MoreScreen(
                 selectedColorTheme = selectedColorTheme,
-                onBack = { page = AppPage.DETAILS },
                 onViewCategories = { page = AppPage.CATEGORIES },
                 onTheme = { page = AppPage.THEME },
                 onTrash = { page = AppPage.TRASH },
@@ -955,27 +954,11 @@ private fun FilterNumberPicker(
 @Composable
 private fun MoreScreen(
     selectedColorTheme: ColorTheme,
-    onBack: () -> Unit,
     onViewCategories: () -> Unit,
     onTheme: () -> Unit,
     onTrash: () -> Unit,
 ) {
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
-        Row(
-            Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            TextButton(onClick = onBack) { Text("返回", color = Ink, fontSize = 17.sp) }
-            Text(
-                "更多",
-                modifier = Modifier.weight(1f),
-                textAlign = TextAlign.Center,
-                fontSize = 21.sp,
-                fontWeight = FontWeight.Bold,
-                color = Ink,
-            )
-            Spacer(Modifier.width(64.dp))
-        }
         Column(Modifier.weight(1f).padding(16.dp)) {
             MoreMenuItem(
                 symbol = "▦",
@@ -1549,6 +1532,7 @@ private fun EntryEditDialog(
     confirm: (Entry) -> Unit,
 ) {
     val context = LocalContext.current
+    val colorTheme = LocalColorTheme.current
     val currentCategory = categories.firstOrNull { it.name == entry.category }
     var selected by remember(entry.id, entry.category) { mutableStateOf(currentCategory) }
     var amount by remember(entry.id) { mutableStateOf(entry.amount.toString()) }
@@ -1602,7 +1586,7 @@ private fun EntryEditDialog(
                     Modifier.fillMaxWidth().clickable(
                         interactionSource = dateInteractionSource,
                         indication = null,
-                    ) { pickDate(context, date) { date = it } },
+                    ) { pickDate(context, date, colorTheme) { date = it } },
                 ) {
                     OutlinedTextField(
                         value = day(date),
@@ -1896,7 +1880,7 @@ private fun EntryInputDialog(
                     Modifier.fillMaxWidth().clickable(
                         interactionSource = dateInteractionSource,
                         indication = null,
-                    ) { pickDate(context, date, selected = onDateSelected) },
+                    ) { pickDate(context, date, colorTheme, selected = onDateSelected) },
                 ) {
                     OutlinedTextField(
                         value = day(date),
@@ -2110,6 +2094,7 @@ internal fun initialDateForNewEntry(entries: List<Entry>, currentTime: Long = Sy
 private fun pickDate(
     context: Context,
     millis: Long,
+    colorTheme: ColorTheme,
     currentTime: Long = System.currentTimeMillis(),
     selected: (Long) -> Unit,
 ) {
@@ -2122,7 +2107,14 @@ private fun pickDate(
         set(Calendar.SECOND, 59)
         set(Calendar.MILLISECOND, 999)
     }.timeInMillis
-    DatePickerDialog(context, { _, y, m, d ->
+    val dialogTheme = when (colorTheme) {
+        ColorTheme.CLASSIC -> R.style.MoneyLogDatePickerClassic
+        ColorTheme.FRESH_GREEN -> R.style.MoneyLogDatePickerFreshGreen
+        ColorTheme.SKY_BLUE -> R.style.MoneyLogDatePickerSkyBlue
+        ColorTheme.SOFT_PURPLE -> R.style.MoneyLogDatePickerSoftPurple
+        ColorTheme.CORAL_ORANGE -> R.style.MoneyLogDatePickerCoralOrange
+    }
+    DatePickerDialog(context, dialogTheme, { _, y, m, d ->
         selected(Calendar.getInstance().apply { set(y, m, d, 12, 0, 0); set(Calendar.MILLISECOND, 0) }.timeInMillis)
     }, c[Calendar.YEAR], c[Calendar.MONTH], c[Calendar.DAY_OF_MONTH]).apply {
         datePicker.maxDate = maximumDate

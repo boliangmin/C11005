@@ -7,4 +7,9 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+    <color name="date_picker_classic">#FF8A6A20</color>
+    <color name="date_picker_fresh_green">#FF2F7653</color>
+    <color name="date_picker_sky_blue">#FF315F9F</color>
+    <color name="date_picker_soft_purple">#FF61469D</color>
+    <color name="date_picker_coral_orange">#FF9D4F3D</color>
 </resources>

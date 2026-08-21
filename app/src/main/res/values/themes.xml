@@ -2,4 +2,24 @@
 <resources>
 
     <style name="Theme.Money_Log" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <style name="MoneyLogDatePickerClassic" parent="android:style/Theme.Material.Light.Dialog.Alert">
+        <item name="android:colorAccent">@color/date_picker_classic</item>
+    </style>
+
+    <style name="MoneyLogDatePickerFreshGreen" parent="android:style/Theme.Material.Light.Dialog.Alert">
+        <item name="android:colorAccent">@color/date_picker_fresh_green</item>
+    </style>
+
+    <style name="MoneyLogDatePickerSkyBlue" parent="android:style/Theme.Material.Light.Dialog.Alert">
+        <item name="android:colorAccent">@color/date_picker_sky_blue</item>
+    </style>
+
+    <style name="MoneyLogDatePickerSoftPurple" parent="android:style/Theme.Material.Light.Dialog.Alert">
+        <item name="android:colorAccent">@color/date_picker_soft_purple</item>
+    </style>
+
+    <style name="MoneyLogDatePickerCoralOrange" parent="android:style/Theme.Material.Light.Dialog.Alert">
+        <item name="android:colorAccent">@color/date_picker_coral_orange</item>
+    </style>
 </resources>
