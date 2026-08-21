@@ -1731,6 +1731,7 @@ private fun AddScreen(
     val selectedCategory = selected
     val initialPagerPage = remember { (Int.MAX_VALUE / 2).let { it - it % 2 } }
     val pagerState = rememberPagerState(initialPage = initialPagerPage) { Int.MAX_VALUE }
+    val colorTheme = LocalColorTheme.current
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -1744,26 +1745,46 @@ private fun AddScreen(
             color = Bg,
             shadowElevation = 12.dp,
         ) {
-            HorizontalPager(
-                state = pagerState,
-                modifier = Modifier.fillMaxSize(),
-            ) { page ->
-                val pageKind = if (page % 2 == 0) "支出" else "收入"
-                val pageCategories = if (pageKind == "支出") expenseCategories else incomeCategories
-                CategorySelectionSection(
-                    title = "${pageKind}分类",
-                    categories = pageCategories,
-                    modifier = Modifier.fillMaxSize(),
-                    onCategorySelected = {
-                        kind = pageKind
-                        amount = ""
-                        date = initialDate
-                        note = ""
-                        invalid = false
-                        selected = it
-                    },
-                    onCategoryLongPressed = { categoryActionTarget = CategoryEditTarget(pageKind, it) },
-                )
+            Column(Modifier.fillMaxSize()) {
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                ) { page ->
+                    val pageKind = if (page % 2 == 0) "支出" else "收入"
+                    val pageCategories = if (pageKind == "支出") expenseCategories else incomeCategories
+                    CategorySelectionSection(
+                        title = "${pageKind}分类",
+                        categories = pageCategories,
+                        modifier = Modifier.fillMaxSize(),
+                        onCategorySelected = {
+                            kind = pageKind
+                            amount = ""
+                            date = initialDate
+                            note = ""
+                            invalid = false
+                            selected = it
+                        },
+                        onCategoryLongPressed = { categoryActionTarget = CategoryEditTarget(pageKind, it) },
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth().height(28.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    repeat(2) { pageIndex ->
+                        Box(
+                            Modifier
+                                .size(7.dp)
+                                .background(
+                                    if (pagerState.currentPage % 2 == pageIndex) colorTheme.accentDark
+                                    else Color(0xFFD0D1D3),
+                                    CircleShape,
+                                ),
+                        )
+                        if (pageIndex == 0) Spacer(Modifier.width(7.dp))
+                    }
+                }
             }
         }
     }
