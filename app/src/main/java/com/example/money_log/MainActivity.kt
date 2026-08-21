@@ -22,6 +22,8 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -1727,6 +1729,8 @@ private fun AddScreen(
     var categoryActionTarget by remember { mutableStateOf<CategoryEditTarget?>(null) }
     var editingIconTarget by remember { mutableStateOf<CategoryEditTarget?>(null) }
     val selectedCategory = selected
+    val initialPagerPage = remember { (Int.MAX_VALUE / 2).let { it - it % 2 } }
+    val pagerState = rememberPagerState(initialPage = initialPagerPage) { Int.MAX_VALUE }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -1740,35 +1744,25 @@ private fun AddScreen(
             color = Bg,
             shadowElevation = 12.dp,
         ) {
-            Column(Modifier.fillMaxSize()) {
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize(),
+            ) { page ->
+                val pageKind = if (page % 2 == 0) "支出" else "收入"
+                val pageCategories = if (pageKind == "支出") expenseCategories else incomeCategories
                 CategorySelectionSection(
-                    title = "支出分类",
-                    categories = expenseCategories,
-                    modifier = Modifier.weight(1f),
+                    title = "${pageKind}分类",
+                    categories = pageCategories,
+                    modifier = Modifier.fillMaxSize(),
                     onCategorySelected = {
-                        kind = "支出"
+                        kind = pageKind
                         amount = ""
                         date = initialDate
                         note = ""
                         invalid = false
                         selected = it
                     },
-                    onCategoryLongPressed = { categoryActionTarget = CategoryEditTarget("支出", it) },
-                )
-                HorizontalDivider(color = Color(0xFFD6D6D8))
-                CategorySelectionSection(
-                    title = "收入分类",
-                    categories = incomeCategories,
-                    modifier = Modifier.weight(1f),
-                    onCategorySelected = {
-                        kind = "收入"
-                        amount = ""
-                        date = initialDate
-                        note = ""
-                        invalid = false
-                        selected = it
-                    },
-                    onCategoryLongPressed = { categoryActionTarget = CategoryEditTarget("收入", it) },
+                    onCategoryLongPressed = { categoryActionTarget = CategoryEditTarget(pageKind, it) },
                 )
             }
         }
@@ -1843,12 +1837,14 @@ private fun CategorySelectionSection(
         )
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val fourColumnCardSize = (maxWidth - 38.dp) / 4
+            val threeColumnCellSize = (maxWidth - 20.dp) / 3
+            val cardGap = threeColumnCellSize - fourColumnCardSize
             LazyVerticalGrid(
                 columns = GridCells.Fixed(3),
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(start = 10.dp, end = 10.dp, bottom = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(0.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(cardGap),
             ) {
                 items(categories.size) { index ->
                     val category = categories[index]
