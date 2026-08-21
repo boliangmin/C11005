@@ -204,15 +204,48 @@ class ExampleUnitTest {
     }
 
     @Test
-    fun filterEntriesByMonth_filtersByYearAndMonthAndSupportsShowingAll() {
+    fun filterEntries_supportsAllAndSpecificMonthModes() {
         val july2026 = Entry("1", "支出", "餐饮", 20.0, timestamp(2026, Calendar.JULY, 21))
         val august2026 = Entry("2", "收入", "工资", 30.0, timestamp(2026, Calendar.AUGUST, 1))
         val july2025 = Entry("3", "支出", "住房", 40.0, timestamp(2025, Calendar.JULY, 21))
         val entries = listOf(july2026, august2026, july2025)
+        val baseFilter = EntryFilter(
+            mode = EntryFilterMode.ALL,
+            year = 2026,
+            month = 7,
+            rangeStart = july2026.date,
+            rangeEnd = august2026.date,
+        )
 
-        assertEquals(entries, filterEntriesByMonth(entries, null))
-        assertEquals(listOf(july2026), filterEntriesByMonth(entries, 2026 to 7))
-        assertEquals(listOf(july2025), filterEntriesByMonth(entries, 2025 to 7))
+        assertEquals(entries, filterEntries(entries, baseFilter))
+        assertEquals(listOf(july2026), filterEntries(entries, baseFilter.copy(mode = EntryFilterMode.MONTH)))
+        assertEquals(
+            listOf(july2025),
+            filterEntries(entries, baseFilter.copy(mode = EntryFilterMode.MONTH, year = 2025)),
+        )
+    }
+
+    @Test
+    fun filterEntries_rangeModeIncludesBothBoundaryDatesAndHandlesReversedInput() {
+        val before = Entry("1", "支出", "餐饮", 10.0, timestamp(2026, Calendar.JULY, 20))
+        val first = Entry("2", "支出", "交通", 20.0, timestamp(2026, Calendar.JULY, 21))
+        val middle = Entry("3", "收入", "工资", 30.0, timestamp(2026, Calendar.AUGUST, 1))
+        val last = Entry("4", "支出", "住房", 40.0, timestamp(2026, Calendar.AUGUST, 12))
+        val after = Entry("5", "支出", "餐饮", 50.0, timestamp(2026, Calendar.AUGUST, 13))
+        val entries = listOf(before, first, middle, last, after)
+        val filter = EntryFilter(
+            mode = EntryFilterMode.RANGE,
+            year = 2026,
+            month = 8,
+            rangeStart = first.date,
+            rangeEnd = last.date,
+        )
+
+        assertEquals(listOf(first, middle, last), filterEntries(entries, filter))
+        assertEquals(
+            listOf(first, middle, last),
+            filterEntries(entries, filter.copy(rangeStart = last.date, rangeEnd = first.date)),
+        )
     }
 
     @Test
