@@ -1857,7 +1857,7 @@ private fun CategorySelectionSection(
             fontSize = 14.sp,
         )
         LazyVerticalGrid(
-            columns = GridCells.Fixed(4),
+            columns = GridCells.Fixed(3),
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(20.dp),
@@ -2014,20 +2014,20 @@ private fun CategoryCard(
             ),
         colors = CardDefaults.cardColors(containerColor = if (active) colorTheme.accent else Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(15.dp),
     ) {
         Column(
             Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            Text(symbol, fontSize = 25.sp)
+            Text(symbol, fontSize = 37.sp)
             Spacer(Modifier.height(1.dp))
             Text(
                 label,
                 color = if (active) colorTheme.onAccent else Ink,
                 fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
-                fontSize = 9.sp,
+                fontSize = 13.sp,
                 maxLines = 1,
             )
         }
