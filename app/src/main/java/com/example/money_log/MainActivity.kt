@@ -1324,11 +1324,7 @@ private fun CategoryOverviewSection(
         shape = RoundedCornerShape(16.dp),
     ) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Ink)
-                Spacer(Modifier.width(8.dp))
-                Text("${categories.size} 个", fontSize = 13.sp, color = Muted)
-            }
+            Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Ink)
             Spacer(Modifier.height(14.dp))
             categories.chunked(4).forEachIndexed { rowIndex, row ->
                 if (rowIndex > 0) Spacer(Modifier.height(10.dp))
@@ -1445,8 +1441,9 @@ private fun EntryCard(
                 Box(
                     Modifier
                         .size(46.dp)
-                        .background(Color.White, CircleShape)
-                        .border(0.2.dp, NeutralIconBorder, CircleShape),
+                        .background(Color.White, CircleShape),
+                        // blmcc：暂时去除明细图标的 0.2.dp 边线，保留原实现便于恢复。
+                        // .border(0.2.dp, NeutralIconBorder, CircleShape),
                     contentAlignment = Alignment.Center,
                 ) { Text(symbol, fontSize = 28.sp) }
                 Column(Modifier.weight(1f).padding(start = 14.dp)) {
