@@ -37,8 +37,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -57,7 +55,6 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.*
-import kotlin.math.absoluteValue
 import kotlin.math.roundToInt
 
 private val Bg = Color(0xFFF7F7F7)
@@ -1762,26 +1759,10 @@ private fun AddScreen(
                 ) { page ->
                     val pageKind = if (page % 2 == 0) "支出" else "收入"
                     val pageCategories = if (pageKind == "支出") expenseCategories else incomeCategories
-                    val pageOffset = (
-                        (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
-                    ).coerceIn(-1f, 1f)
-                    val absolutePageOffset = pageOffset.absoluteValue
                     CategorySelectionSection(
                         title = "${pageKind}分类",
                         categories = pageCategories,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .graphicsLayer {
-                                rotationY = pageOffset * 26f
-                                scaleX = 1f - absolutePageOffset * 0.05f
-                                scaleY = 1f - absolutePageOffset * 0.05f
-                                alpha = 1f - absolutePageOffset * 0.18f
-                                cameraDistance = 12f * density
-                                transformOrigin = TransformOrigin(
-                                    pivotFractionX = if (pageOffset < 0f) 0f else 1f,
-                                    pivotFractionY = 0.5f,
-                                )
-                            },
+                        modifier = Modifier.fillMaxSize(),
                         onCategorySelected = {
                             kind = pageKind
                             amount = ""
