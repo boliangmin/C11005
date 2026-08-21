@@ -60,7 +60,7 @@ private val Muted = Color(0xFF777A81)
 private val Danger = Color(0xFFC43D3D)
 private val NeutralIconBorder = Color(0xFFE5E5E5)
 private const val GoldenRatio = 1.618f
-private const val BookkeepingDialogWidthFraction = 0.92f * 4f / 5f
+private const val BookkeepingDialogWidthFraction = 0.92f * 6f / 7f
 
 internal enum class ColorTheme(
     val storageKey: String,
@@ -1988,7 +1988,7 @@ private fun CategoryCard(
     val interactionSource = remember { MutableInteractionSource() }
     val colorTheme = LocalColorTheme.current
     Card(
-        Modifier.fillMaxWidth().height(77.dp).combinedClickable(
+        Modifier.fillMaxWidth().height(83.dp).combinedClickable(
             interactionSource = interactionSource,
             indication = null,
             onClick = click,
@@ -1996,20 +1996,20 @@ private fun CategoryCard(
         ),
         colors = CardDefaults.cardColors(containerColor = if (active) colorTheme.accent else Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        shape = RoundedCornerShape(13.dp),
+        shape = RoundedCornerShape(14.dp),
     ) {
         Column(
             Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            Text(symbol, fontSize = 23.5.sp)
+            Text(symbol, fontSize = 25.2.sp)
             Spacer(Modifier.height(2.dp))
             Text(
                 label,
                 color = if (active) colorTheme.onAccent else Ink,
                 fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
-                fontSize = 13.sp,
+                fontSize = 14.sp,
                 maxLines = 1,
             )
         }
