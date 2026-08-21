@@ -1856,30 +1856,22 @@ private fun CategorySelectionSection(
             color = Muted,
             fontSize = 14.sp,
         )
-        BoxWithConstraints(Modifier.fillMaxSize()) {
-            val fourColumnCardSize = (maxWidth - 38.dp) / 4
-            val threeColumnCellSize = (maxWidth - 20.dp) / 3
-            val cardGap = threeColumnCellSize - fourColumnCardSize
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(3),
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 10.dp, end = 10.dp, bottom = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(0.dp),
-                verticalArrangement = Arrangement.spacedBy(cardGap),
-            ) {
-                items(categories.size) { index ->
-                    val category = categories[index]
-                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        CategoryCard(
-                            label = category.name,
-                            symbol = category.symbol,
-                            active = false,
-                            modifier = Modifier.size(fourColumnCardSize),
-                            click = { onCategorySelected(category) },
-                            longClick = { onCategoryLongPressed(category) },
-                        )
-                    }
-                }
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(4),
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 10.dp, end = 10.dp, bottom = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            items(categories.size) { index ->
+                val category = categories[index]
+                CategoryCard(
+                    label = category.name,
+                    symbol = category.symbol,
+                    active = false,
+                    click = { onCategorySelected(category) },
+                    longClick = { onCategoryLongPressed(category) },
+                )
             }
         }
     }
