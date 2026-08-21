@@ -1841,22 +1841,28 @@ private fun CategorySelectionSection(
             color = Muted,
             fontSize = 14.sp,
         )
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(3),
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 10.dp, end = 10.dp, bottom = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            items(categories.size) { index ->
-                val category = categories[index]
-                CategoryCard(
-                    label = category.name,
-                    symbol = category.symbol,
-                    active = false,
-                    click = { onCategorySelected(category) },
-                    longClick = { onCategoryLongPressed(category) },
-                )
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val fourColumnCardSize = (maxWidth - 38.dp) / 4
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(3),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 10.dp, end = 10.dp, bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(0.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(categories.size) { index ->
+                    val category = categories[index]
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        CategoryCard(
+                            label = category.name,
+                            symbol = category.symbol,
+                            active = false,
+                            modifier = Modifier.size(fourColumnCardSize),
+                            click = { onCategorySelected(category) },
+                            longClick = { onCategoryLongPressed(category) },
+                        )
+                    }
+                }
             }
         }
     }
@@ -1982,14 +1988,14 @@ private fun CategoryCard(
     label: String,
     symbol: String,
     active: Boolean,
+    modifier: Modifier = Modifier.fillMaxWidth(),
     click: () -> Unit,
     longClick: (() -> Unit)? = null,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val colorTheme = LocalColorTheme.current
     Card(
-        Modifier
-            .fillMaxWidth()
+        modifier
             .aspectRatio(1f)
             .combinedClickable(
                 interactionSource = interactionSource,
@@ -1999,20 +2005,20 @@ private fun CategoryCard(
             ),
         colors = CardDefaults.cardColors(containerColor = if (active) colorTheme.accent else Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(12.dp),
     ) {
         Column(
             Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            Text(symbol, fontSize = 43.sp)
-            Spacer(Modifier.height(2.dp))
+            Text(symbol, fontSize = 32.sp)
+            Spacer(Modifier.height(1.dp))
             Text(
                 label,
                 color = if (active) colorTheme.onAccent else Ink,
                 fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
-                fontSize = 13.sp,
+                fontSize = 11.sp,
                 maxLines = 1,
             )
         }
