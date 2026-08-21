@@ -55,6 +55,7 @@ private val Ink = Color(0xFF2D3037)
 private val IncomeAmountGreen = Color(0xFF57B881)
 private val Muted = Color(0xFF777A81)
 private val Danger = Color(0xFFC43D3D)
+private val NeutralIconBackground = Color(0xFFF0F0F0)
 
 internal enum class ColorTheme(
     val storageKey: String,
@@ -1463,7 +1464,7 @@ private fun EntryCard(
         ) {
             Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(
-                    Modifier.size(46.dp),
+                    Modifier.size(46.dp).background(NeutralIconBackground, CircleShape),
                     contentAlignment = Alignment.Center,
                 ) { Text(symbol, fontSize = 28.sp) }
                 Column(Modifier.weight(1f).padding(start = 14.dp)) {
