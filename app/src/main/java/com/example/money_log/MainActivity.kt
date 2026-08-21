@@ -391,7 +391,6 @@ private fun LedgerApp(
             AppPage.CATEGORIES -> CategoryOverviewScreen(
                 expenseCategories = expenses,
                 incomeCategories = incomes,
-                onBack = { page = AppPage.MORE },
                 onEditCategory = { kind, current, updated ->
                     val target = if (kind == "支出") expenses else incomes
                     val categoryIndex = target.indexOf(current)
@@ -430,7 +429,6 @@ private fun LedgerApp(
                 entries = trashEntries,
                 expenseCategories = expenses,
                 incomeCategories = incomes,
-                onBack = { page = AppPage.MORE },
                 onRestore = { entry ->
                     val result = restoreEntryFromTrash(entries, trashEntries, entry.id)
                     entries.clear()
@@ -448,7 +446,6 @@ private fun LedgerApp(
             )
             AppPage.THEME -> ThemeScreen(
                 selectedTheme = selectedColorTheme,
-                onBack = { page = AppPage.MORE },
                 onThemeSelected = onColorThemeSelected,
             )
         }
@@ -1014,21 +1011,12 @@ private fun RecycleBinScreen(
     entries: List<Entry>,
     expenseCategories: List<LedgerCategory>,
     incomeCategories: List<LedgerCategory>,
-    onBack: () -> Unit,
     onRestore: (Entry) -> Unit,
     onDeletePermanently: (Entry) -> Unit,
 ) {
     var permanentDeleteRequest by remember { mutableStateOf<Entry?>(null) }
 
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
-        Row(
-            Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            TextButton(onBack) { Text("返回", color = Ink, fontSize = 17.sp) }
-            Text("回收站", Modifier.weight(1f), textAlign = TextAlign.Center, fontSize = 21.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.width(64.dp))
-        }
         if (entries.isEmpty()) {
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -1141,7 +1129,6 @@ private fun PermanentlyDeleteEntryDialog(entry: Entry, dismiss: () -> Unit, conf
 private fun CategoryOverviewScreen(
     expenseCategories: List<LedgerCategory>,
     incomeCategories: List<LedgerCategory>,
-    onBack: () -> Unit,
     onEditCategory: (String, LedgerCategory, LedgerCategory) -> Unit,
     onDeleteCategory: (String, LedgerCategory) -> Unit,
 ) {
@@ -1149,31 +1136,15 @@ private fun CategoryOverviewScreen(
     var editingTarget by remember { mutableStateOf<CategoryEditTarget?>(null) }
     var deleteRequest by remember { mutableStateOf<CategoryDeleteRequest?>(null) }
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
-        Row(
-            Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            TextButton(onBack) { Text("返回", color = Ink, fontSize = 17.sp) }
-            Text("查看分类", Modifier.weight(1f), textAlign = TextAlign.Center, fontSize = 21.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.width(64.dp))
-        }
-        Text(
-            "长按分类可以修改或删除类型",
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
-            color = Muted,
-            fontSize = 13.sp,
-            textAlign = TextAlign.Center,
-        )
         LazyColumn(
             modifier = Modifier.fillMaxWidth().weight(1f),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
+            contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             item {
                 CategoryOverviewSection(
                     title = "支出类型",
                     categories = expenseCategories,
-                    iconBackground = LocalColorTheme.current.softAccent,
                     onLongClick = { actionTarget = CategoryEditTarget("支出", it) },
                 )
             }
@@ -1181,7 +1152,6 @@ private fun CategoryOverviewScreen(
                 CategoryOverviewSection(
                     title = "收入类型",
                     categories = incomeCategories,
-                    iconBackground = LocalColorTheme.current.softAccent,
                     onLongClick = { actionTarget = CategoryEditTarget("收入", it) },
                 )
             }
@@ -1346,7 +1316,6 @@ private fun DeleteCategoryDialog(
 private fun CategoryOverviewSection(
     title: String,
     categories: List<LedgerCategory>,
-    iconBackground: Color,
     onLongClick: (LedgerCategory) -> Unit,
 ) {
     Card(
@@ -1367,7 +1336,6 @@ private fun CategoryOverviewSection(
                     row.forEach { category ->
                         CategoryOverviewItem(
                             category = category,
-                            iconBackground = iconBackground,
                             modifier = Modifier.weight(1f),
                             onLongClick = { onLongClick(category) },
                         )
@@ -1383,7 +1351,6 @@ private fun CategoryOverviewSection(
 @Composable
 private fun CategoryOverviewItem(
     category: LedgerCategory,
-    iconBackground: Color,
     modifier: Modifier = Modifier,
     onLongClick: () -> Unit,
 ) {
@@ -1398,10 +1365,7 @@ private fun CategoryOverviewItem(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Box(
-            Modifier.size(46.dp).background(iconBackground, CircleShape),
-            contentAlignment = Alignment.Center,
-        ) { Text(category.symbol, fontSize = 23.sp) }
+        Text(category.symbol, fontSize = 28.sp)
         Spacer(Modifier.height(5.dp))
         Text(category.name, fontSize = 12.sp, color = Ink, textAlign = TextAlign.Center, maxLines = 1)
     }
@@ -2164,30 +2128,14 @@ internal fun restoreEntryFromTrash(
 @Composable
 private fun ThemeScreen(
     selectedTheme: ColorTheme,
-    onBack: () -> Unit,
     onThemeSelected: (ColorTheme) -> Unit,
 ) {
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
-        Row(
-            Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            TextButton(onBack) { Text("返回", color = Ink, fontSize = 17.sp) }
-            Text("主题", Modifier.weight(1f), textAlign = TextAlign.Center, fontSize = 21.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.width(64.dp))
-        }
         LazyColumn(
             modifier = Modifier.fillMaxWidth().weight(1f),
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            item {
-                Column(Modifier.padding(horizontal = 4.dp, vertical = 4.dp)) {
-                    Text("选择颜色风格", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Ink)
-                    Spacer(Modifier.height(4.dp))
-                    Text("选择后立即应用并自动保存", fontSize = 13.sp, color = Muted)
-                }
-            }
             items(ColorTheme.entries, key = { it.storageKey }) { colorTheme ->
                 ThemeOption(
                     colorTheme = colorTheme,
