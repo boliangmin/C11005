@@ -384,13 +384,18 @@ private fun LedgerApp(
             )
             AppPage.MORE -> MoreScreen(
                 selectedColorTheme = selectedColorTheme,
-                onViewCategories = { page = AppPage.CATEGORIES },
+                onManageCategories = { page = AppPage.CATEGORIES },
                 onTheme = { page = AppPage.THEME },
                 onTrash = { page = AppPage.TRASH },
             )
             AppPage.CATEGORIES -> CategoryOverviewScreen(
                 expenseCategories = expenses,
                 incomeCategories = incomes,
+                onNewCategory = { kind, category ->
+                    val target = if (kind == "支出") expenses else incomes
+                    target.add(category)
+                    store.saveCategories(kind, target)
+                },
                 onEditCategory = { kind, current, updated ->
                     val target = if (kind == "支出") expenses else incomes
                     val categoryIndex = target.indexOf(current)
@@ -951,17 +956,18 @@ private fun FilterNumberPicker(
 @Composable
 private fun MoreScreen(
     selectedColorTheme: ColorTheme,
-    onViewCategories: () -> Unit,
+    onManageCategories: () -> Unit,
     onTheme: () -> Unit,
     onTrash: () -> Unit,
 ) {
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
         Column(Modifier.weight(1f).padding(16.dp)) {
             MoreMenuItem(
-                symbol = "▦",
-                title = "查看分类",
-                subtitle = "查看已添加的支出与收入类型",
-                onClick = onViewCategories,
+                symbol = "",
+                title = "类型管理",
+                subtitle = "管理已添加的支出与收入类型",
+                iconResource = R.drawable.ic_category_manage_outline,
+                onClick = onManageCategories,
             )
             Spacer(Modifier.height(12.dp))
             MoreMenuItem(
@@ -982,7 +988,13 @@ private fun MoreScreen(
 }
 
 @Composable
-private fun MoreMenuItem(symbol: String, title: String, subtitle: String, onClick: () -> Unit) {
+private fun MoreMenuItem(
+    symbol: String,
+    title: String,
+    subtitle: String,
+    iconResource: Int? = null,
+    onClick: () -> Unit,
+) {
     val interactionSource = remember { MutableInteractionSource() }
     val colorTheme = LocalColorTheme.current
     Row(
@@ -996,7 +1008,18 @@ private fun MoreMenuItem(symbol: String, title: String, subtitle: String, onClic
         Box(
             Modifier.size(48.dp).background(colorTheme.softAccent, CircleShape),
             contentAlignment = Alignment.Center,
-        ) { Text(symbol, fontSize = 24.sp, color = colorTheme.accentDark) }
+        ) {
+            if (iconResource == null) {
+                Text(symbol, fontSize = 24.sp, color = colorTheme.accentDark)
+            } else {
+                Icon(
+                    painter = painterResource(iconResource),
+                    contentDescription = null,
+                    modifier = Modifier.size(27.dp),
+                    tint = colorTheme.accentDark,
+                )
+            }
+        }
         Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
             Text(title, fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Ink)
             Spacer(Modifier.height(3.dp))
@@ -1129,12 +1152,14 @@ private fun PermanentlyDeleteEntryDialog(entry: Entry, dismiss: () -> Unit, conf
 private fun CategoryOverviewScreen(
     expenseCategories: List<LedgerCategory>,
     incomeCategories: List<LedgerCategory>,
+    onNewCategory: (String, LedgerCategory) -> Unit,
     onEditCategory: (String, LedgerCategory, LedgerCategory) -> Unit,
     onDeleteCategory: (String, LedgerCategory) -> Unit,
 ) {
     var actionTarget by remember { mutableStateOf<CategoryEditTarget?>(null) }
     var editingTarget by remember { mutableStateOf<CategoryEditTarget?>(null) }
     var deleteRequest by remember { mutableStateOf<CategoryDeleteRequest?>(null) }
+    var addingKind by remember { mutableStateOf<String?>(null) }
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
         LazyColumn(
             modifier = Modifier.fillMaxWidth().weight(1f),
@@ -1146,6 +1171,7 @@ private fun CategoryOverviewScreen(
                     title = "支出类型",
                     categories = expenseCategories,
                     onLongClick = { actionTarget = CategoryEditTarget("支出", it) },
+                    onAdd = { addingKind = "支出" },
                 )
             }
             item {
@@ -1153,9 +1179,22 @@ private fun CategoryOverviewScreen(
                     title = "收入类型",
                     categories = incomeCategories,
                     onLongClick = { actionTarget = CategoryEditTarget("收入", it) },
+                    onAdd = { addingKind = "收入" },
                 )
             }
         }
+    }
+    addingKind?.let { kind ->
+        val categories = if (kind == "支出") expenseCategories else incomeCategories
+        CategoryDialog(
+            kind = kind,
+            existing = categories.map { it.name },
+            dismiss = { addingKind = null },
+            confirm = { category ->
+                onNewCategory(kind, category)
+                addingKind = null
+            },
+        )
     }
     actionTarget?.let { target ->
         CategoryActionDialog(
@@ -1317,6 +1356,7 @@ private fun CategoryOverviewSection(
     title: String,
     categories: List<LedgerCategory>,
     onLongClick: (LedgerCategory) -> Unit,
+    onAdd: () -> Unit,
 ) {
     Card(
         colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -1326,20 +1366,49 @@ private fun CategoryOverviewSection(
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
             Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Ink)
             Spacer(Modifier.height(14.dp))
-            categories.chunked(4).forEachIndexed { rowIndex, row ->
+            val categoryItems = categories.map<LedgerCategory, LedgerCategory?> { it } + null
+            categoryItems.chunked(4).forEachIndexed { rowIndex, row ->
                 if (rowIndex > 0) Spacer(Modifier.height(10.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     row.forEach { category ->
-                        CategoryOverviewItem(
-                            category = category,
-                            modifier = Modifier.weight(1f),
-                            onLongClick = { onLongClick(category) },
-                        )
+                        if (category == null) {
+                            CategoryOverviewAddItem(
+                                modifier = Modifier.weight(1f),
+                                onClick = onAdd,
+                            )
+                        } else {
+                            CategoryOverviewItem(
+                                category = category,
+                                modifier = Modifier.weight(1f),
+                                onLongClick = { onLongClick(category) },
+                            )
+                        }
                     }
                     repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun CategoryOverviewAddItem(
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    Column(
+        modifier = modifier.height(82.dp).clickable(
+            interactionSource = interactionSource,
+            indication = null,
+            onClick = onClick,
+        ),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text("+", fontSize = 28.sp, color = Ink)
+        Spacer(Modifier.height(5.dp))
+        Text("添加", fontSize = 12.sp, color = Ink)
     }
 }
 
