@@ -460,9 +460,20 @@ private fun DetailsScreen(
     var editingEntry by remember { mutableStateOf<Entry?>(null) }
     var deleteEntryRequest by remember { mutableStateOf<Entry?>(null) }
     var revealedEntryId by remember { mutableStateOf<String?>(null) }
+    var showBillOptions by remember { mutableStateOf(false) }
+    var showMonthFilter by remember { mutableStateOf(false) }
+    var selectedMonth by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     val monthGroups = remember(entries) { groupEntriesByMonth(entries) }
+    val visibleEntries = remember(entries, selectedMonth) { filterEntriesByMonth(entries, selectedMonth) }
+    val dayGroups = remember(visibleEntries) { groupEntriesByDay(visibleEntries) }
+
+    LaunchedEffect(monthGroups, selectedMonth) {
+        if (selectedMonth != null && monthGroups.none { (it.year to it.month) == selectedMonth }) {
+            selectedMonth = null
+        }
+    }
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
-        DetailsFeatureBar()
+        DetailsFeatureBar(onBillLongClick = { showBillOptions = true })
         if (entries.isEmpty()) {
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -472,36 +483,40 @@ private fun DetailsScreen(
                     Text("点击底部“记账”添加第一笔记录", color = Color(0xFFAAADB3))
                 }
             }
+        } else if (visibleEntries.isEmpty()) {
+            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("🗓️", fontSize = 48.sp)
+                    Spacer(Modifier.height(8.dp))
+                    Text("该月份暂无账单", fontSize = 18.sp, color = Muted)
+                    Text("长按顶部“账单”切换月份", color = Color(0xFFAAADB3))
+                }
+            }
         } else {
             LazyColumn(
                 Modifier.weight(1f).padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
                 contentPadding = PaddingValues(vertical = 12.dp),
             ) {
-                monthGroups.forEach { group ->
-                    item(key = "month-${group.year}-${group.month}") {
-                        EntryMonthHeader(group.month)
+                dayGroups.forEach { dayGroup ->
+                    item(key = "day-${dayGroup.year}-${dayGroup.month}-${dayGroup.day}") {
+                        EntryDayHeader(dayGroup.month, dayGroup.day)
                     }
-                    groupEntriesByDay(group.entries).forEach { dayGroup ->
-                        item(key = "day-${dayGroup.year}-${dayGroup.month}-${dayGroup.day}") {
-                            EntryDayHeader(dayGroup.month, dayGroup.day)
-                        }
-                        items(dayGroup.entries, key = { it.id }) { entry ->
-                            val categories = if (entry.kind == "收入") incomeCategories else expenseCategories
-                            val symbol = categories.firstOrNull { it.name == entry.category }?.symbol
-                                ?: defaultIcon(entry.category)
-                            EntryCard(
-                                entry = entry,
-                                symbol = symbol,
-                                revealed = revealedEntryId == entry.id,
-                                onRevealChange = { reveal -> revealedEntryId = if (reveal) entry.id else null },
-                                onLongClick = {
-                                    revealedEntryId = null
-                                    actionEntry = entry
-                                },
-                                onDeleteClick = { deleteEntryRequest = entry },
-                            )
-                        }
+                    items(dayGroup.entries, key = { it.id }) { entry ->
+                        val categories = if (entry.kind == "收入") incomeCategories else expenseCategories
+                        val symbol = categories.firstOrNull { it.name == entry.category }?.symbol
+                            ?: defaultIcon(entry.category)
+                        EntryCard(
+                            entry = entry,
+                            symbol = symbol,
+                            revealed = revealedEntryId == entry.id,
+                            onRevealChange = { reveal -> revealedEntryId = if (reveal) entry.id else null },
+                            onLongClick = {
+                                revealedEntryId = null
+                                actionEntry = entry
+                            },
+                            onDeleteClick = { deleteEntryRequest = entry },
+                        )
                     }
                 }
             }
@@ -549,17 +564,27 @@ private fun DetailsScreen(
             },
         )
     }
-}
-
-@Composable
-private fun EntryMonthHeader(month: Int) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(start = 4.dp, top = 4.dp, end = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text("${month}月份", color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.width(10.dp))
-        HorizontalDivider(Modifier.weight(1f), color = Color(0xFFE1E2E5))
+    if (showBillOptions) {
+        BillOptionsDialog(
+            selectedMonth = selectedMonth,
+            dismiss = { showBillOptions = false },
+            onViewMonth = {
+                showBillOptions = false
+                showMonthFilter = true
+            },
+        )
+    }
+    if (showMonthFilter) {
+        MonthFilterDialog(
+            monthGroups = monthGroups,
+            selectedMonth = selectedMonth,
+            dismiss = { showMonthFilter = false },
+            onSelect = { selection ->
+                selectedMonth = selection
+                showMonthFilter = false
+                revealedEntryId = null
+            },
+        )
     }
 }
 
@@ -576,28 +601,43 @@ private fun EntryDayHeader(month: Int, day: Int) {
 }
 
 @Composable
-private fun DetailsFeatureBar() {
+private fun DetailsFeatureBar(onBillLongClick: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        DetailsFeatureItem(Modifier.weight(1f), R.drawable.ic_bill_outline, "账单", selected = true)
+        DetailsFeatureItem(
+            Modifier.weight(1f),
+            R.drawable.ic_bill_outline,
+            "账单",
+            selected = true,
+            onLongClick = onBillLongClick,
+        )
         DetailsFeatureItem(Modifier.weight(1f), R.drawable.ic_ledger_outline, "账本")
         DetailsFeatureItem(Modifier.weight(1f), R.drawable.ic_statistics_outline, "统计")
         DetailsFeatureItem(Modifier.weight(1f), R.drawable.ic_more_outline, "更多")
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun DetailsFeatureItem(
     modifier: Modifier,
     iconResource: Int,
     label: String,
     selected: Boolean = false,
+    onLongClick: (() -> Unit)? = null,
 ) {
     val colorTheme = LocalColorTheme.current
+    val interactionSource = remember { MutableInteractionSource() }
+    val gestureModifier = if (onLongClick == null) Modifier else Modifier.combinedClickable(
+        interactionSource = interactionSource,
+        indication = null,
+        onClick = {},
+        onLongClick = onLongClick,
+    )
     Column(
-        modifier = modifier.padding(vertical = 2.dp),
+        modifier = modifier.then(gestureModifier).padding(vertical = 2.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
@@ -623,6 +663,82 @@ private fun DetailsFeatureItem(
             lineHeight = 12.sp,
             maxLines = 1,
         )
+    }
+}
+
+@Composable
+private fun BillOptionsDialog(
+    selectedMonth: Pair<Int, Int>?,
+    dismiss: () -> Unit,
+    onViewMonth: () -> Unit,
+) {
+    val currentMonth = selectedMonth?.let { "${it.first}年${it.second}月" } ?: "全部月份"
+    AlertDialog(
+        onDismissRequest = dismiss,
+        title = { Text("账单选项") },
+        text = {
+            CategoryActionItem(
+                symbol = "月",
+                title = "查看月份",
+                subtitle = "当前：$currentMonth",
+                onClick = onViewMonth,
+            )
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(dismiss) { Text("取消") } },
+    )
+}
+
+@Composable
+private fun MonthFilterDialog(
+    monthGroups: List<EntryMonthGroup>,
+    selectedMonth: Pair<Int, Int>?,
+    dismiss: () -> Unit,
+    onSelect: (Pair<Int, Int>?) -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = dismiss,
+        title = { Text("查看月份") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                MonthFilterOption(
+                    label = "全部月份",
+                    selected = selectedMonth == null,
+                    onClick = { onSelect(null) },
+                )
+                monthGroups.forEach { group ->
+                    val selection = group.year to group.month
+                    MonthFilterOption(
+                        label = "${group.year}年${group.month}月",
+                        selected = selectedMonth == selection,
+                        onClick = { onSelect(selection) },
+                    )
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(dismiss) { Text("取消") } },
+    )
+}
+
+@Composable
+private fun MonthFilterOption(label: String, selected: Boolean, onClick: () -> Unit) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val colorTheme = LocalColorTheme.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
+            .padding(vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RadioButton(
+            selected = selected,
+            onClick = null,
+            colors = RadioButtonDefaults.colors(selectedColor = colorTheme.accentDark),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(label, fontSize = 16.sp, color = Ink)
     }
 }
 
@@ -1969,6 +2085,15 @@ internal fun groupEntriesByDay(entries: List<Entry>): List<EntryDayGroup> =
         .map { (date, dayEntries) ->
             EntryDayGroup(year = date.first, month = date.second, day = date.third, entries = dayEntries)
         }
+
+internal fun filterEntriesByMonth(entries: List<Entry>, selectedMonth: Pair<Int, Int>?): List<Entry> {
+    if (selectedMonth == null) return entries
+    return entries.filter { entry ->
+        Calendar.getInstance().apply { timeInMillis = entry.date }.let { calendar ->
+            (calendar[Calendar.YEAR] to calendar[Calendar.MONTH] + 1) == selectedMonth
+        }
+    }
+}
 
 private fun money(value: Double) = String.format(Locale.getDefault(), "%.2f", value)
 private fun day(value: Long) = SimpleDateFormat("yyyy年MM月dd日", Locale.CHINA).format(Date(value))

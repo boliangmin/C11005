@@ -204,6 +204,18 @@ class ExampleUnitTest {
     }
 
     @Test
+    fun filterEntriesByMonth_filtersByYearAndMonthAndSupportsShowingAll() {
+        val july2026 = Entry("1", "支出", "餐饮", 20.0, timestamp(2026, Calendar.JULY, 21))
+        val august2026 = Entry("2", "收入", "工资", 30.0, timestamp(2026, Calendar.AUGUST, 1))
+        val july2025 = Entry("3", "支出", "住房", 40.0, timestamp(2025, Calendar.JULY, 21))
+        val entries = listOf(july2026, august2026, july2025)
+
+        assertEquals(entries, filterEntriesByMonth(entries, null))
+        assertEquals(listOf(july2026), filterEntriesByMonth(entries, 2026 to 7))
+        assertEquals(listOf(july2025), filterEntriesByMonth(entries, 2025 to 7))
+    }
+
+    @Test
     fun colorThemeFromStorage_restoresSavedThemeAndFallsBackToClassic() {
         assertEquals(ColorTheme.SKY_BLUE, colorThemeFromStorage("sky_blue"))
         assertEquals(ColorTheme.CLASSIC, colorThemeFromStorage(null))
