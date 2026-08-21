@@ -49,18 +49,78 @@ import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.roundToInt
 
-private val Yellow = Color(0xFFF5CE3E)
 private val Bg = Color(0xFFF7F7F7)
 private val Ink = Color(0xFF2D3037)
 private val Muted = Color(0xFF777A81)
 private val IncomeGreen = Color(0xFF2E8B57)
 private val Danger = Color(0xFFC43D3D)
-private val NoteAccent = Color(0xFF8A6A20)
 private val DeleteActionBackground = Color(0xFFFFF8F3)
 private val DeleteIconBackground = Color(0xFFFFE5D8)
 private val DeleteIconColor = Color(0xFFB65A45)
 
-private enum class AppPage { DETAILS, ADD, MORE, CATEGORIES, TRASH }
+internal enum class ColorTheme(
+    val storageKey: String,
+    val title: String,
+    val subtitle: String,
+    val accent: Color,
+    val softAccent: Color,
+    val subtleAccent: Color,
+    val accentDark: Color,
+    val onAccent: Color = Ink,
+) {
+    CLASSIC(
+        storageKey = "classic",
+        title = "经典黄",
+        subtitle = "温暖明亮的默认配色",
+        accent = Color(0xFFF5CE3E),
+        softAccent = Color(0xFFFFF4C8),
+        subtleAccent = Color(0xFFFFF1B8),
+        accentDark = Color(0xFF8A6A20),
+    ),
+    FRESH_GREEN(
+        storageKey = "fresh_green",
+        title = "清新绿",
+        subtitle = "自然舒缓的绿色风格",
+        accent = Color(0xFF57B881),
+        softAccent = Color(0xFFE4F4E9),
+        subtleAccent = Color(0xFFEBF8F0),
+        accentDark = Color(0xFF2F7653),
+    ),
+    SKY_BLUE(
+        storageKey = "sky_blue",
+        title = "天空蓝",
+        subtitle = "清爽安静的蓝色风格",
+        accent = Color(0xFF5B9DF9),
+        softAccent = Color(0xFFE7F0FF),
+        subtleAccent = Color(0xFFEEF5FF),
+        accentDark = Color(0xFF315F9F),
+    ),
+    SOFT_PURPLE(
+        storageKey = "soft_purple",
+        title = "柔和紫",
+        subtitle = "温柔雅致的紫色风格",
+        accent = Color(0xFF9B7DE2),
+        softAccent = Color(0xFFF0EAFB),
+        subtleAccent = Color(0xFFF5F1FC),
+        accentDark = Color(0xFF61469D),
+    ),
+    CORAL_ORANGE(
+        storageKey = "coral_orange",
+        title = "珊瑚橙",
+        subtitle = "活力柔和的橙红风格",
+        accent = Color(0xFFF28B70),
+        softAccent = Color(0xFFFFECE7),
+        subtleAccent = Color(0xFFFFF2EE),
+        accentDark = Color(0xFF9D4F3D),
+    ),
+}
+
+internal fun colorThemeFromStorage(storageKey: String?): ColorTheme =
+    ColorTheme.entries.firstOrNull { it.storageKey == storageKey } ?: ColorTheme.CLASSIC
+
+private val LocalColorTheme = staticCompositionLocalOf { ColorTheme.CLASSIC }
+
+private enum class AppPage { DETAILS, ADD, MORE, CATEGORIES, TRASH, THEME }
 private const val UncategorizedName = "未分类"
 private const val UncategorizedIcon = "⭕"
 
@@ -188,6 +248,8 @@ private class Store(context: Context) {
             .putString("trashEntries", entryListJson(trashEntries))
             .apply()
     }
+    fun colorTheme() = colorThemeFromStorage(p.getString("colorTheme", null))
+    fun saveColorTheme(value: ColorTheme) = p.edit().putString("colorTheme", value.storageKey).apply()
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -195,14 +257,46 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        setContent { Money_LogTheme(darkTheme = false, dynamicColor = false) { CompositionLocalProvider(LocalRippleConfiguration provides null) { LedgerApp() } } }
+        setContent { LedgerRoot() }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LedgerRoot() {
+    val context = LocalContext.current
+    val store = remember { Store(context.applicationContext) }
+    var colorTheme by remember { mutableStateOf(store.colorTheme()) }
+    Money_LogTheme(
+        darkTheme = false,
+        dynamicColor = false,
+        primaryColor = colorTheme.accent,
+        onPrimaryColor = colorTheme.onAccent,
+        primaryContainerColor = colorTheme.softAccent,
+        onPrimaryContainerColor = colorTheme.accentDark,
+    ) {
+        CompositionLocalProvider(
+            LocalColorTheme provides colorTheme,
+            LocalRippleConfiguration provides null,
+        ) {
+            LedgerApp(
+                store = store,
+                selectedColorTheme = colorTheme,
+                onColorThemeSelected = { selected ->
+                    colorTheme = selected
+                    store.saveColorTheme(selected)
+                },
+            )
+        }
     }
 }
 
 @Composable
-private fun LedgerApp() {
-    val context = LocalContext.current
-    val store = remember { Store(context.applicationContext) }
+private fun LedgerApp(
+    store: Store,
+    selectedColorTheme: ColorTheme,
+    onColorThemeSelected: (ColorTheme) -> Unit,
+) {
     val expenses = remember { mutableStateListOf<LedgerCategory>().apply { addAll(store.categories("支出")) } }
     val incomes = remember { mutableStateListOf<LedgerCategory>().apply { addAll(store.categories("收入")) } }
     val entries = remember { mutableStateListOf<Entry>().apply { addAll(store.entries()) } }
@@ -216,6 +310,7 @@ private fun LedgerApp() {
             AppPage.ADD -> addReturnPage
             AppPage.CATEGORIES -> AppPage.MORE
             AppPage.TRASH -> AppPage.MORE
+            AppPage.THEME -> AppPage.MORE
             AppPage.MORE -> AppPage.DETAILS
             AppPage.DETAILS -> AppPage.DETAILS
         }
@@ -272,6 +367,7 @@ private fun LedgerApp() {
                 },
             )
             AppPage.MORE -> MoreScreen(
+                selectedColorTheme = selectedColorTheme,
                 onDetails = { page = AppPage.DETAILS },
                 onAdd = {
                     addReturnPage = AppPage.MORE
@@ -279,6 +375,7 @@ private fun LedgerApp() {
                     page = AppPage.ADD
                 },
                 onViewCategories = { page = AppPage.CATEGORIES },
+                onTheme = { page = AppPage.THEME },
                 onTrash = { page = AppPage.TRASH },
             )
             AppPage.CATEGORIES -> CategoryOverviewScreen(
@@ -338,6 +435,11 @@ private fun LedgerApp() {
                     trashEntries.addAll(updatedTrash)
                     store.saveTrashEntries(trashEntries)
                 },
+            )
+            AppPage.THEME -> ThemeScreen(
+                selectedTheme = selectedColorTheme,
+                onBack = { page = AppPage.MORE },
+                onThemeSelected = onColorThemeSelected,
             )
         }
     }
@@ -475,13 +577,14 @@ private fun DetailsFeatureItem(
     label: String,
     selected: Boolean = false,
 ) {
+    val colorTheme = LocalColorTheme.current
     Column(
         modifier = modifier.padding(vertical = 2.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
             modifier = Modifier.size(38.dp).background(
-                color = if (selected) Color(0xFFFFF1B8) else Color.White,
+                color = if (selected) colorTheme.subtleAccent else Color.White,
                 shape = CircleShape,
             ),
             contentAlignment = Alignment.Center,
@@ -490,7 +593,7 @@ private fun DetailsFeatureItem(
                 painter = painterResource(iconResource),
                 contentDescription = label,
                 modifier = Modifier.size(21.dp),
-                tint = if (selected) Color(0xFF8A6A20) else Ink,
+                tint = if (selected) colorTheme.accentDark else Ink,
             )
         }
         Spacer(Modifier.height(3.dp))
@@ -524,9 +627,11 @@ private fun BottomBar(
 
 @Composable
 private fun MoreScreen(
+    selectedColorTheme: ColorTheme,
     onDetails: () -> Unit,
     onAdd: () -> Unit,
     onViewCategories: () -> Unit,
+    onTheme: () -> Unit,
     onTrash: () -> Unit,
 ) {
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
@@ -536,6 +641,13 @@ private fun MoreScreen(
                 title = "查看分类",
                 subtitle = "查看已添加的支出与收入类型",
                 onClick = onViewCategories,
+            )
+            Spacer(Modifier.height(12.dp))
+            MoreMenuItem(
+                symbol = "◐",
+                title = "主题",
+                subtitle = "当前：${selectedColorTheme.title}",
+                onClick = onTheme,
             )
             Spacer(Modifier.height(12.dp))
             MoreMenuItem(
@@ -557,6 +669,7 @@ private fun MoreScreen(
 @Composable
 private fun MoreMenuItem(symbol: String, title: String, subtitle: String, onClick: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
+    val colorTheme = LocalColorTheme.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -566,9 +679,9 @@ private fun MoreMenuItem(symbol: String, title: String, subtitle: String, onClic
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            Modifier.size(48.dp).background(Color(0xFFFFF4C8), CircleShape),
+            Modifier.size(48.dp).background(colorTheme.softAccent, CircleShape),
             contentAlignment = Alignment.Center,
-        ) { Text(symbol, fontSize = 24.sp, color = Ink) }
+        ) { Text(symbol, fontSize = 24.sp, color = colorTheme.accentDark) }
         Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
             Text(title, fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Ink)
             Spacer(Modifier.height(3.dp))
@@ -655,14 +768,14 @@ private fun RecycleBinEntryCard(
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
-                    Modifier.size(46.dp).background(if (income) Color(0xFFE4F4E9) else Color(0xFFFFF4C8), CircleShape),
+                    Modifier.size(46.dp).background(if (income) Color(0xFFE4F4E9) else LocalColorTheme.current.softAccent, CircleShape),
                     contentAlignment = Alignment.Center,
                 ) { Text(symbol, fontSize = 23.sp) }
                 Column(Modifier.weight(1f).padding(start = 14.dp)) {
                     Text(entry.category, fontSize = 17.sp, fontWeight = FontWeight.Medium)
                     Text("${entry.kind} · ${day(entry.date)}", fontSize = 13.sp, color = Muted)
                     if (entry.note.isNotBlank()) {
-                        Text(entry.note, fontSize = 12.sp, color = NoteAccent, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(entry.note, fontSize = 12.sp, color = LocalColorTheme.current.accentDark, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
                 Text(
@@ -742,7 +855,7 @@ private fun CategoryOverviewScreen(
                 CategoryOverviewSection(
                     title = "支出类型",
                     categories = expenseCategories,
-                    iconBackground = Color(0xFFFFF4C8),
+                    iconBackground = LocalColorTheme.current.softAccent,
                     onLongClick = { actionTarget = CategoryEditTarget("支出", it) },
                 )
             }
@@ -847,6 +960,7 @@ private fun CategoryActionItem(
     onClick: () -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
+    val colorTheme = LocalColorTheme.current
     val contentColor = if (destructive) Danger else Ink
     Row(
         modifier = Modifier
@@ -857,7 +971,7 @@ private fun CategoryActionItem(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            Modifier.size(42.dp).background(if (destructive) Color(0xFFFFE8E8) else Color(0xFFFFF4C8), CircleShape),
+            Modifier.size(42.dp).background(if (destructive) Color(0xFFFFE8E8) else colorTheme.softAccent, CircleShape),
             contentAlignment = Alignment.Center,
         ) { Text(symbol, fontSize = 22.sp, color = contentColor) }
         Column(Modifier.weight(1f).padding(start = 14.dp)) {
@@ -973,6 +1087,7 @@ private fun BottomItem(
     onClick: () -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
+    val colorTheme = LocalColorTheme.current
     Column(
         modifier = modifier.fillMaxHeight().clickable(
             interactionSource = interactionSource,
@@ -984,11 +1099,11 @@ private fun BottomItem(
     ) {
         Box(
             modifier = Modifier.size(54.dp).background(
-                color = when { center -> Yellow; selected -> Color(0xFFFFF4C8); else -> Color.Transparent },
+                color = when { center -> colorTheme.accent; selected -> colorTheme.softAccent; else -> Color.Transparent },
                 shape = CircleShape,
             ),
             contentAlignment = Alignment.Center,
-        ) { Text(symbol, fontSize = if (center) 32.sp else 24.sp, color = Ink) }
+        ) { Text(symbol, fontSize = if (center) 32.sp else 24.sp, color = if (center) colorTheme.onAccent else Ink) }
         Spacer(Modifier.height(2.dp))
         Text(
             label,
@@ -1013,6 +1128,7 @@ private fun EntryCard(
 ) {
     val income = entry.kind == "收入"
     val interactionSource = remember { MutableInteractionSource() }
+    val colorTheme = LocalColorTheme.current
     val maximumReveal = with(LocalDensity.current) { 72.dp.toPx() }
     var horizontalOffset by remember(entry.id) { mutableFloatStateOf(0f) }
 
@@ -1077,14 +1193,14 @@ private fun EntryCard(
         ) {
             Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(
-                    Modifier.size(46.dp).background(if (income) Color(0xFFE4F4E9) else Color(0xFFFFF4C8), CircleShape),
+                    Modifier.size(46.dp).background(if (income) Color(0xFFE4F4E9) else colorTheme.softAccent, CircleShape),
                     contentAlignment = Alignment.Center,
                 ) { Text(symbol, fontSize = 23.sp) }
                 Column(Modifier.weight(1f).padding(start = 14.dp)) {
                     Text(entry.category, fontSize = 17.sp, fontWeight = FontWeight.Medium)
                     Text("${entry.kind} · ${shortDay(entry.date)}", fontSize = 13.sp, color = Muted)
                     if (entry.note.isNotBlank()) {
-                        Text(entry.note, fontSize = 12.sp, color = NoteAccent, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(entry.note, fontSize = 12.sp, color = colorTheme.accentDark, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
                 Text(
@@ -1255,18 +1371,19 @@ private fun EntryCategoryChoice(
     onClick: () -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
+    val colorTheme = LocalColorTheme.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .height(78.dp)
-            .background(if (active) Yellow else Bg, RoundedCornerShape(12.dp))
+            .background(if (active) colorTheme.accent else Bg, RoundedCornerShape(12.dp))
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
         Text(category.symbol, fontSize = 25.sp)
         Spacer(Modifier.height(3.dp))
-        Text(category.name, fontSize = 11.sp, color = Ink, maxLines = 1)
+        Text(category.name, fontSize = 11.sp, color = if (active) colorTheme.onAccent else Ink, maxLines = 1)
     }
 }
 
@@ -1445,6 +1562,7 @@ private fun EntryInputDialog(
 ) {
     val context = LocalContext.current
     val dateInteractionSource = remember { MutableInteractionSource() }
+    val colorTheme = LocalColorTheme.current
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -1512,7 +1630,7 @@ private fun EntryInputDialog(
                     },
                     modifier = Modifier.fillMaxWidth().height(56.dp),
                     shape = RoundedCornerShape(18.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Yellow, contentColor = Ink),
+                    colors = ButtonDefaults.buttonColors(containerColor = colorTheme.accent, contentColor = colorTheme.onAccent),
                 ) { Text("完成记账", fontSize = 18.sp, fontWeight = FontWeight.Bold) }
             }
         }
@@ -1551,6 +1669,7 @@ private fun CategoryCard(
     longClick: (() -> Unit)? = null,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
+    val colorTheme = LocalColorTheme.current
     Card(
         Modifier.fillMaxWidth().height(96.dp).combinedClickable(
             interactionSource = interactionSource,
@@ -1558,13 +1677,17 @@ private fun CategoryCard(
             onClick = click,
             onLongClick = longClick,
         ),
-        colors = CardDefaults.cardColors(containerColor = if (active) Yellow else Color.White),
+        colors = CardDefaults.cardColors(containerColor = if (active) colorTheme.accent else Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         shape = RoundedCornerShape(16.dp),
     ) {
         Column(Modifier.fillMaxWidth().padding(vertical = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(symbol, fontSize = 28.sp)
-            Text(label, fontWeight = if (active) FontWeight.Bold else FontWeight.Normal)
+            Text(
+                label,
+                color = if (active) colorTheme.onAccent else Ink,
+                fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
+            )
         }
     }
 }
@@ -1635,15 +1758,16 @@ private fun CategoryDialog(
 @Composable
 private fun IconChoice(symbol: String, active: Boolean, onClick: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
+    val colorTheme = LocalColorTheme.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(if (active) Yellow else Bg, RoundedCornerShape(12.dp))
+            .background(if (active) colorTheme.accent else Bg, RoundedCornerShape(12.dp))
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
             .padding(vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(symbol, fontSize = 27.sp)
+        Text(symbol, fontSize = 27.sp, color = if (active) colorTheme.onAccent else Ink)
     }
 }
 
@@ -1738,6 +1862,70 @@ internal fun restoreEntryFromTrash(
         ?: return EntryTransferResult(activeEntries, trashEntries)
     val updatedActive = if (activeEntries.any { it.id == entry.id }) activeEntries else activeEntries + entry
     return EntryTransferResult(updatedActive, deleteEntry(trashEntries, entryId))
+}
+
+@Composable
+private fun ThemeScreen(
+    selectedTheme: ColorTheme,
+    onBack: () -> Unit,
+    onThemeSelected: (ColorTheme) -> Unit,
+) {
+    Column(Modifier.fillMaxSize().statusBarsPadding()) {
+        Row(
+            Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(onBack) { Text("返回", color = Ink, fontSize = 17.sp) }
+            Text("主题", Modifier.weight(1f), textAlign = TextAlign.Center, fontSize = 21.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.width(64.dp))
+        }
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            item {
+                Column(Modifier.padding(horizontal = 4.dp, vertical = 4.dp)) {
+                    Text("选择颜色风格", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Ink)
+                    Spacer(Modifier.height(4.dp))
+                    Text("选择后立即应用并自动保存", fontSize = 13.sp, color = Muted)
+                }
+            }
+            items(ColorTheme.entries, key = { it.storageKey }) { colorTheme ->
+                ThemeOption(
+                    colorTheme = colorTheme,
+                    selected = colorTheme == selectedTheme,
+                    onClick = { onThemeSelected(colorTheme) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ThemeOption(colorTheme: ColorTheme, selected: Boolean, onClick: () -> Unit) {
+    val interactionSource = remember { MutableInteractionSource() }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(if (selected) colorTheme.softAccent else Color.White, RoundedCornerShape(16.dp))
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier.size(48.dp).background(colorTheme.accent, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text("Aa", color = colorTheme.onAccent, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        }
+        Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
+            Text(colorTheme.title, fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Ink)
+            Spacer(Modifier.height(3.dp))
+            Text(colorTheme.subtitle, fontSize = 13.sp, color = Muted)
+        }
+        Text(if (selected) "✓" else "", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = colorTheme.accentDark)
+    }
 }
 internal fun groupEntriesByMonth(entries: List<Entry>): List<EntryMonthGroup> =
     entries.sortedByDescending { it.date }

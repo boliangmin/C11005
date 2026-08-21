@@ -9,6 +9,7 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
@@ -38,6 +39,10 @@ fun Money_LogTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     // Dynamic color is available on Android 12+
     dynamicColor: Boolean = true,
+    primaryColor: Color = Purple40,
+    onPrimaryColor: Color = Color.White,
+    primaryContainerColor: Color = Purple80,
+    onPrimaryContainerColor: Color = Purple40,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
@@ -47,7 +52,16 @@ fun Money_LogTheme(
         }
 
         darkTheme -> DarkColorScheme
-        else -> LightColorScheme
+        else -> LightColorScheme.copy(
+            primary = primaryColor,
+            onPrimary = onPrimaryColor,
+            primaryContainer = primaryContainerColor,
+            onPrimaryContainer = onPrimaryContainerColor,
+            secondary = primaryColor,
+            onSecondary = onPrimaryColor,
+            secondaryContainer = primaryContainerColor,
+            onSecondaryContainer = onPrimaryContainerColor,
+        )
     }
 
     MaterialTheme(
