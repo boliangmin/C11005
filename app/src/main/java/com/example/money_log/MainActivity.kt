@@ -137,13 +137,11 @@ data class LedgerCategory(val name: String, val symbol: String)
 internal data class EntryTransferResult(val activeEntries: List<Entry>, val trashEntries: List<Entry>)
 internal data class EntryMonthGroup(val year: Int, val month: Int, val entries: List<Entry>)
 internal data class EntryDayGroup(val year: Int, val month: Int, val day: Int, val entries: List<Entry>)
-internal enum class EntryFilterMode { ALL, MONTH, RANGE }
+internal enum class EntryFilterMode { ALL, MONTH }
 internal data class EntryFilter(
     val mode: EntryFilterMode,
     val year: Int,
     val month: Int,
-    val rangeStart: Long,
-    val rangeEnd: Long,
 )
 private data class CategoryEditTarget(val kind: String, val category: LedgerCategory)
 private data class CategoryDeleteRequest(val target: CategoryEditTarget, val isFinalConfirmation: Boolean = false)
@@ -474,14 +472,11 @@ private fun DetailsScreen(
     val initialFilter = remember {
         val currentTime = System.currentTimeMillis()
         val latestDate = entries.maxOfOrNull { it.date } ?: currentTime
-        val earliestDate = entries.minOfOrNull { it.date } ?: currentTime
         val latestCalendar = Calendar.getInstance().apply { timeInMillis = latestDate }
         EntryFilter(
             mode = EntryFilterMode.ALL,
             year = latestCalendar[Calendar.YEAR],
             month = latestCalendar[Calendar.MONTH] + 1,
-            rangeStart = earliestDate,
-            rangeEnd = latestDate,
         )
     }
     var entryFilter by remember { mutableStateOf(initialFilter) }
@@ -715,15 +710,12 @@ private fun EntryFilterDialog(
     dismiss: () -> Unit,
     onApply: (EntryFilter) -> Unit,
 ) {
-    val context = LocalContext.current
     val currentCalendar = remember { Calendar.getInstance() }
     val currentYear = currentCalendar[Calendar.YEAR]
     val currentMonth = currentCalendar[Calendar.MONTH] + 1
     var mode by remember(initialFilter) { mutableStateOf(initialFilter.mode) }
     var year by remember(initialFilter) { mutableIntStateOf(initialFilter.year) }
     var month by remember(initialFilter) { mutableIntStateOf(initialFilter.month) }
-    var rangeStart by remember(initialFilter) { mutableLongStateOf(initialFilter.rangeStart) }
-    var rangeEnd by remember(initialFilter) { mutableLongStateOf(initialFilter.rangeEnd) }
 
     AlertDialog(
         onDismissRequest = dismiss,
@@ -737,66 +729,40 @@ private fun EntryFilterDialog(
                     onClick = { mode = EntryFilterMode.ALL },
                 )
                 Spacer(Modifier.height(8.dp))
-                FilterModeOption(
-                    title = "指定年月",
-                    subtitle = "查看某一年、某一月的账单",
-                    selected = mode == EntryFilterMode.MONTH,
-                    onClick = { mode = EntryFilterMode.MONTH },
-                )
-                if (mode == EntryFilterMode.MONTH) {
-                    Spacer(Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterNumberPicker(
-                            modifier = Modifier.weight(1f),
-                            label = "年份",
-                            value = "${year}年",
-                            previousEnabled = year > 1970,
-                            nextEnabled = year < currentYear,
-                            onPrevious = { year -= 1 },
-                            onNext = {
-                                year += 1
-                                if (year == currentYear && month > currentMonth) month = currentMonth
-                            },
-                        )
-                        FilterNumberPicker(
-                            modifier = Modifier.weight(1f),
-                            label = "月份",
-                            value = "${month}月",
-                            previousEnabled = month > 1,
-                            nextEnabled = month < 12 && (year < currentYear || month < currentMonth),
-                            onPrevious = { month -= 1 },
-                            onNext = { month += 1 },
-                        )
-                    }
-                }
-                Spacer(Modifier.height(8.dp))
-                FilterModeOption(
-                    title = "区间筛选",
-                    subtitle = "查看开始日期至结束日期内的账单",
-                    selected = mode == EntryFilterMode.RANGE,
-                    onClick = { mode = EntryFilterMode.RANGE },
-                )
-                if (mode == EntryFilterMode.RANGE) {
-                    Spacer(Modifier.height(8.dp))
-                    FilterDateField(
-                        label = "开始日期",
-                        value = rangeStart,
-                        onClick = {
-                            pickDate(context, rangeStart) { picked ->
-                                rangeStart = picked
-                                if (rangeEnd < picked) rangeEnd = picked
-                            }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterNumberPicker(
+                        modifier = Modifier.weight(1f),
+                        label = "年份",
+                        value = "${year}年",
+                        selected = mode == EntryFilterMode.MONTH,
+                        previousEnabled = year > 1970,
+                        nextEnabled = year < currentYear,
+                        onSelect = { mode = EntryFilterMode.MONTH },
+                        onPrevious = {
+                            mode = EntryFilterMode.MONTH
+                            year -= 1
+                        },
+                        onNext = {
+                            mode = EntryFilterMode.MONTH
+                            year += 1
+                            if (year == currentYear && month > currentMonth) month = currentMonth
                         },
                     )
-                    Spacer(Modifier.height(8.dp))
-                    FilterDateField(
-                        label = "结束日期",
-                        value = rangeEnd,
-                        onClick = {
-                            pickDate(context, rangeEnd) { picked ->
-                                rangeEnd = picked
-                                if (rangeStart > picked) rangeStart = picked
-                            }
+                    FilterNumberPicker(
+                        modifier = Modifier.weight(1f),
+                        label = "月份",
+                        value = "${month}月",
+                        selected = mode == EntryFilterMode.MONTH,
+                        previousEnabled = month > 1,
+                        nextEnabled = month < 12 && (year < currentYear || month < currentMonth),
+                        onSelect = { mode = EntryFilterMode.MONTH },
+                        onPrevious = {
+                            mode = EntryFilterMode.MONTH
+                            month -= 1
+                        },
+                        onNext = {
+                            mode = EntryFilterMode.MONTH
+                            month += 1
                         },
                     )
                 }
@@ -810,8 +776,6 @@ private fun EntryFilterDialog(
                             mode = mode,
                             year = year,
                             month = month,
-                            rangeStart = rangeStart,
-                            rangeEnd = rangeEnd,
                         ),
                     )
                 },
@@ -856,13 +820,20 @@ private fun FilterNumberPicker(
     modifier: Modifier,
     label: String,
     value: String,
+    selected: Boolean,
     previousEnabled: Boolean,
     nextEnabled: Boolean,
+    onSelect: () -> Unit,
     onPrevious: () -> Unit,
     onNext: () -> Unit,
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val colorTheme = LocalColorTheme.current
     Column(
-        modifier = modifier.background(Bg, RoundedCornerShape(12.dp)).padding(8.dp),
+        modifier = modifier
+            .background(if (selected) colorTheme.softAccent else Bg, RoundedCornerShape(12.dp))
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onSelect)
+            .padding(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(label, fontSize = 12.sp, color = Muted)
@@ -890,43 +861,6 @@ private fun FilterNumberPicker(
                 contentPadding = PaddingValues(0.dp),
             ) { Text("›", fontSize = 22.sp) }
         }
-    }
-}
-
-@Composable
-private fun FilterDateField(label: String, value: Long, onClick: () -> Unit) {
-    val interactionSource = remember { MutableInteractionSource() }
-    Box(
-        Modifier.fillMaxWidth().clickable(
-            interactionSource = interactionSource,
-            indication = null,
-            onClick = onClick,
-        ),
-    ) {
-        OutlinedTextField(
-            value = day(value),
-            onValueChange = {},
-            modifier = Modifier.fillMaxWidth(),
-            enabled = false,
-            label = { Text(label) },
-            trailingIcon = {
-                Icon(
-                    painter = painterResource(R.drawable.ic_calendar_month_outline),
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp),
-                    tint = Ink,
-                )
-            },
-            colors = OutlinedTextFieldDefaults.colors(
-                disabledTextColor = Ink,
-                disabledBorderColor = Color(0xFFB9BBC0),
-                disabledLabelColor = Muted,
-                disabledTrailingIconColor = Ink,
-                disabledContainerColor = Color.Transparent,
-            ),
-            singleLine = true,
-            shape = RoundedCornerShape(12.dp),
-        )
     }
 }
 
@@ -2293,32 +2227,12 @@ internal fun filterEntries(entries: List<Entry>, filter: EntryFilter): List<Entr
             calendar[Calendar.YEAR] == filter.year && calendar[Calendar.MONTH] + 1 == filter.month
         }
     }
-    EntryFilterMode.RANGE -> {
-        val firstDate = minOf(filter.rangeStart, filter.rangeEnd)
-        val lastDate = maxOf(filter.rangeStart, filter.rangeEnd)
-        val startInclusive = localDayStart(firstDate)
-        val endExclusive = Calendar.getInstance().apply {
-            timeInMillis = localDayStart(lastDate)
-            add(Calendar.DAY_OF_MONTH, 1)
-        }.timeInMillis
-        entries.filter { it.date >= startInclusive && it.date < endExclusive }
-    }
 }
-
-private fun localDayStart(value: Long) = Calendar.getInstance().apply {
-    timeInMillis = value
-    set(Calendar.HOUR_OF_DAY, 0)
-    set(Calendar.MINUTE, 0)
-    set(Calendar.SECOND, 0)
-    set(Calendar.MILLISECOND, 0)
-}.timeInMillis
 
 private fun entryFilterSummary(filter: EntryFilter) = when (filter.mode) {
     EntryFilterMode.ALL -> "全部账单"
     EntryFilterMode.MONTH -> "${filter.year}年${filter.month}月"
-    EntryFilterMode.RANGE -> "${filterDay(filter.rangeStart)} 至 ${filterDay(filter.rangeEnd)}"
 }
 
-private fun filterDay(value: Long) = SimpleDateFormat("yyyy.M.d", Locale.CHINA).format(Date(value))
 private fun money(value: Double) = String.format(Locale.getDefault(), "%.2f", value)
 private fun day(value: Long) = SimpleDateFormat("yyyy年MM月dd日", Locale.CHINA).format(Date(value))

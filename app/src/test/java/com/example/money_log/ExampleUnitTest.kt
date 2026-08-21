@@ -213,8 +213,6 @@ class ExampleUnitTest {
             mode = EntryFilterMode.ALL,
             year = 2026,
             month = 7,
-            rangeStart = july2026.date,
-            rangeEnd = august2026.date,
         )
 
         assertEquals(entries, filterEntries(entries, baseFilter))
@@ -222,29 +220,6 @@ class ExampleUnitTest {
         assertEquals(
             listOf(july2025),
             filterEntries(entries, baseFilter.copy(mode = EntryFilterMode.MONTH, year = 2025)),
-        )
-    }
-
-    @Test
-    fun filterEntries_rangeModeIncludesBothBoundaryDatesAndHandlesReversedInput() {
-        val before = Entry("1", "支出", "餐饮", 10.0, timestamp(2026, Calendar.JULY, 20))
-        val first = Entry("2", "支出", "交通", 20.0, timestamp(2026, Calendar.JULY, 21))
-        val middle = Entry("3", "收入", "工资", 30.0, timestamp(2026, Calendar.AUGUST, 1))
-        val last = Entry("4", "支出", "住房", 40.0, timestamp(2026, Calendar.AUGUST, 12))
-        val after = Entry("5", "支出", "餐饮", 50.0, timestamp(2026, Calendar.AUGUST, 13))
-        val entries = listOf(before, first, middle, last, after)
-        val filter = EntryFilter(
-            mode = EntryFilterMode.RANGE,
-            year = 2026,
-            month = 8,
-            rangeStart = first.date,
-            rangeEnd = last.date,
-        )
-
-        assertEquals(listOf(first, middle, last), filterEntries(entries, filter))
-        assertEquals(
-            listOf(first, middle, last),
-            filterEntries(entries, filter.copy(rangeStart = last.date, rangeEnd = first.date)),
         )
     }
 
