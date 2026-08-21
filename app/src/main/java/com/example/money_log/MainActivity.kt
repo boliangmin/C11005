@@ -59,6 +59,8 @@ private val IncomeAmountGreen = Color(0xFF57B881)
 private val Muted = Color(0xFF777A81)
 private val Danger = Color(0xFFC43D3D)
 private val NeutralIconBorder = Color(0xFFE5E5E5)
+private const val GoldenRatio = 1.618f
+private const val BookkeepingDialogWidthFraction = 0.92f * 3f / 4f
 
 internal enum class ColorTheme(
     val storageKey: String,
@@ -1731,8 +1733,10 @@ private fun AddScreen(
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
         Surface(
-            modifier = Modifier.fillMaxWidth(0.92f).fillMaxHeight(0.9f),
-            shape = RoundedCornerShape(28.dp),
+            modifier = Modifier
+                .fillMaxWidth(BookkeepingDialogWidthFraction)
+                .aspectRatio(1f / GoldenRatio),
+            shape = RoundedCornerShape(24.dp),
             color = Bg,
             shadowElevation = 12.dp,
         ) {
@@ -1831,13 +1835,18 @@ private fun CategorySelectionSection(
     onCategoryLongPressed: (LedgerCategory) -> Unit,
 ) {
     Column(modifier.fillMaxWidth()) {
-        Text(title, Modifier.padding(start = 20.dp, top = 16.dp, bottom = 10.dp), color = Muted)
+        Text(
+            title,
+            Modifier.padding(start = 12.dp, top = 10.dp, bottom = 8.dp),
+            color = Muted,
+            fontSize = 14.sp,
+        )
         LazyVerticalGrid(
             columns = GridCells.Fixed(4),
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            contentPadding = PaddingValues(start = 10.dp, end = 10.dp, bottom = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             items(categories.size) { index ->
                 val category = categories[index]
@@ -1979,7 +1988,7 @@ private fun CategoryCard(
     val interactionSource = remember { MutableInteractionSource() }
     val colorTheme = LocalColorTheme.current
     Card(
-        Modifier.fillMaxWidth().height(96.dp).combinedClickable(
+        Modifier.fillMaxWidth().height(72.dp).combinedClickable(
             interactionSource = interactionSource,
             indication = null,
             onClick = click,
@@ -1987,14 +1996,21 @@ private fun CategoryCard(
         ),
         colors = CardDefaults.cardColors(containerColor = if (active) colorTheme.accent else Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(12.dp),
     ) {
-        Column(Modifier.fillMaxWidth().padding(vertical = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(symbol, fontSize = 28.sp)
+        Column(
+            Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Text(symbol, fontSize = 22.sp)
+            Spacer(Modifier.height(2.dp))
             Text(
                 label,
                 color = if (active) colorTheme.onAccent else Ink,
                 fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
+                fontSize = 12.sp,
+                maxLines = 1,
             )
         }
     }
