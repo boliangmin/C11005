@@ -713,6 +713,7 @@ private fun EntryFilterDialog(
     val currentCalendar = remember { Calendar.getInstance() }
     val currentYear = currentCalendar[Calendar.YEAR]
     val currentMonth = currentCalendar[Calendar.MONTH] + 1
+    val colorTheme = LocalColorTheme.current
     var mode by remember(initialFilter) { mutableStateOf(initialFilter.mode) }
     var year by remember(initialFilter) { mutableIntStateOf(initialFilter.year) }
     var month by remember(initialFilter) { mutableIntStateOf(initialFilter.month) }
@@ -729,12 +730,19 @@ private fun EntryFilterDialog(
                     onClick = { mode = EntryFilterMode.ALL },
                 )
                 Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            if (mode == EntryFilterMode.MONTH) colorTheme.softAccent else Bg,
+                            RoundedCornerShape(14.dp),
+                        ),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     FilterNumberPicker(
                         modifier = Modifier.weight(1f),
                         label = "年份",
                         value = "${year}年",
-                        selected = mode == EntryFilterMode.MONTH,
                         previousEnabled = year > 1970,
                         nextEnabled = year < currentYear,
                         onSelect = { mode = EntryFilterMode.MONTH },
@@ -748,11 +756,22 @@ private fun EntryFilterDialog(
                             if (year == currentYear && month > currentMonth) month = currentMonth
                         },
                     )
+                    Box(
+                        Modifier
+                            .width(1.dp)
+                            .height(72.dp)
+                            .background(
+                                if (mode == EntryFilterMode.MONTH) {
+                                    colorTheme.accent.copy(alpha = 0.24f)
+                                } else {
+                                    Color(0xFFE1E2E5)
+                                },
+                            ),
+                    )
                     FilterNumberPicker(
                         modifier = Modifier.weight(1f),
                         label = "月份",
                         value = "${month}月",
-                        selected = mode == EntryFilterMode.MONTH,
                         previousEnabled = month > 1,
                         nextEnabled = month < 12 && (year < currentYear || month < currentMonth),
                         onSelect = { mode = EntryFilterMode.MONTH },
@@ -799,15 +818,9 @@ private fun FilterModeOption(
             .fillMaxWidth()
             .background(if (selected) colorTheme.softAccent else Bg, RoundedCornerShape(14.dp))
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 8.dp),
+            .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        RadioButton(
-            selected = selected,
-            onClick = null,
-            colors = RadioButtonDefaults.colors(selectedColor = colorTheme.accentDark),
-        )
-        Spacer(Modifier.width(8.dp))
         Column(Modifier.weight(1f)) {
             Text(title, fontSize = 16.sp, fontWeight = FontWeight.Medium, color = Ink)
             Text(subtitle, fontSize = 12.sp, color = Muted)
@@ -820,7 +833,6 @@ private fun FilterNumberPicker(
     modifier: Modifier,
     label: String,
     value: String,
-    selected: Boolean,
     previousEnabled: Boolean,
     nextEnabled: Boolean,
     onSelect: () -> Unit,
@@ -828,10 +840,8 @@ private fun FilterNumberPicker(
     onNext: () -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val colorTheme = LocalColorTheme.current
     Column(
         modifier = modifier
-            .background(if (selected) colorTheme.softAccent else Bg, RoundedCornerShape(12.dp))
             .clickable(interactionSource = interactionSource, indication = null, onClick = onSelect)
             .padding(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
