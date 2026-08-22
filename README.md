@@ -7,6 +7,23 @@ C11005 是一个使用 Kotlin 和 Jetpack Compose 开发的轻量 Android 记账
 以下内容由 `auto_commit.ps1` 自动维护。最新提交位于最上方，每条记录与对应 Git 提交使用相同的编号和信息。
 
 <!-- AUTO_COMMIT_LOG_START -->
+### C11005-0069
+
+修改日期： 2026.08.22 12:54:38
+1.修改编号： C11005-0069
+2.修改内容： 改用官方TopAppBarScrollBehavior控制明细标题栏
+3.细节：
+1).使用Material3官方TopAppBar承载账单、账本、统计和更多入口
+2).接入TopAppBarDefaults.enterAlwaysScrollBehavior实现列表上滑收起和下滑展开
+3).将官方nestedScrollConnection连接到明细页面账单列表
+4).设置官方标题栏展开高度为80dp并保持原有入口点击及长按功能
+5).移除自定义箭头、点击切换、垂直拖动检测和尺寸动画
+6).保留标题栏底部1dp浅黑色分隔线
+7).完成18项单元测试、Debug构建、APK归档及覆盖安装验证
+4.修改备注： NULL
+
+
+
 ### C11005-0068
 
 修改日期： 2026.08.22 12:48:00
