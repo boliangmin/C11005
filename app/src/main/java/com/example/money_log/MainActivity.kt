@@ -135,7 +135,7 @@ internal fun colorThemeFromStorage(storageKey: String?): ColorTheme =
 
 private val LocalColorTheme = staticCompositionLocalOf { ColorTheme.CLASSIC }
 
-private enum class AppPage { DETAILS, ADD, MORE, CATEGORIES, TRASH, THEME }
+private enum class AppPage { DETAILS, ADD, MORE, SETTINGS, CATEGORIES, TRASH, THEME }
 private const val UncategorizedName = "未分类"
 private const val UncategorizedIcon = "⭕"
 
@@ -336,7 +336,8 @@ private fun LedgerApp(
             AppPage.ADD -> addReturnPage
             AppPage.CATEGORIES -> AppPage.MORE
             AppPage.TRASH -> AppPage.MORE
-            AppPage.THEME -> AppPage.MORE
+            AppPage.THEME -> AppPage.SETTINGS
+            AppPage.SETTINGS -> AppPage.MORE
             AppPage.MORE -> AppPage.DETAILS
             AppPage.DETAILS -> AppPage.DETAILS
         }
@@ -378,8 +379,11 @@ private fun LedgerApp(
             )
             AppPage.MORE -> MoreScreen(
                 onManageCategories = { page = AppPage.CATEGORIES },
-                onTheme = { page = AppPage.THEME },
+                onSettings = { page = AppPage.SETTINGS },
                 onTrash = { page = AppPage.TRASH },
+            )
+            AppPage.SETTINGS -> SettingsScreen(
+                onTheme = { page = AppPage.THEME },
             )
             AppPage.CATEGORIES -> CategoryOverviewScreen(
                 expenseCategories = expenses,
@@ -1036,7 +1040,7 @@ private fun FilterNumberPicker(
 @Composable
 private fun MoreScreen(
     onManageCategories: () -> Unit,
-    onTheme: () -> Unit,
+    onSettings: () -> Unit,
     onTrash: () -> Unit,
 ) {
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
@@ -1049,15 +1053,31 @@ private fun MoreScreen(
             )
             Spacer(Modifier.height(12.dp))
             MoreMenuItem(
-                symbol = "◐",
-                title = "主题",
-                onClick = onTheme,
+                symbol = "",
+                title = "设置",
+                iconResource = R.drawable.ic_settings_outline,
+                onClick = onSettings,
             )
             Spacer(Modifier.height(12.dp))
             MoreMenuItem(
                 symbol = "♲",
                 title = "回收站",
                 onClick = onTrash,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SettingsScreen(
+    onTheme: () -> Unit,
+) {
+    Column(Modifier.fillMaxSize().statusBarsPadding()) {
+        Column(Modifier.weight(1f).padding(16.dp)) {
+            MoreMenuItem(
+                symbol = "◐",
+                title = "主题",
+                onClick = onTheme,
             )
         }
     }
