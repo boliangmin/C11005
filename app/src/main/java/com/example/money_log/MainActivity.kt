@@ -8,9 +8,13 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -39,10 +43,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -700,13 +702,26 @@ private fun DetailsFeatureBar(
 ) {
     var expanded by remember { mutableStateOf(true) }
     val dragThreshold = with(LocalDensity.current) { 24.dp.toPx() }
+    val arrowRotation by animateFloatAsState(
+        targetValue = if (expanded) 0f else 180f,
+        animationSpec = tween(durationMillis = 200),
+        label = "detailsFeatureArrowRotation",
+    )
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .animateContentSize(animationSpec = tween(durationMillis = 220)),
+        modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        if (expanded) {
+        AnimatedVisibility(
+            visible = expanded,
+            enter = expandVertically(
+                animationSpec = tween(durationMillis = 200),
+                expandFrom = Alignment.Top,
+            ) + fadeIn(animationSpec = tween(durationMillis = 160)),
+            exit = shrinkVertically(
+                animationSpec = tween(durationMillis = 200),
+                shrinkTowards = Alignment.Top,
+            ) + fadeOut(animationSpec = tween(durationMillis = 140)),
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -751,89 +766,18 @@ private fun DetailsFeatureBar(
                 },
             contentAlignment = Alignment.Center,
         ) {
-            DetailsFeatureArrowHandle(expanded = expanded)
-        }
-    }
-}
-
-@Composable
-private fun DetailsFeatureArrowHandle(expanded: Boolean) {
-    val dividerColor = Color(0xFFD0D2D6)
-    val capsuleOutline = Color(0xFFC7C9CE)
-    val arrowColor = Color(0xFFA7AAB0)
-    val capsuleShape = RoundedCornerShape(6.dp)
-    val capsuleBrush = Brush.verticalGradient(
-        listOf(Color(0xFFE9EAEC), Color(0xFFDADCE0)),
-    )
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp)
-            .height(10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .height(1.dp)
-                .background(
-                    Brush.horizontalGradient(listOf(Color.Transparent, dividerColor)),
-                ),
-        )
-        Spacer(Modifier.width(8.dp))
-        Box(
-            modifier = Modifier
-                .size(width = 52.dp, height = 10.dp)
-                .background(capsuleBrush, capsuleShape)
-                .border(0.5.dp, capsuleOutline, capsuleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            Canvas(Modifier.size(width = 18.dp, height = 6.dp)) {
-                val strokeWidth = 1.6.dp.toPx()
-                val strokeInset = 1.25.dp.toPx()
-                val highlightOffset = 0.45.dp.toPx()
-                val edgeY = if (expanded) size.height - strokeInset else strokeInset
-                val pointY = if (expanded) strokeInset else size.height - strokeInset
-                val arrowPoint = Offset(size.width / 2f, pointY)
-                drawLine(
-                    color = Color.White.copy(alpha = 0.72f),
-                    start = Offset(strokeInset, edgeY + highlightOffset),
-                    end = Offset(arrowPoint.x, arrowPoint.y + highlightOffset),
-                    strokeWidth = 1.2.dp.toPx(),
-                    cap = StrokeCap.Round,
-                )
-                drawLine(
-                    color = Color.White.copy(alpha = 0.72f),
-                    start = Offset(size.width - strokeInset, edgeY + highlightOffset),
-                    end = Offset(arrowPoint.x, arrowPoint.y + highlightOffset),
-                    strokeWidth = 1.2.dp.toPx(),
-                    cap = StrokeCap.Round,
-                )
-                drawLine(
-                    color = arrowColor,
-                    start = Offset(strokeInset, edgeY),
-                    end = arrowPoint,
-                    strokeWidth = strokeWidth,
-                    cap = StrokeCap.Round,
-                )
-                drawLine(
-                    color = arrowColor,
-                    start = Offset(size.width - strokeInset, edgeY),
-                    end = arrowPoint,
-                    strokeWidth = strokeWidth,
-                    cap = StrokeCap.Round,
+            Box(
+                modifier = Modifier.size(width = 48.dp, height = 24.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_expand_less),
+                    contentDescription = if (expanded) "收起标题栏" else "展开标题栏",
+                    modifier = Modifier.size(24.dp).rotate(arrowRotation),
+                    tint = Color(0xFFBDBDBD),
                 )
             }
         }
-        Spacer(Modifier.width(8.dp))
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .height(1.dp)
-                .background(
-                    Brush.horizontalGradient(listOf(dividerColor, Color.Transparent)),
-                ),
-        )
     }
 }
 
