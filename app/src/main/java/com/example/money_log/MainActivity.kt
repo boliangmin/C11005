@@ -160,7 +160,7 @@ internal fun titleBarStyleFromStorage(storageKey: String?): TitleBarStyle =
 
 private val LocalColorTheme = staticCompositionLocalOf { ColorTheme.CLASSIC }
 
-private enum class AppPage { DETAILS, ADD, MORE, SETTINGS, TITLE_BAR_STYLE, CATEGORIES, TRASH, THEME }
+private enum class AppPage { DETAILS, ADD, MORE, TITLE_BAR_STYLE, CATEGORIES, TRASH, THEME }
 private const val UncategorizedName = "未分类"
 private const val UncategorizedIcon = "⭕"
 
@@ -371,9 +371,8 @@ private fun LedgerApp(
             AppPage.ADD -> addReturnPage
             AppPage.CATEGORIES -> AppPage.MORE
             AppPage.TRASH -> AppPage.MORE
-            AppPage.THEME -> AppPage.SETTINGS
-            AppPage.TITLE_BAR_STYLE -> AppPage.SETTINGS
-            AppPage.SETTINGS -> AppPage.MORE
+            AppPage.THEME -> AppPage.MORE
+            AppPage.TITLE_BAR_STYLE -> AppPage.MORE
             AppPage.MORE -> AppPage.DETAILS
             AppPage.DETAILS -> AppPage.DETAILS
         }
@@ -416,12 +415,9 @@ private fun LedgerApp(
             )
             AppPage.MORE -> MoreScreen(
                 onManageCategories = { page = AppPage.CATEGORIES },
-                onSettings = { page = AppPage.SETTINGS },
-                onTrash = { page = AppPage.TRASH },
-            )
-            AppPage.SETTINGS -> SettingsScreen(
-                onTheme = { page = AppPage.THEME },
                 onTitleBarStyle = { page = AppPage.TITLE_BAR_STYLE },
+                onTheme = { page = AppPage.THEME },
+                onTrash = { page = AppPage.TRASH },
             )
             AppPage.TITLE_BAR_STYLE -> TitleBarStyleScreen(
                 selectedStyle = selectedTitleBarStyle,
@@ -1164,7 +1160,8 @@ private fun FilterNumberPicker(
 @Composable
 private fun MoreScreen(
     onManageCategories: () -> Unit,
-    onSettings: () -> Unit,
+    onTitleBarStyle: () -> Unit,
+    onTheme: () -> Unit,
     onTrash: () -> Unit,
 ) {
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
@@ -1178,29 +1175,6 @@ private fun MoreScreen(
             Spacer(Modifier.height(12.dp))
             MoreMenuItem(
                 symbol = "",
-                title = "设置",
-                iconResource = R.drawable.ic_settings_outline,
-                onClick = onSettings,
-            )
-            Spacer(Modifier.height(12.dp))
-            MoreMenuItem(
-                symbol = "♲",
-                title = "回收站",
-                onClick = onTrash,
-            )
-        }
-    }
-}
-
-@Composable
-private fun SettingsScreen(
-    onTheme: () -> Unit,
-    onTitleBarStyle: () -> Unit,
-) {
-    Column(Modifier.fillMaxSize().statusBarsPadding()) {
-        Column(Modifier.weight(1f).padding(16.dp)) {
-            MoreMenuItem(
-                symbol = "",
                 title = "标题栏样式",
                 iconResource = R.drawable.ic_title_bar_style_outline,
                 onClick = onTitleBarStyle,
@@ -1208,8 +1182,14 @@ private fun SettingsScreen(
             Spacer(Modifier.height(12.dp))
             MoreMenuItem(
                 symbol = "◐",
-                title = "主题",
+                title = "主题颜色",
                 onClick = onTheme,
+            )
+            Spacer(Modifier.height(12.dp))
+            MoreMenuItem(
+                symbol = "♲",
+                title = "回收站",
+                onClick = onTrash,
             )
         }
     }
