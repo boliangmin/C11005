@@ -42,8 +42,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -133,9 +138,29 @@ internal enum class ColorTheme(
 internal fun colorThemeFromStorage(storageKey: String?): ColorTheme =
     ColorTheme.entries.firstOrNull { it.storageKey == storageKey } ?: ColorTheme.CLASSIC
 
+internal enum class TitleBarStyle(
+    val storageKey: String,
+    val title: String,
+    val subtitle: String,
+) {
+    DESIGN_ONE(
+        storageKey = "design_one",
+        title = "设计一",
+        subtitle = "通过底部箭头手动展开或收起标题栏",
+    ),
+    DESIGN_TWO(
+        storageKey = "design_two",
+        title = "设计二",
+        subtitle = "跟随账单列表滑动自动隐藏或显示标题栏",
+    ),
+}
+
+internal fun titleBarStyleFromStorage(storageKey: String?): TitleBarStyle =
+    TitleBarStyle.entries.firstOrNull { it.storageKey == storageKey } ?: TitleBarStyle.DESIGN_ONE
+
 private val LocalColorTheme = staticCompositionLocalOf { ColorTheme.CLASSIC }
 
-private enum class AppPage { DETAILS, ADD, MORE, SETTINGS, CATEGORIES, TRASH, THEME }
+private enum class AppPage { DETAILS, ADD, MORE, SETTINGS, TITLE_BAR_STYLE, CATEGORIES, TRASH, THEME }
 private const val UncategorizedName = "未分类"
 private const val UncategorizedIcon = "⭕"
 
@@ -274,6 +299,8 @@ private class Store(context: Context) {
     }
     fun colorTheme() = colorThemeFromStorage(p.getString("colorTheme", null))
     fun saveColorTheme(value: ColorTheme) = p.edit().putString("colorTheme", value.storageKey).apply()
+    fun titleBarStyle() = titleBarStyleFromStorage(p.getString("titleBarStyle", null))
+    fun saveTitleBarStyle(value: TitleBarStyle) = p.edit().putString("titleBarStyle", value.storageKey).apply()
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -291,6 +318,7 @@ private fun LedgerRoot() {
     val context = LocalContext.current
     val store = remember { Store(context.applicationContext) }
     var colorTheme by remember { mutableStateOf(store.colorTheme()) }
+    var titleBarStyle by remember { mutableStateOf(store.titleBarStyle()) }
     Money_LogTheme(
         darkTheme = false,
         dynamicColor = false,
@@ -306,9 +334,14 @@ private fun LedgerRoot() {
             LedgerApp(
                 store = store,
                 selectedColorTheme = colorTheme,
+                selectedTitleBarStyle = titleBarStyle,
                 onColorThemeSelected = { selected ->
                     colorTheme = selected
                     store.saveColorTheme(selected)
+                },
+                onTitleBarStyleSelected = { selected ->
+                    titleBarStyle = selected
+                    store.saveTitleBarStyle(selected)
                 },
             )
         }
@@ -319,7 +352,9 @@ private fun LedgerRoot() {
 private fun LedgerApp(
     store: Store,
     selectedColorTheme: ColorTheme,
+    selectedTitleBarStyle: TitleBarStyle,
     onColorThemeSelected: (ColorTheme) -> Unit,
+    onTitleBarStyleSelected: (TitleBarStyle) -> Unit,
 ) {
     val expenses = remember { mutableStateListOf<LedgerCategory>().apply { addAll(store.categories("支出")) } }
     val incomes = remember { mutableStateListOf<LedgerCategory>().apply { addAll(store.categories("收入")) } }
@@ -337,6 +372,7 @@ private fun LedgerApp(
             AppPage.CATEGORIES -> AppPage.MORE
             AppPage.TRASH -> AppPage.MORE
             AppPage.THEME -> AppPage.SETTINGS
+            AppPage.TITLE_BAR_STYLE -> AppPage.SETTINGS
             AppPage.SETTINGS -> AppPage.MORE
             AppPage.MORE -> AppPage.DETAILS
             AppPage.DETAILS -> AppPage.DETAILS
@@ -350,6 +386,7 @@ private fun LedgerApp(
                 entries = entries,
                 expenseCategories = expenses,
                 incomeCategories = incomes,
+                titleBarStyle = selectedTitleBarStyle,
                 onAdd = {
                     addReturnPage = AppPage.DETAILS
                     addInitialDate = initialDateForNewEntry(entries)
@@ -384,6 +421,11 @@ private fun LedgerApp(
             )
             AppPage.SETTINGS -> SettingsScreen(
                 onTheme = { page = AppPage.THEME },
+                onTitleBarStyle = { page = AppPage.TITLE_BAR_STYLE },
+            )
+            AppPage.TITLE_BAR_STYLE -> TitleBarStyleScreen(
+                selectedStyle = selectedTitleBarStyle,
+                onStyleSelected = onTitleBarStyleSelected,
             )
             AppPage.CATEGORIES -> CategoryOverviewScreen(
                 expenseCategories = expenses,
@@ -483,6 +525,7 @@ private fun DetailsScreen(
     entries: List<Entry>,
     expenseCategories: List<LedgerCategory>,
     incomeCategories: List<LedgerCategory>,
+    titleBarStyle: TitleBarStyle,
     onAdd: () -> Unit,
     onMore: () -> Unit,
     addButtonXFraction: Float,
@@ -511,13 +554,26 @@ private fun DetailsScreen(
     val visibleEntries = filterEntries(entries, entryFilter)
     val dayGroups = groupEntriesByDay(visibleEntries)
     val listState = rememberLazyListState()
+    val density = LocalDensity.current
+    val autoHeaderHeight = 85.dp
+    val autoHeaderHeightPx = with(density) { autoHeaderHeight.toPx() }
+    var autoHeaderOffsetPx by remember(titleBarStyle) { mutableFloatStateOf(0f) }
+    val autoHeaderScrollConnection = remember(autoHeaderHeightPx) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                val previousOffset = autoHeaderOffsetPx
+                autoHeaderOffsetPx = (previousOffset + available.y).coerceIn(-autoHeaderHeightPx, 0f)
+                return Offset(x = 0f, y = autoHeaderOffsetPx - previousOffset)
+            }
+        }
+    }
 
-    LaunchedEffect(entryFilter) {
+    LaunchedEffect(entryFilter, titleBarStyle) {
         listState.scrollToItem(0)
+        autoHeaderOffsetPx = 0f
     }
     val colorTheme = LocalColorTheme.current
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        val density = LocalDensity.current
         val addButtonSize = 52.dp
         val edgePadding = 20.dp
         val addButtonSizePx = with(density) { addButtonSize.toPx() }
@@ -536,11 +592,38 @@ private fun DetailsScreen(
         val currentAddButtonX by rememberUpdatedState(addButtonX)
         val currentAddButtonY by rememberUpdatedState(addButtonY)
 
-        Column(Modifier.fillMaxSize().statusBarsPadding()) {
-            DetailsFeatureBar(
-                onBillLongClick = { showBillOptions = true },
-                onMoreClick = onMore,
-            )
+        Column(
+            Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .then(
+                    if (titleBarStyle == TitleBarStyle.DESIGN_TWO) {
+                        Modifier.nestedScroll(autoHeaderScrollConnection)
+                    } else {
+                        Modifier
+                    },
+                ),
+        ) {
+            when (titleBarStyle) {
+                TitleBarStyle.DESIGN_ONE -> DetailsFeatureBar(
+                    onBillLongClick = { showBillOptions = true },
+                    onMoreClick = onMore,
+                )
+                TitleBarStyle.DESIGN_TWO -> Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(with(density) { (autoHeaderHeightPx + autoHeaderOffsetPx).toDp() })
+                        .clipToBounds(),
+                ) {
+                    DetailsAutoCollapsingFeatureBar(
+                        modifier = Modifier.offset {
+                            IntOffset(x = 0, y = autoHeaderOffsetPx.roundToInt())
+                        },
+                        onBillLongClick = { showBillOptions = true },
+                        onMoreClick = onMore,
+                    )
+                }
+            }
             if (entries.isEmpty()) {
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -782,6 +865,47 @@ private fun DetailsFeatureBar(
                     contentDescription = if (expanded) "收起标题栏" else "展开标题栏",
                     modifier = Modifier.size(24.dp).rotate(arrowRotation),
                     tint = Color(0xFFBDBDBD),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailsAutoCollapsingFeatureBar(
+    modifier: Modifier = Modifier,
+    onBillLongClick: () -> Unit,
+    onMoreClick: () -> Unit,
+) {
+    Box(modifier = modifier.fillMaxWidth().height(85.dp)) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, top = 8.dp, end = 16.dp)
+                .height(77.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+            shape = RoundedCornerShape(16.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                DetailsFeatureItem(
+                    Modifier.weight(1f),
+                    R.drawable.ic_bill_outline,
+                    "账单",
+                    selected = true,
+                    onLongClick = onBillLongClick,
+                )
+                DetailsFeatureItem(Modifier.weight(1f), R.drawable.ic_ledger_outline, "账本")
+                DetailsFeatureItem(Modifier.weight(1f), R.drawable.ic_statistics_outline, "统计")
+                DetailsFeatureItem(
+                    Modifier.weight(1f),
+                    R.drawable.ic_more_outline,
+                    "更多",
+                    onClick = onMoreClick,
                 )
             }
         }
@@ -1071,15 +1195,85 @@ private fun MoreScreen(
 @Composable
 private fun SettingsScreen(
     onTheme: () -> Unit,
+    onTitleBarStyle: () -> Unit,
 ) {
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
         Column(Modifier.weight(1f).padding(16.dp)) {
+            MoreMenuItem(
+                symbol = "",
+                title = "标题栏样式",
+                iconResource = R.drawable.ic_title_bar_style_outline,
+                onClick = onTitleBarStyle,
+            )
+            Spacer(Modifier.height(12.dp))
             MoreMenuItem(
                 symbol = "◐",
                 title = "主题",
                 onClick = onTheme,
             )
         }
+    }
+}
+
+@Composable
+private fun TitleBarStyleScreen(
+    selectedStyle: TitleBarStyle,
+    onStyleSelected: (TitleBarStyle) -> Unit,
+) {
+    Column(Modifier.fillMaxSize().statusBarsPadding()) {
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            items(TitleBarStyle.entries, key = { it.storageKey }) { style ->
+                TitleBarStyleOption(
+                    style = style,
+                    selected = style == selectedStyle,
+                    onClick = { onStyleSelected(style) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TitleBarStyleOption(
+    style: TitleBarStyle,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val colorTheme = LocalColorTheme.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(if (selected) colorTheme.softAccent else Color.White, RoundedCornerShape(16.dp))
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier.size(48.dp).background(colorTheme.subtleAccent, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = if (style == TitleBarStyle.DESIGN_ONE) "①" else "②",
+                fontSize = 23.sp,
+                color = colorTheme.accentDark,
+            )
+        }
+        Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
+            Text(style.title, fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Ink)
+            Spacer(Modifier.height(3.dp))
+            Text(style.subtitle, fontSize = 13.sp, color = Muted)
+        }
+        Text(
+            text = if (selected) "✓" else "",
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold,
+            color = colorTheme.accentDark,
+        )
     }
 }
 

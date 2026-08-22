@@ -256,4 +256,19 @@ class ExampleUnitTest {
             storageKeys.toSet(),
         )
     }
+
+    @Test
+    fun titleBarStyleFromStorage_restoresSavedStyleAndFallsBackToDesignOne() {
+        assertEquals(TitleBarStyle.DESIGN_TWO, titleBarStyleFromStorage("design_two"))
+        assertEquals(TitleBarStyle.DESIGN_ONE, titleBarStyleFromStorage(null))
+        assertEquals(TitleBarStyle.DESIGN_ONE, titleBarStyleFromStorage("unknown"))
+    }
+
+    @Test
+    fun titleBarStyles_haveUniqueStableStorageKeys() {
+        val storageKeys = TitleBarStyle.entries.map { it.storageKey }
+
+        assertEquals(storageKeys.size, storageKeys.toSet().size)
+        assertEquals(setOf("design_one", "design_two"), storageKeys.toSet())
+    }
 }
