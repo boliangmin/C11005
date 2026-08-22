@@ -8,7 +8,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -715,8 +714,9 @@ private fun DetailsFeatureBar(
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         shape = RoundedCornerShape(16.dp),
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            AnimatedVisibility(
+        Box(modifier = Modifier.fillMaxWidth()) {
+            androidx.compose.animation.AnimatedVisibility(
+                modifier = Modifier.fillMaxWidth(),
                 visible = expanded,
                 enter = expandVertically(
                     animationSpec = tween(durationMillis = 200),
@@ -730,7 +730,7 @@ private fun DetailsFeatureBar(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 8.dp, top = 10.dp, end = 8.dp, bottom = 4.dp),
+                        .padding(horizontal = 8.dp, vertical = 10.dp),
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     DetailsFeatureItem(
@@ -752,8 +752,8 @@ private fun DetailsFeatureBar(
             }
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(24.dp)
+                    .align(Alignment.BottomCenter)
+                    .size(width = 48.dp, height = 24.dp)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
