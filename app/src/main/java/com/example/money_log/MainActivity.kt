@@ -30,6 +30,7 @@ import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.GenericShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -65,6 +66,28 @@ private val IncomeAmountGreen = Color(0xFF57B881)
 private val Muted = Color(0xFF777A81)
 private val Danger = Color(0xFFC43D3D)
 private val NeutralIconBorder = Color(0xFFE5E5E5)
+private val DetailsFeatureHandleShape = GenericShape { size, _ ->
+    val transitionWidth = size.width * 0.18f
+    moveTo(0f, size.height)
+    cubicTo(
+        transitionWidth * 0.35f,
+        size.height,
+        transitionWidth * 0.65f,
+        0f,
+        transitionWidth,
+        0f,
+    )
+    lineTo(size.width - transitionWidth, 0f)
+    cubicTo(
+        size.width - transitionWidth * 0.65f,
+        0f,
+        size.width - transitionWidth * 0.35f,
+        size.height,
+        size.width,
+        size.height,
+    )
+    close()
+}
 private const val GoldenRatio = 1.618f
 private const val BookkeepingDialogWidthFraction = 0.8f
 
@@ -750,7 +773,7 @@ private fun DetailsFeatureBar(
             Box(
                 modifier = Modifier
                     .size(width = 72.dp, height = 4.dp)
-                    .background(Muted, RoundedCornerShape(1.dp)),
+                    .background(Muted, DetailsFeatureHandleShape),
             )
         }
         HorizontalDivider(
