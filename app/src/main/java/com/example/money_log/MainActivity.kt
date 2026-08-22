@@ -10,6 +10,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -30,7 +31,6 @@ import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.GenericShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -39,7 +39,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -66,28 +68,6 @@ private val IncomeAmountGreen = Color(0xFF57B881)
 private val Muted = Color(0xFF777A81)
 private val Danger = Color(0xFFC43D3D)
 private val NeutralIconBorder = Color(0xFFE5E5E5)
-private val DetailsFeatureHandleShape = GenericShape { size, _ ->
-    val transitionWidth = size.width * 0.18f
-    moveTo(0f, size.height)
-    cubicTo(
-        transitionWidth * 0.35f,
-        size.height,
-        transitionWidth * 0.65f,
-        0f,
-        transitionWidth,
-        0f,
-    )
-    lineTo(size.width - transitionWidth, 0f)
-    cubicTo(
-        size.width - transitionWidth * 0.65f,
-        0f,
-        size.width - transitionWidth * 0.35f,
-        size.height,
-        size.width,
-        size.height,
-    )
-    close()
-}
 private const val GoldenRatio = 1.618f
 private const val BookkeepingDialogWidthFraction = 0.8f
 
@@ -770,11 +750,27 @@ private fun DetailsFeatureBar(
                 },
             contentAlignment = Alignment.BottomCenter,
         ) {
-            Box(
-                modifier = Modifier
-                    .size(width = 72.dp, height = 4.dp)
-                    .background(Muted, DetailsFeatureHandleShape),
-            )
+            Canvas(Modifier.size(width = 18.dp, height = 6.dp)) {
+                val strokeWidth = 2.dp.toPx()
+                val strokeInset = strokeWidth / 2f
+                val edgeY = if (expanded) size.height - strokeInset else strokeInset
+                val pointY = if (expanded) strokeInset else size.height - strokeInset
+                val arrowPoint = Offset(size.width / 2f, pointY)
+                drawLine(
+                    color = Muted,
+                    start = Offset(strokeInset, edgeY),
+                    end = arrowPoint,
+                    strokeWidth = strokeWidth,
+                    cap = StrokeCap.Round,
+                )
+                drawLine(
+                    color = Muted,
+                    start = Offset(size.width - strokeInset, edgeY),
+                    end = arrowPoint,
+                    strokeWidth = strokeWidth,
+                    cap = StrokeCap.Round,
+                )
+            }
         }
         HorizontalDivider(
             modifier = Modifier.fillMaxWidth(),
