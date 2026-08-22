@@ -145,13 +145,13 @@ internal enum class TitleBarStyle(
 ) {
     DESIGN_ONE(
         storageKey = "design_one",
-        title = "设计一",
-        subtitle = "通过底部箭头手动展开或收起标题栏",
+        title = "经典",
+        subtitle = "使用按钮手动控制菜单显隐",
     ),
     DESIGN_TWO(
         storageKey = "design_two",
-        title = "设计二",
-        subtitle = "跟随账单列表滑动自动隐藏或显示标题栏",
+        title = "沉浸",
+        subtitle = "滑动查看账单时自动显隐菜单",
     ),
 }
 
