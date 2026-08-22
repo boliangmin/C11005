@@ -156,6 +156,7 @@ internal fun titleBarStyleFromStorage(storageKey: String?): TitleBarStyle =
 private val LocalColorTheme = staticCompositionLocalOf { ColorTheme.CLASSIC }
 
 private enum class AppPage { DETAILS, ADD, MORE, TITLE_BAR_STYLE, CATEGORIES, TRASH, THEME }
+private enum class DetailsSection { BILLS, LEDGER, STATISTICS }
 private const val UncategorizedName = "未分类"
 private const val UncategorizedIcon = "⭕"
 
@@ -531,6 +532,7 @@ private fun DetailsScreen(
     var revealedEntryId by remember { mutableStateOf<String?>(null) }
     var showBillOptions by remember { mutableStateOf(false) }
     var showEntryFilter by remember { mutableStateOf(false) }
+    var selectedSection by remember { mutableStateOf(DetailsSection.BILLS) }
     val initialFilter = remember {
         val currentTime = System.currentTimeMillis()
         val latestDate = entries.maxOfOrNull { it.date } ?: currentTime
@@ -559,8 +561,14 @@ private fun DetailsScreen(
         }
     }
 
-    LaunchedEffect(entryFilter, titleBarStyle) {
-        listState.scrollToItem(0)
+    BackHandler(enabled = selectedSection != DetailsSection.BILLS) {
+        selectedSection = DetailsSection.BILLS
+    }
+
+    LaunchedEffect(entryFilter, titleBarStyle, selectedSection) {
+        if (selectedSection == DetailsSection.BILLS) {
+            listState.scrollToItem(0)
+        }
         autoHeaderOffsetPx = 0f
     }
     val fixedPrimaryDark = colorResource(R.color.theme_primary_dark)
@@ -597,6 +605,11 @@ private fun DetailsScreen(
         ) {
             when (titleBarStyle) {
                 TitleBarStyle.DESIGN_ONE -> DetailsFeatureBar(
+                    selectedSection = selectedSection,
+                    onSectionSelected = { section ->
+                        selectedSection = section
+                        revealedEntryId = null
+                    },
                     onBillLongClick = { showBillOptions = true },
                     onMoreClick = onMore,
                 )
@@ -610,12 +623,19 @@ private fun DetailsScreen(
                         modifier = Modifier.offset {
                             IntOffset(x = 0, y = autoHeaderOffsetPx.roundToInt())
                         },
+                        selectedSection = selectedSection,
+                        onSectionSelected = { section ->
+                            selectedSection = section
+                            revealedEntryId = null
+                        },
                         onBillLongClick = { showBillOptions = true },
                         onMoreClick = onMore,
                     )
                 }
             }
-            if (entries.isEmpty()) {
+            if (selectedSection != DetailsSection.BILLS) {
+                Spacer(Modifier.weight(1f))
+            } else if (entries.isEmpty()) {
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("🧾", fontSize = 52.sp)
@@ -664,41 +684,43 @@ private fun DetailsScreen(
                 }
             }
         }
-        FloatingActionButton(
-            onClick = onAdd,
-            modifier = Modifier
-                .offset { IntOffset(addButtonX.roundToInt(), addButtonY.roundToInt()) }
-                .size(addButtonSize)
-                .pointerInput(minimumX, maximumX, minimumY, maximumY) {
-                    var dragX = currentAddButtonX
-                    var dragY = currentAddButtonY
-                    detectDragGestures(
-                        onDragStart = {
-                            dragX = currentAddButtonX
-                            dragY = currentAddButtonY
-                        },
-                        onDrag = { _, dragAmount ->
-                            dragX = (dragX + dragAmount.x).coerceIn(minimumX, maximumX)
-                            dragY = (dragY + dragAmount.y).coerceIn(minimumY, maximumY)
-                            val xFraction = if (maximumX == minimumX) 0f else {
-                                (dragX - minimumX) / (maximumX - minimumX)
-                            }
-                            val yFraction = if (maximumY == minimumY) 0f else {
-                                (dragY - minimumY) / (maximumY - minimumY)
-                            }
-                            onAddButtonPositionChange(xFraction, yFraction)
-                        },
-                    )
-                },
-            shape = RoundedCornerShape(15.dp),
-            containerColor = fixedPrimaryDark,
-            contentColor = Color.White,
-            elevation = FloatingActionButtonDefaults.elevation(
-                defaultElevation = 5.dp,
-                pressedElevation = 7.dp,
-            ),
-        ) {
-            Text("+", fontSize = 34.sp, fontWeight = FontWeight.Normal)
+        if (selectedSection == DetailsSection.BILLS) {
+            FloatingActionButton(
+                onClick = onAdd,
+                modifier = Modifier
+                    .offset { IntOffset(addButtonX.roundToInt(), addButtonY.roundToInt()) }
+                    .size(addButtonSize)
+                    .pointerInput(minimumX, maximumX, minimumY, maximumY) {
+                        var dragX = currentAddButtonX
+                        var dragY = currentAddButtonY
+                        detectDragGestures(
+                            onDragStart = {
+                                dragX = currentAddButtonX
+                                dragY = currentAddButtonY
+                            },
+                            onDrag = { _, dragAmount ->
+                                dragX = (dragX + dragAmount.x).coerceIn(minimumX, maximumX)
+                                dragY = (dragY + dragAmount.y).coerceIn(minimumY, maximumY)
+                                val xFraction = if (maximumX == minimumX) 0f else {
+                                    (dragX - minimumX) / (maximumX - minimumX)
+                                }
+                                val yFraction = if (maximumY == minimumY) 0f else {
+                                    (dragY - minimumY) / (maximumY - minimumY)
+                                }
+                                onAddButtonPositionChange(xFraction, yFraction)
+                            },
+                        )
+                    },
+                shape = RoundedCornerShape(15.dp),
+                containerColor = fixedPrimaryDark,
+                contentColor = Color.White,
+                elevation = FloatingActionButtonDefaults.elevation(
+                    defaultElevation = 5.dp,
+                    pressedElevation = 7.dp,
+                ),
+            ) {
+                Text("+", fontSize = 34.sp, fontWeight = FontWeight.Normal)
+            }
         }
     }
     actionEntry?.let { entry ->
@@ -774,6 +796,8 @@ private fun EntryDayHeader(month: Int, day: Int) {
 
 @Composable
 private fun DetailsFeatureBar(
+    selectedSection: DetailsSection,
+    onSectionSelected: (DetailsSection) -> Unit,
     onBillLongClick: () -> Unit,
     onMoreClick: () -> Unit,
 ) {
@@ -815,11 +839,24 @@ private fun DetailsFeatureBar(
                         Modifier.weight(1f),
                         R.drawable.ic_bill_outline,
                         "账单",
-                        selected = true,
+                        selected = selectedSection == DetailsSection.BILLS,
+                        onClick = { onSectionSelected(DetailsSection.BILLS) },
                         onLongClick = onBillLongClick,
                     )
-                    DetailsFeatureItem(Modifier.weight(1f), R.drawable.ic_ledger_outline, "账本")
-                    DetailsFeatureItem(Modifier.weight(1f), R.drawable.ic_statistics_outline, "统计")
+                    DetailsFeatureItem(
+                        Modifier.weight(1f),
+                        R.drawable.ic_ledger_outline,
+                        "账本",
+                        selected = selectedSection == DetailsSection.LEDGER,
+                        onClick = { onSectionSelected(DetailsSection.LEDGER) },
+                    )
+                    DetailsFeatureItem(
+                        Modifier.weight(1f),
+                        R.drawable.ic_statistics_outline,
+                        "统计",
+                        selected = selectedSection == DetailsSection.STATISTICS,
+                        onClick = { onSectionSelected(DetailsSection.STATISTICS) },
+                    )
                     DetailsFeatureItem(
                         Modifier.weight(1f),
                         R.drawable.ic_more_outline,
@@ -865,6 +902,8 @@ private fun DetailsFeatureBar(
 @Composable
 private fun DetailsAutoCollapsingFeatureBar(
     modifier: Modifier = Modifier,
+    selectedSection: DetailsSection,
+    onSectionSelected: (DetailsSection) -> Unit,
     onBillLongClick: () -> Unit,
     onMoreClick: () -> Unit,
 ) {
@@ -887,11 +926,24 @@ private fun DetailsAutoCollapsingFeatureBar(
                     Modifier.weight(1f),
                     R.drawable.ic_bill_outline,
                     "账单",
-                    selected = true,
+                    selected = selectedSection == DetailsSection.BILLS,
+                    onClick = { onSectionSelected(DetailsSection.BILLS) },
                     onLongClick = onBillLongClick,
                 )
-                DetailsFeatureItem(Modifier.weight(1f), R.drawable.ic_ledger_outline, "账本")
-                DetailsFeatureItem(Modifier.weight(1f), R.drawable.ic_statistics_outline, "统计")
+                DetailsFeatureItem(
+                    Modifier.weight(1f),
+                    R.drawable.ic_ledger_outline,
+                    "账本",
+                    selected = selectedSection == DetailsSection.LEDGER,
+                    onClick = { onSectionSelected(DetailsSection.LEDGER) },
+                )
+                DetailsFeatureItem(
+                    Modifier.weight(1f),
+                    R.drawable.ic_statistics_outline,
+                    "统计",
+                    selected = selectedSection == DetailsSection.STATISTICS,
+                    onClick = { onSectionSelected(DetailsSection.STATISTICS) },
+                )
                 DetailsFeatureItem(
                     Modifier.weight(1f),
                     R.drawable.ic_more_outline,
