@@ -1161,28 +1161,26 @@ private fun MoreScreen(
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
         Column(Modifier.weight(1f).padding(16.dp)) {
             MoreMenuItem(
-                symbol = "",
                 title = "类型管理",
-                iconResource = R.drawable.ic_category_manage_outline,
+                iconResource = R.drawable.ic_category_manage_color,
                 onClick = onManageCategories,
             )
             Spacer(Modifier.height(12.dp))
             MoreMenuItem(
-                symbol = "",
                 title = "标题栏样式",
-                iconResource = R.drawable.ic_title_bar_style_outline,
+                iconResource = R.drawable.ic_title_bar_style_color,
                 onClick = onTitleBarStyle,
             )
             Spacer(Modifier.height(12.dp))
             MoreMenuItem(
-                symbol = "◐",
                 title = "主题颜色",
+                iconResource = R.drawable.ic_theme_color,
                 onClick = onTheme,
             )
             Spacer(Modifier.height(12.dp))
             MoreMenuItem(
-                symbol = "♲",
                 title = "回收站",
+                iconResource = R.drawable.ic_recycle_bin_color,
                 onClick = onTrash,
             )
         }
@@ -1253,13 +1251,11 @@ private fun TitleBarStyleOption(
 
 @Composable
 private fun MoreMenuItem(
-    symbol: String,
     title: String,
-    iconResource: Int? = null,
+    iconResource: Int,
     onClick: () -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val colorTheme = LocalColorTheme.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1269,19 +1265,15 @@ private fun MoreMenuItem(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            Modifier.size(48.dp).background(colorTheme.softAccent, CircleShape),
+            Modifier.size(48.dp).background(Color.White, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
-            if (iconResource == null) {
-                Text(symbol, fontSize = 24.sp, color = colorTheme.accentDark)
-            } else {
-                Icon(
-                    painter = painterResource(iconResource),
-                    contentDescription = null,
-                    modifier = Modifier.size(27.dp),
-                    tint = colorTheme.accentDark,
-                )
-            }
+            Icon(
+                painter = painterResource(iconResource),
+                contentDescription = null,
+                modifier = Modifier.size(34.dp),
+                tint = Color.Unspecified,
+            )
         }
         Text(
             title,
