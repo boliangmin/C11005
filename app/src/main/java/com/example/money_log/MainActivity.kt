@@ -52,6 +52,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -562,7 +563,7 @@ private fun DetailsScreen(
         listState.scrollToItem(0)
         autoHeaderOffsetPx = 0f
     }
-    val colorTheme = LocalColorTheme.current
+    val fixedPrimaryDark = colorResource(R.color.theme_primary_dark)
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val addButtonSize = 52.dp
         val edgePadding = 20.dp
@@ -690,8 +691,8 @@ private fun DetailsScreen(
                     )
                 },
             shape = RoundedCornerShape(15.dp),
-            containerColor = colorTheme.softAccent,
-            contentColor = colorTheme.accentDark,
+            containerColor = fixedPrimaryDark,
+            contentColor = Color.White,
             elevation = FloatingActionButtonDefaults.elevation(
                 defaultElevation = 5.dp,
                 pressedElevation = 7.dp,
@@ -912,7 +913,7 @@ private fun DetailsFeatureItem(
     onClick: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
 ) {
-    val colorTheme = LocalColorTheme.current
+    val fixedPrimaryDark = colorResource(R.color.theme_primary_dark)
     val interactionSource = remember { MutableInteractionSource() }
     val gestureModifier = when {
         onLongClick != null -> Modifier.combinedClickable(
@@ -934,7 +935,7 @@ private fun DetailsFeatureItem(
     ) {
         Box(
             modifier = Modifier.size(38.dp).background(
-                color = if (selected) colorTheme.subtleAccent else Bg,
+                color = if (selected) fixedPrimaryDark else Bg,
                 shape = CircleShape,
             ),
             contentAlignment = Alignment.Center,
@@ -943,7 +944,7 @@ private fun DetailsFeatureItem(
                 painter = painterResource(iconResource),
                 contentDescription = label,
                 modifier = Modifier.size(21.dp),
-                tint = if (selected) colorTheme.accentDark else Ink,
+                tint = if (selected) Color.White else Ink,
             )
         }
         Spacer(Modifier.height(3.dp))
