@@ -1216,23 +1216,30 @@ private fun TitleBarStyleOption(
     onClick: () -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val colorTheme = LocalColorTheme.current
+    val selectionColor = Color(0xFF315F9F)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(if (selected) colorTheme.softAccent else Color.White, RoundedCornerShape(16.dp))
+            .background(if (selected) Color(0xFFEEF5FF) else Color.White, RoundedCornerShape(16.dp))
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            Modifier.size(48.dp).background(colorTheme.subtleAccent, CircleShape),
+            Modifier.size(48.dp).background(Color.White, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
-            Text(
-                text = if (style == TitleBarStyle.DESIGN_ONE) "①" else "②",
-                fontSize = 23.sp,
-                color = colorTheme.accentDark,
+            Icon(
+                painter = painterResource(
+                    if (style == TitleBarStyle.DESIGN_ONE) {
+                        R.drawable.ic_title_style_classic_color
+                    } else {
+                        R.drawable.ic_title_style_immersive_color
+                    },
+                ),
+                contentDescription = style.title,
+                modifier = Modifier.size(34.dp),
+                tint = Color.Unspecified,
             )
         }
         Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
@@ -1244,7 +1251,7 @@ private fun TitleBarStyleOption(
             text = if (selected) "✓" else "",
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
-            color = colorTheme.accentDark,
+            color = selectionColor,
         )
     }
 }
