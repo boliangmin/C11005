@@ -707,67 +707,70 @@ private fun DetailsFeatureBar(
         animationSpec = tween(durationMillis = 200),
         label = "detailsFeatureArrowRotation",
     )
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally,
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 16.dp, top = 8.dp, end = 16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        shape = RoundedCornerShape(16.dp),
     ) {
-        AnimatedVisibility(
-            visible = expanded,
-            enter = expandVertically(
-                animationSpec = tween(durationMillis = 200),
-                expandFrom = Alignment.Top,
-            ) + fadeIn(animationSpec = tween(durationMillis = 160)),
-            exit = shrinkVertically(
-                animationSpec = tween(durationMillis = 200),
-                shrinkTowards = Alignment.Top,
-            ) + fadeOut(animationSpec = tween(durationMillis = 140)),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            AnimatedVisibility(
+                visible = expanded,
+                enter = expandVertically(
+                    animationSpec = tween(durationMillis = 200),
+                    expandFrom = Alignment.Top,
+                ) + fadeIn(animationSpec = tween(durationMillis = 160)),
+                exit = shrinkVertically(
+                    animationSpec = tween(durationMillis = 200),
+                    shrinkTowards = Alignment.Top,
+                ) + fadeOut(animationSpec = tween(durationMillis = 140)),
             ) {
-                DetailsFeatureItem(
-                    Modifier.weight(1f),
-                    R.drawable.ic_bill_outline,
-                    "账单",
-                    selected = true,
-                    onLongClick = onBillLongClick,
-                )
-                DetailsFeatureItem(Modifier.weight(1f), R.drawable.ic_ledger_outline, "账本")
-                DetailsFeatureItem(Modifier.weight(1f), R.drawable.ic_statistics_outline, "统计")
-                DetailsFeatureItem(
-                    Modifier.weight(1f),
-                    R.drawable.ic_more_outline,
-                    "更多",
-                    onClick = onMoreClick,
-                )
-            }
-        }
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(24.dp)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                ) { expanded = !expanded }
-                .pointerInput(expanded, dragThreshold) {
-                    var totalDragY = 0f
-                    detectVerticalDragGestures(
-                        onDragStart = { totalDragY = 0f },
-                        onVerticalDrag = { _, dragAmount -> totalDragY += dragAmount },
-                        onDragEnd = {
-                            when {
-                                totalDragY <= -dragThreshold -> expanded = false
-                                totalDragY >= dragThreshold -> expanded = true
-                            }
-                        },
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 8.dp, top = 10.dp, end = 8.dp, bottom = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    DetailsFeatureItem(
+                        Modifier.weight(1f),
+                        R.drawable.ic_bill_outline,
+                        "账单",
+                        selected = true,
+                        onLongClick = onBillLongClick,
                     )
-                },
-            contentAlignment = Alignment.Center,
-        ) {
+                    DetailsFeatureItem(Modifier.weight(1f), R.drawable.ic_ledger_outline, "账本")
+                    DetailsFeatureItem(Modifier.weight(1f), R.drawable.ic_statistics_outline, "统计")
+                    DetailsFeatureItem(
+                        Modifier.weight(1f),
+                        R.drawable.ic_more_outline,
+                        "更多",
+                        onClick = onMoreClick,
+                    )
+                }
+            }
             Box(
-                modifier = Modifier.size(width = 48.dp, height = 24.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(24.dp)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) { expanded = !expanded }
+                    .pointerInput(expanded, dragThreshold) {
+                        var totalDragY = 0f
+                        detectVerticalDragGestures(
+                            onDragStart = { totalDragY = 0f },
+                            onVerticalDrag = { _, dragAmount -> totalDragY += dragAmount },
+                            onDragEnd = {
+                                when {
+                                    totalDragY <= -dragThreshold -> expanded = false
+                                    totalDragY >= dragThreshold -> expanded = true
+                                }
+                            },
+                        )
+                    },
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
@@ -813,7 +816,7 @@ private fun DetailsFeatureItem(
     ) {
         Box(
             modifier = Modifier.size(38.dp).background(
-                color = if (selected) colorTheme.subtleAccent else Color.White,
+                color = if (selected) colorTheme.subtleAccent else Bg,
                 shape = CircleShape,
             ),
             contentAlignment = Alignment.Center,
