@@ -155,7 +155,7 @@ internal fun titleBarStyleFromStorage(storageKey: String?): TitleBarStyle =
 
 private val LocalColorTheme = staticCompositionLocalOf { ColorTheme.CLASSIC }
 
-private enum class AppPage { DETAILS, ADD, TITLE_BAR_STYLE, CATEGORIES, TRASH, THEME }
+private enum class AppPage { DETAILS, ADD, TITLE_BAR_STYLE, CATEGORIES }
 private enum class DetailsSection { BILLS, LEDGER, STATISTICS, MORE }
 private const val UncategorizedName = "未分类"
 private const val UncategorizedIcon = "⭕"
@@ -169,7 +169,6 @@ data class Entry(
     val note: String = "",
 )
 data class LedgerCategory(val name: String, val symbol: String)
-internal data class EntryTransferResult(val activeEntries: List<Entry>, val trashEntries: List<Entry>)
 internal data class EntryMonthGroup(val year: Int, val month: Int, val entries: List<Entry>)
 internal data class EntryDayGroup(val year: Int, val month: Int, val day: Int, val entries: List<Entry>)
 internal enum class EntryFilterMode { ALL, MONTH }
@@ -212,6 +211,11 @@ internal fun ensureUncategorizedCategory(categories: List<LedgerCategory>): List
 
 private class Store(context: Context) {
     private val p = context.getSharedPreferences("ledger", Context.MODE_PRIVATE)
+
+    init {
+        p.edit().remove("trashEntries").apply()
+    }
+
     fun categories(kind: String): List<LedgerCategory> {
         val key = if (kind == "支出") "expenseCategories" else "incomeCategories"
         val defaults = if (kind == "支出") {
@@ -285,16 +289,7 @@ private class Store(context: Context) {
 
     fun entries() = readEntries("entries")
     fun saveEntries(value: List<Entry>) = saveEntryList("entries", value)
-    fun trashEntries() = readEntries("trashEntries")
-    fun saveTrashEntries(value: List<Entry>) = saveEntryList("trashEntries", value)
-    fun saveEntryCollections(activeEntries: List<Entry>, trashEntries: List<Entry>) {
-        p.edit()
-            .putString("entries", entryListJson(activeEntries))
-            .putString("trashEntries", entryListJson(trashEntries))
-            .apply()
-    }
     fun colorTheme() = colorThemeFromStorage(p.getString("colorTheme", null))
-    fun saveColorTheme(value: ColorTheme) = p.edit().putString("colorTheme", value.storageKey).apply()
     fun titleBarStyle() = titleBarStyleFromStorage(p.getString("titleBarStyle", null))
     fun saveTitleBarStyle(value: TitleBarStyle) = p.edit().putString("titleBarStyle", value.storageKey).apply()
 }
@@ -313,7 +308,7 @@ class MainActivity : ComponentActivity() {
 private fun LedgerRoot() {
     val context = LocalContext.current
     val store = remember { Store(context.applicationContext) }
-    var colorTheme by remember { mutableStateOf(store.colorTheme()) }
+    val colorTheme = remember { store.colorTheme() }
     var titleBarStyle by remember { mutableStateOf(store.titleBarStyle()) }
     Money_LogTheme(
         darkTheme = false,
@@ -329,12 +324,7 @@ private fun LedgerRoot() {
         ) {
             LedgerApp(
                 store = store,
-                selectedColorTheme = colorTheme,
                 selectedTitleBarStyle = titleBarStyle,
-                onColorThemeSelected = { selected ->
-                    colorTheme = selected
-                    store.saveColorTheme(selected)
-                },
                 onTitleBarStyleSelected = { selected ->
                     titleBarStyle = selected
                     store.saveTitleBarStyle(selected)
@@ -347,15 +337,12 @@ private fun LedgerRoot() {
 @Composable
 private fun LedgerApp(
     store: Store,
-    selectedColorTheme: ColorTheme,
     selectedTitleBarStyle: TitleBarStyle,
-    onColorThemeSelected: (ColorTheme) -> Unit,
     onTitleBarStyleSelected: (TitleBarStyle) -> Unit,
 ) {
     val expenses = remember { mutableStateListOf<LedgerCategory>().apply { addAll(store.categories("支出")) } }
     val incomes = remember { mutableStateListOf<LedgerCategory>().apply { addAll(store.categories("收入")) } }
     val entries = remember { mutableStateListOf<Entry>().apply { addAll(store.entries()) } }
-    val trashEntries = remember { mutableStateListOf<Entry>().apply { addAll(store.trashEntries()) } }
     var page by remember { mutableStateOf(AppPage.DETAILS) }
     var addReturnPage by remember { mutableStateOf(AppPage.DETAILS) }
     var addInitialDate by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -367,8 +354,6 @@ private fun LedgerApp(
         page = when (page) {
             AppPage.ADD -> addReturnPage
             AppPage.CATEGORIES -> AppPage.DETAILS
-            AppPage.TRASH -> AppPage.DETAILS
-            AppPage.THEME -> AppPage.DETAILS
             AppPage.TITLE_BAR_STYLE -> AppPage.DETAILS
             AppPage.DETAILS -> AppPage.DETAILS
         }
@@ -391,8 +376,6 @@ private fun LedgerApp(
                 },
                 onManageCategories = { page = AppPage.CATEGORIES },
                 onTitleBarStyle = { page = AppPage.TITLE_BAR_STYLE },
-                onTheme = { page = AppPage.THEME },
-                onTrash = { page = AppPage.TRASH },
                 addButtonXFraction = addButtonXFraction,
                 addButtonYFraction = addButtonYFraction,
                 onAddButtonPositionChange = { xFraction, yFraction ->
@@ -406,12 +389,10 @@ private fun LedgerApp(
                     store.saveEntries(entries)
                 },
                 onDeleteEntry = { entry ->
-                    val result = moveEntryToTrash(entries, trashEntries, entry.id)
+                    val updatedEntries = deleteEntry(entries, entry.id)
                     entries.clear()
-                    entries.addAll(result.activeEntries)
-                    trashEntries.clear()
-                    trashEntries.addAll(result.trashEntries)
-                    store.saveEntryCollections(entries, trashEntries)
+                    entries.addAll(updatedEntries)
+                    store.saveEntries(entries)
                 },
             )
             AppPage.TITLE_BAR_STYLE -> TitleBarStyleScreen(
@@ -438,52 +419,21 @@ private fun LedgerApp(
                         target[categoryIndex] = safeUpdated
                         store.saveCategories(kind, target)
                         val updatedEntries = updateEntriesCategory(entries, kind, current.name, safeUpdated.name)
-                        val updatedTrashEntries = updateEntriesCategory(trashEntries, kind, current.name, safeUpdated.name)
                         entries.clear()
                         entries.addAll(updatedEntries)
-                        trashEntries.clear()
-                        trashEntries.addAll(updatedTrashEntries)
                         store.saveEntries(entries)
-                        store.saveTrashEntries(trashEntries)
                     }
                 },
                 onDeleteCategory = { kind, category ->
                     val target = if (kind == "支出") expenses else incomes
                     if (category.name != UncategorizedName && target.remove(category)) {
                         val updatedEntries = updateEntriesCategory(entries, kind, category.name, UncategorizedName)
-                        val updatedTrashEntries = updateEntriesCategory(trashEntries, kind, category.name, UncategorizedName)
                         entries.clear()
                         entries.addAll(updatedEntries)
-                        trashEntries.clear()
-                        trashEntries.addAll(updatedTrashEntries)
                         store.saveCategories(kind, target)
                         store.saveEntries(entries)
-                        store.saveTrashEntries(trashEntries)
                     }
                 },
-            )
-            AppPage.TRASH -> RecycleBinScreen(
-                entries = trashEntries,
-                expenseCategories = expenses,
-                incomeCategories = incomes,
-                onRestore = { entry ->
-                    val result = restoreEntryFromTrash(entries, trashEntries, entry.id)
-                    entries.clear()
-                    entries.addAll(result.activeEntries)
-                    trashEntries.clear()
-                    trashEntries.addAll(result.trashEntries)
-                    store.saveEntryCollections(entries, trashEntries)
-                },
-                onDeletePermanently = { entry ->
-                    val updatedTrash = deleteEntry(trashEntries, entry.id)
-                    trashEntries.clear()
-                    trashEntries.addAll(updatedTrash)
-                    store.saveTrashEntries(trashEntries)
-                },
-            )
-            AppPage.THEME -> ThemeScreen(
-                selectedTheme = selectedColorTheme,
-                onThemeSelected = onColorThemeSelected,
             )
             }
             if (page == AppPage.ADD) {
@@ -522,8 +472,6 @@ private fun DetailsScreen(
     onAdd: () -> Unit,
     onManageCategories: () -> Unit,
     onTitleBarStyle: () -> Unit,
-    onTheme: () -> Unit,
-    onTrash: () -> Unit,
     addButtonXFraction: Float,
     addButtonYFraction: Float,
     onAddButtonPositionChange: (Float, Float) -> Unit,
@@ -639,8 +587,6 @@ private fun DetailsScreen(
                     modifier = Modifier.weight(1f),
                     onManageCategories = onManageCategories,
                     onTitleBarStyle = onTitleBarStyle,
-                    onTheme = onTheme,
-                    onTrash = onTrash,
                 )
             } else if (selectedSection != DetailsSection.BILLS) {
                 Spacer(Modifier.weight(1f))
@@ -1218,8 +1164,6 @@ private fun MoreContent(
     modifier: Modifier = Modifier,
     onManageCategories: () -> Unit,
     onTitleBarStyle: () -> Unit,
-    onTheme: () -> Unit,
-    onTrash: () -> Unit,
 ) {
     Column(modifier.fillMaxWidth().padding(16.dp)) {
         MoreMenuItem(
@@ -1232,18 +1176,6 @@ private fun MoreContent(
             title = "标题栏样式",
             iconResource = R.drawable.ic_title_bar_style_color,
             onClick = onTitleBarStyle,
-        )
-        Spacer(Modifier.height(12.dp))
-        MoreMenuItem(
-            title = "主题颜色",
-            iconResource = R.drawable.ic_theme_color,
-            onClick = onTheme,
-        )
-        Spacer(Modifier.height(12.dp))
-        MoreMenuItem(
-            title = "回收站",
-            iconResource = R.drawable.ic_recycle_bin_color,
-            onClick = onTrash,
         )
     }
 }
@@ -1352,125 +1284,6 @@ private fun MoreMenuItem(
         )
         Text("›", fontSize = 28.sp, color = Muted)
     }
-}
-
-@Composable
-private fun RecycleBinScreen(
-    entries: List<Entry>,
-    expenseCategories: List<LedgerCategory>,
-    incomeCategories: List<LedgerCategory>,
-    onRestore: (Entry) -> Unit,
-    onDeletePermanently: (Entry) -> Unit,
-) {
-    var permanentDeleteRequest by remember { mutableStateOf<Entry?>(null) }
-
-    Column(Modifier.fillMaxSize().statusBarsPadding()) {
-        if (entries.isEmpty()) {
-            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("♲", fontSize = 52.sp, color = Muted)
-                    Spacer(Modifier.height(8.dp))
-                    Text("回收站为空", fontSize = 18.sp, color = Muted)
-                }
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp),
-                contentPadding = PaddingValues(vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                items(entries.asReversed(), key = { it.id }) { entry ->
-                    val categories = if (entry.kind == "收入") incomeCategories else expenseCategories
-                    val symbol = categories.firstOrNull { it.name == entry.category }?.symbol
-                        ?: defaultIcon(entry.category)
-                    RecycleBinEntryCard(
-                        entry = entry,
-                        symbol = symbol,
-                        onRestore = { onRestore(entry) },
-                        onDeletePermanently = { permanentDeleteRequest = entry },
-                    )
-                }
-            }
-        }
-    }
-    permanentDeleteRequest?.let { entry ->
-        PermanentlyDeleteEntryDialog(
-            entry = entry,
-            dismiss = { permanentDeleteRequest = null },
-            confirm = {
-                onDeletePermanently(entry)
-                permanentDeleteRequest = null
-            },
-        )
-    }
-}
-
-@Composable
-private fun RecycleBinEntryCard(
-    entry: Entry,
-    symbol: String,
-    onRestore: () -> Unit,
-    onDeletePermanently: () -> Unit,
-) {
-    val income = entry.kind == "收入"
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        shape = RoundedCornerShape(16.dp),
-    ) {
-        Column(Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    Modifier.size(46.dp).background(Color.White, CircleShape),
-                    contentAlignment = Alignment.Center,
-                ) { Text(symbol, fontSize = 23.sp) }
-                Column(Modifier.weight(1f).padding(start = 14.dp)) {
-                    Text(entry.category, fontSize = 17.sp, fontWeight = FontWeight.Medium)
-                    Text("${entry.kind} · ${day(entry.date)}", fontSize = 13.sp, color = Muted)
-                    if (entry.note.isNotBlank()) {
-                        Text(entry.note, fontSize = 12.sp, color = LocalColorTheme.current.accentDark, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                }
-                Text(
-                    "${if (income) "+" else "−"}¥${money(entry.amount)}",
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (income) LocalColorTheme.current.accentDark else Ink,
-                )
-            }
-            Spacer(Modifier.height(12.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextButton(onDeletePermanently) { Text("彻底删除", color = Danger) }
-                Spacer(Modifier.width(8.dp))
-                TextButton(
-                    onClick = onRestore,
-                    colors = ButtonDefaults.textButtonColors(contentColor = Ink),
-                ) { Text("恢复") }
-            }
-        }
-    }
-}
-
-@Composable
-private fun PermanentlyDeleteEntryDialog(entry: Entry, dismiss: () -> Unit, confirm: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = dismiss,
-        title = { Text("彻底删除账单？") },
-        text = {
-            Text(
-                "将永久删除${day(entry.date)}的${entry.category}账单，删除后无法恢复。",
-                color = Muted,
-            )
-        },
-        confirmButton = {
-            TextButton(
-                onClick = confirm,
-                colors = ButtonDefaults.textButtonColors(contentColor = Danger),
-            ) { Text("彻底删除") }
-        },
-        dismissButton = { TextButton(dismiss) { Text("取消") } },
-    )
 }
 
 @Composable
@@ -1994,7 +1807,7 @@ private fun DeleteEntryDialog(entry: Entry, dismiss: () -> Unit, confirm: () -> 
         title = { Text("确认删除账单？") },
         text = {
             Text(
-                "将删除${day(entry.date)}的${entry.category}账单，金额为¥${money(entry.amount)}。删除后可在回收站恢复。",
+                "将永久删除${day(entry.date)}的${entry.category}账单，金额为¥${money(entry.amount)}。删除后无法恢复。",
                 color = Muted,
             )
         },
@@ -2518,83 +2331,6 @@ internal fun updateEntry(entries: List<Entry>, updatedEntry: Entry) = entries.ma
     if (entry.id == updatedEntry.id) updatedEntry else entry
 }
 internal fun deleteEntry(entries: List<Entry>, entryId: String) = entries.filterNot { it.id == entryId }
-internal fun moveEntryToTrash(
-    activeEntries: List<Entry>,
-    trashEntries: List<Entry>,
-    entryId: String,
-): EntryTransferResult {
-    val entry = activeEntries.firstOrNull { it.id == entryId }
-        ?: return EntryTransferResult(activeEntries, trashEntries)
-    val updatedTrash = if (trashEntries.any { it.id == entry.id }) trashEntries else trashEntries + entry
-    return EntryTransferResult(deleteEntry(activeEntries, entryId), updatedTrash)
-}
-internal fun restoreEntryFromTrash(
-    activeEntries: List<Entry>,
-    trashEntries: List<Entry>,
-    entryId: String,
-): EntryTransferResult {
-    val entry = trashEntries.firstOrNull { it.id == entryId }
-        ?: return EntryTransferResult(activeEntries, trashEntries)
-    val updatedActive = if (activeEntries.any { it.id == entry.id }) activeEntries else activeEntries + entry
-    return EntryTransferResult(updatedActive, deleteEntry(trashEntries, entryId))
-}
-
-@Composable
-private fun ThemeScreen(
-    selectedTheme: ColorTheme,
-    onThemeSelected: (ColorTheme) -> Unit,
-) {
-    Column(Modifier.fillMaxSize().statusBarsPadding()) {
-        LazyColumn(
-            modifier = Modifier.fillMaxWidth().weight(1f),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            items(ColorTheme.entries, key = { it.storageKey }) { colorTheme ->
-                ThemeOption(
-                    colorTheme = colorTheme,
-                    selected = colorTheme == selectedTheme,
-                    onClick = { onThemeSelected(colorTheme) },
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ThemeOption(colorTheme: ColorTheme, selected: Boolean, onClick: () -> Unit) {
-    val interactionSource = remember { MutableInteractionSource() }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(if (selected) colorTheme.softAccent else Color.White, RoundedCornerShape(16.dp))
-            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            Modifier
-                .size(48.dp)
-                .background(Color.White, CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_palette_color_mark),
-                contentDescription = "${colorTheme.title}配色",
-                modifier = Modifier.size(30.dp),
-                tint = Color.Unspecified,
-            )
-        }
-        Text(
-            text = colorTheme.title,
-            modifier = Modifier.weight(1f).padding(horizontal = 14.dp),
-            fontSize = 17.sp,
-            fontWeight = FontWeight.Medium,
-            color = Ink,
-        )
-        Text(if (selected) "✓" else "", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = colorTheme.accentDark)
-    }
-}
 internal fun groupEntriesByMonth(entries: List<Entry>): List<EntryMonthGroup> =
     entries.sortedByDescending { it.date }
         .groupBy { entry ->

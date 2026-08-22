@@ -120,26 +120,26 @@ class ExampleUnitTest {
     }
 
     @Test
-    fun moveEntryToTrash_movesTheWholeEntryWithoutChangingOtherRecords() {
-        val target = Entry("1", "支出", "餐饮", 12.0, 1L, "保留备注")
+    fun deleteEntry_doesNotMutateTheSourceList() {
+        val target = Entry("1", "支出", "餐饮", 12.0, 1L)
         val other = Entry("2", "收入", "工资", 20.0, 2L)
-        val existingTrash = Entry("3", "支出", "住房", 30.0, 3L)
+        val source = mutableListOf(target, other)
 
-        val result = moveEntryToTrash(listOf(target, other), listOf(existingTrash), target.id)
+        val result = deleteEntry(source, target.id)
 
-        assertEquals(listOf(other), result.activeEntries)
-        assertEquals(listOf(existingTrash, target), result.trashEntries)
+        assertEquals(listOf(target, other), source)
+        assertEquals(listOf(other), result)
     }
 
     @Test
-    fun restoreEntryFromTrash_movesTheWholeEntryBackToActiveRecords() {
-        val active = Entry("1", "支出", "餐饮", 12.0, 1L)
-        val trashed = Entry("2", "收入", "工资", 20.0, 2L, "待恢复")
+    fun deleteEntry_removesEveryRecordWithTheMatchingId() {
+        val first = Entry("same", "支出", "餐饮", 12.0, 1L)
+        val duplicate = Entry("same", "收入", "工资", 20.0, 2L)
+        val other = Entry("other", "支出", "住房", 30.0, 3L)
 
-        val result = restoreEntryFromTrash(listOf(active), listOf(trashed), trashed.id)
+        val result = deleteEntry(listOf(first, duplicate, other), "same")
 
-        assertEquals(listOf(active, trashed), result.activeEntries)
-        assertTrue(result.trashEntries.isEmpty())
+        assertEquals(listOf(other), result)
     }
 
     @Test
