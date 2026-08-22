@@ -698,7 +698,7 @@ private fun DetailsScreen(
                 pressedElevation = 7.dp,
             ),
         ) {
-            Text("+", fontSize = 28.sp, fontWeight = FontWeight.Normal)
+            Text("+", fontSize = 34.sp, fontWeight = FontWeight.Normal)
         }
     }
     actionEntry?.let { entry ->
