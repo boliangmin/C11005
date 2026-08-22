@@ -751,71 +751,89 @@ private fun DetailsFeatureBar(
                 },
             contentAlignment = Alignment.Center,
         ) {
-            DetailsFeatureScrollHandle(expanded = expanded)
+            DetailsFeatureArrowHandle(expanded = expanded)
         }
     }
 }
 
 @Composable
-private fun DetailsFeatureScrollHandle(expanded: Boolean) {
-    val bodyShape = RoundedCornerShape(4.dp)
-    val endCapShape = RoundedCornerShape(5.dp)
-    val outlineColor = Color(0xFFB8BAC0)
-    val bodyBrush = Brush.verticalGradient(
-        colors = listOf(Color(0xFFF0F0F2), Color(0xFFD5D6DA)),
+private fun DetailsFeatureArrowHandle(expanded: Boolean) {
+    val dividerColor = Color(0xFFD0D2D6)
+    val capsuleOutline = Color(0xFFC7C9CE)
+    val arrowColor = Color(0xFFA7AAB0)
+    val capsuleShape = RoundedCornerShape(6.dp)
+    val capsuleBrush = Brush.verticalGradient(
+        listOf(Color(0xFFE9EAEC), Color(0xFFDADCE0)),
     )
-    val endCapBrush = Brush.horizontalGradient(
-        colors = listOf(Color(0xFFBFC1C6), Color(0xFFE8E8EA), Color(0xFFBFC1C6)),
-    )
-    Box(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp)
+            .padding(horizontal = 20.dp)
             .height(10.dp),
-        contentAlignment = Alignment.Center,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(8.dp)
-                .background(bodyBrush, bodyShape)
-                .border(0.5.dp, outlineColor, bodyShape),
+                .weight(1f)
+                .height(1.dp)
+                .background(
+                    Brush.horizontalGradient(listOf(Color.Transparent, dividerColor)),
+                ),
         )
+        Spacer(Modifier.width(8.dp))
         Box(
             modifier = Modifier
-                .align(Alignment.CenterStart)
-                .size(10.dp)
-                .background(endCapBrush, endCapShape)
-                .border(0.5.dp, outlineColor, endCapShape),
-        )
-        Box(
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .size(10.dp)
-                .background(endCapBrush, endCapShape)
-                .border(0.5.dp, outlineColor, endCapShape),
-        )
-        Canvas(Modifier.size(width = 18.dp, height = 6.dp)) {
-            val strokeWidth = 2.dp.toPx()
-            val strokeInset = strokeWidth / 2f
-            val edgeY = if (expanded) size.height - strokeInset else strokeInset
-            val pointY = if (expanded) strokeInset else size.height - strokeInset
-            val arrowPoint = Offset(size.width / 2f, pointY)
-            drawLine(
-                color = Muted,
-                start = Offset(strokeInset, edgeY),
-                end = arrowPoint,
-                strokeWidth = strokeWidth,
-                cap = StrokeCap.Round,
-            )
-            drawLine(
-                color = Muted,
-                start = Offset(size.width - strokeInset, edgeY),
-                end = arrowPoint,
-                strokeWidth = strokeWidth,
-                cap = StrokeCap.Round,
-            )
+                .size(width = 52.dp, height = 10.dp)
+                .background(capsuleBrush, capsuleShape)
+                .border(0.5.dp, capsuleOutline, capsuleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Canvas(Modifier.size(width = 18.dp, height = 6.dp)) {
+                val strokeWidth = 1.6.dp.toPx()
+                val strokeInset = 1.25.dp.toPx()
+                val highlightOffset = 0.45.dp.toPx()
+                val edgeY = if (expanded) size.height - strokeInset else strokeInset
+                val pointY = if (expanded) strokeInset else size.height - strokeInset
+                val arrowPoint = Offset(size.width / 2f, pointY)
+                drawLine(
+                    color = Color.White.copy(alpha = 0.72f),
+                    start = Offset(strokeInset, edgeY + highlightOffset),
+                    end = Offset(arrowPoint.x, arrowPoint.y + highlightOffset),
+                    strokeWidth = 1.2.dp.toPx(),
+                    cap = StrokeCap.Round,
+                )
+                drawLine(
+                    color = Color.White.copy(alpha = 0.72f),
+                    start = Offset(size.width - strokeInset, edgeY + highlightOffset),
+                    end = Offset(arrowPoint.x, arrowPoint.y + highlightOffset),
+                    strokeWidth = 1.2.dp.toPx(),
+                    cap = StrokeCap.Round,
+                )
+                drawLine(
+                    color = arrowColor,
+                    start = Offset(strokeInset, edgeY),
+                    end = arrowPoint,
+                    strokeWidth = strokeWidth,
+                    cap = StrokeCap.Round,
+                )
+                drawLine(
+                    color = arrowColor,
+                    start = Offset(size.width - strokeInset, edgeY),
+                    end = arrowPoint,
+                    strokeWidth = strokeWidth,
+                    cap = StrokeCap.Round,
+                )
+            }
         }
+        Spacer(Modifier.width(8.dp))
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(1.dp)
+                .background(
+                    Brush.horizontalGradient(listOf(dividerColor, Color.Transparent)),
+                ),
+        )
     }
 }
 
