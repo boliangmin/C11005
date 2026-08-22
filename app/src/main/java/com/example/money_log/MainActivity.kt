@@ -696,11 +696,10 @@ private fun DetailsFeatureBar(
 ) {
     var expanded by remember { mutableStateOf(true) }
     val dragThreshold = with(LocalDensity.current) { 24.dp.toPx() }
-    val colorTheme = LocalColorTheme.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .border(width = 0.2.dp, color = NeutralIconBorder)
+            .border(width = 1.dp, color = NeutralIconBorder)
             .animateContentSize(animationSpec = tween(durationMillis = 220)),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -747,13 +746,12 @@ private fun DetailsFeatureBar(
                         },
                     )
                 },
-            contentAlignment = Alignment.TopCenter,
+            contentAlignment = Alignment.BottomCenter,
         ) {
             Box(
                 modifier = Modifier
-                    .padding(top = 2.dp)
                     .size(width = 72.dp, height = 2.dp)
-                    .background(colorTheme.accentDark, RoundedCornerShape(1.dp)),
+                    .background(NeutralIconBorder, RoundedCornerShape(1.dp)),
             )
         }
     }
