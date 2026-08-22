@@ -8,7 +8,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -16,6 +18,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.lazy.LazyColumn
@@ -36,9 +39,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
@@ -468,7 +472,6 @@ private fun LedgerApp(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DetailsScreen(
     entries: List<Entry>,
@@ -502,7 +505,6 @@ private fun DetailsScreen(
     val visibleEntries = filterEntries(entries, entryFilter)
     val dayGroups = groupEntriesByDay(visibleEntries)
     val listState = rememberLazyListState()
-    val topBarScrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
 
     LaunchedEffect(entryFilter) {
         listState.scrollToItem(0)
@@ -528,14 +530,8 @@ private fun DetailsScreen(
         val currentAddButtonX by rememberUpdatedState(addButtonX)
         val currentAddButtonY by rememberUpdatedState(addButtonY)
 
-        Column(
-            Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .nestedScroll(topBarScrollBehavior.nestedScrollConnection),
-        ) {
+        Column(Modifier.fillMaxSize().statusBarsPadding()) {
             DetailsFeatureBar(
-                scrollBehavior = topBarScrollBehavior,
                 onBillLongClick = { showBillOptions = true },
                 onMoreClick = onMore,
             )
@@ -696,50 +692,86 @@ private fun EntryDayHeader(month: Int, day: Int) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DetailsFeatureBar(
-    scrollBehavior: TopAppBarScrollBehavior,
     onBillLongClick: () -> Unit,
     onMoreClick: () -> Unit,
 ) {
+    var expanded by remember { mutableStateOf(true) }
+    val dragThreshold = with(LocalDensity.current) { 24.dp.toPx() }
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .animateContentSize(animationSpec = tween(durationMillis = 220)),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        TopAppBar(
-            title = {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(end = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    DetailsFeatureItem(
-                        Modifier.weight(1f),
-                        R.drawable.ic_bill_outline,
-                        "账单",
-                        selected = true,
-                        onLongClick = onBillLongClick,
+        if (expanded) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                DetailsFeatureItem(
+                    Modifier.weight(1f),
+                    R.drawable.ic_bill_outline,
+                    "账单",
+                    selected = true,
+                    onLongClick = onBillLongClick,
+                )
+                DetailsFeatureItem(Modifier.weight(1f), R.drawable.ic_ledger_outline, "账本")
+                DetailsFeatureItem(Modifier.weight(1f), R.drawable.ic_statistics_outline, "统计")
+                DetailsFeatureItem(
+                    Modifier.weight(1f),
+                    R.drawable.ic_more_outline,
+                    "更多",
+                    onClick = onMoreClick,
+                )
+            }
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(24.dp)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                ) { expanded = !expanded }
+                .pointerInput(expanded, dragThreshold) {
+                    var totalDragY = 0f
+                    detectVerticalDragGestures(
+                        onDragStart = { totalDragY = 0f },
+                        onVerticalDrag = { _, dragAmount -> totalDragY += dragAmount },
+                        onDragEnd = {
+                            when {
+                                totalDragY <= -dragThreshold -> expanded = false
+                                totalDragY >= dragThreshold -> expanded = true
+                            }
+                        },
                     )
-                    DetailsFeatureItem(Modifier.weight(1f), R.drawable.ic_ledger_outline, "账本")
-                    DetailsFeatureItem(Modifier.weight(1f), R.drawable.ic_statistics_outline, "统计")
-                    DetailsFeatureItem(
-                        Modifier.weight(1f),
-                        R.drawable.ic_more_outline,
-                        "更多",
-                        onClick = onMoreClick,
-                    )
-                }
-            },
-            modifier = Modifier.fillMaxWidth(),
-            expandedHeight = 80.dp,
-            windowInsets = WindowInsets(0, 0, 0, 0),
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = Bg,
-                scrolledContainerColor = Bg,
-            ),
-            scrollBehavior = scrollBehavior,
-        )
+                },
+            contentAlignment = Alignment.BottomCenter,
+        ) {
+            Canvas(Modifier.size(width = 18.dp, height = 6.dp)) {
+                val strokeWidth = 2.dp.toPx()
+                val strokeInset = strokeWidth / 2f
+                val edgeY = if (expanded) size.height - strokeInset else strokeInset
+                val pointY = if (expanded) strokeInset else size.height - strokeInset
+                val arrowPoint = Offset(size.width / 2f, pointY)
+                drawLine(
+                    color = Muted,
+                    start = Offset(strokeInset, edgeY),
+                    end = arrowPoint,
+                    strokeWidth = strokeWidth,
+                    cap = StrokeCap.Round,
+                )
+                drawLine(
+                    color = Muted,
+                    start = Offset(size.width - strokeInset, edgeY),
+                    end = arrowPoint,
+                    strokeWidth = strokeWidth,
+                    cap = StrokeCap.Round,
+                )
+            }
+        }
         HorizontalDivider(
             modifier = Modifier.fillMaxWidth(),
             thickness = 1.dp,
