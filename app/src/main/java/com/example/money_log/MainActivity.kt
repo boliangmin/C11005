@@ -81,7 +81,6 @@ private const val BookkeepingDialogWidthFraction = 0.8f
 internal enum class ColorTheme(
     val storageKey: String,
     val title: String,
-    val subtitle: String,
     val accent: Color,
     val softAccent: Color,
     val subtleAccent: Color,
@@ -91,7 +90,6 @@ internal enum class ColorTheme(
     CLASSIC(
         storageKey = "classic",
         title = "经典黄",
-        subtitle = "温暖明亮的默认配色",
         accent = Color(0xFFF5CE3E),
         softAccent = Color(0xFFFFF4C8),
         subtleAccent = Color(0xFFFFF1B8),
@@ -100,7 +98,6 @@ internal enum class ColorTheme(
     FRESH_GREEN(
         storageKey = "fresh_green",
         title = "清新绿",
-        subtitle = "自然舒缓的绿色风格",
         accent = Color(0xFF57B881),
         softAccent = Color(0xFFE4F4E9),
         subtleAccent = Color(0xFFEBF8F0),
@@ -109,7 +106,6 @@ internal enum class ColorTheme(
     SKY_BLUE(
         storageKey = "sky_blue",
         title = "天空蓝",
-        subtitle = "清爽安静的蓝色风格",
         accent = Color(0xFF5B9DF9),
         softAccent = Color(0xFFE7F0FF),
         subtleAccent = Color(0xFFEEF5FF),
@@ -118,7 +114,6 @@ internal enum class ColorTheme(
     SOFT_PURPLE(
         storageKey = "soft_purple",
         title = "柔和紫",
-        subtitle = "温柔雅致的紫色风格",
         accent = Color(0xFF9B7DE2),
         softAccent = Color(0xFFF0EAFB),
         subtleAccent = Color(0xFFF5F1FC),
@@ -127,7 +122,6 @@ internal enum class ColorTheme(
     CORAL_ORANGE(
         storageKey = "coral_orange",
         title = "珊瑚橙",
-        subtitle = "活力柔和的橙红风格",
         accent = Color(0xFFF28B70),
         softAccent = Color(0xFFFFECE7),
         subtleAccent = Color(0xFFFFF2EE),
@@ -2524,11 +2518,13 @@ private fun ThemeOption(colorTheme: ColorTheme, selected: Boolean, onClick: () -
         ) {
             Text("Aa", color = colorTheme.onAccent, fontSize = 16.sp, fontWeight = FontWeight.Bold)
         }
-        Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
-            Text(colorTheme.title, fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Ink)
-            Spacer(Modifier.height(3.dp))
-            Text(colorTheme.subtitle, fontSize = 13.sp, color = Muted)
-        }
+        Text(
+            text = colorTheme.title,
+            modifier = Modifier.weight(1f).padding(horizontal = 14.dp),
+            fontSize = 17.sp,
+            fontWeight = FontWeight.Medium,
+            color = Ink,
+        )
         Text(if (selected) "✓" else "", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = colorTheme.accentDark)
     }
 }
