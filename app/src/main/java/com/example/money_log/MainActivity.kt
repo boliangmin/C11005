@@ -8,6 +8,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -16,6 +17,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.lazy.LazyColumn
@@ -692,25 +694,67 @@ private fun DetailsFeatureBar(
     onBillLongClick: () -> Unit,
     onMoreClick: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    var expanded by remember { mutableStateOf(true) }
+    val dragThreshold = with(LocalDensity.current) { 24.dp.toPx() }
+    val colorTheme = LocalColorTheme.current
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .animateContentSize(animationSpec = tween(durationMillis = 220)),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        DetailsFeatureItem(
-            Modifier.weight(1f),
-            R.drawable.ic_bill_outline,
-            "账单",
-            selected = true,
-            onLongClick = onBillLongClick,
-        )
-        DetailsFeatureItem(Modifier.weight(1f), R.drawable.ic_ledger_outline, "账本")
-        DetailsFeatureItem(Modifier.weight(1f), R.drawable.ic_statistics_outline, "统计")
-        DetailsFeatureItem(
-            Modifier.weight(1f),
-            R.drawable.ic_more_outline,
-            "更多",
-            onClick = onMoreClick,
-        )
+        if (expanded) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                DetailsFeatureItem(
+                    Modifier.weight(1f),
+                    R.drawable.ic_bill_outline,
+                    "账单",
+                    selected = true,
+                    onLongClick = onBillLongClick,
+                )
+                DetailsFeatureItem(Modifier.weight(1f), R.drawable.ic_ledger_outline, "账本")
+                DetailsFeatureItem(Modifier.weight(1f), R.drawable.ic_statistics_outline, "统计")
+                DetailsFeatureItem(
+                    Modifier.weight(1f),
+                    R.drawable.ic_more_outline,
+                    "更多",
+                    onClick = onMoreClick,
+                )
+            }
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(24.dp)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                ) { expanded = !expanded }
+                .pointerInput(expanded, dragThreshold) {
+                    var totalDragY = 0f
+                    detectVerticalDragGestures(
+                        onDragStart = { totalDragY = 0f },
+                        onVerticalDrag = { _, dragAmount -> totalDragY += dragAmount },
+                        onDragEnd = {
+                            when {
+                                totalDragY <= -dragThreshold -> expanded = false
+                                totalDragY >= dragThreshold -> expanded = true
+                            }
+                        },
+                    )
+                },
+            contentAlignment = Alignment.TopCenter,
+        ) {
+            Box(
+                modifier = Modifier
+                    .padding(top = 2.dp)
+                    .size(width = 72.dp, height = 6.dp)
+                    .background(colorTheme.accentDark, RoundedCornerShape(3.dp)),
+            )
+        }
     }
 }
 
