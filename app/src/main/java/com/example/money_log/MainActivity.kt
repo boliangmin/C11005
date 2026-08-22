@@ -1361,7 +1361,7 @@ private fun RecycleBinEntryCard(
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
-                    Modifier.size(46.dp).background(LocalColorTheme.current.softAccent, CircleShape),
+                    Modifier.size(46.dp).background(Color.White, CircleShape),
                     contentAlignment = Alignment.Center,
                 ) { Text(symbol, fontSize = 23.sp) }
                 Column(Modifier.weight(1f).padding(start = 14.dp)) {
@@ -2515,7 +2515,12 @@ private fun ThemeOption(colorTheme: ColorTheme, selected: Boolean, onClick: () -
             Modifier.size(48.dp).background(colorTheme.accent, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
-            Text("Aa", color = colorTheme.onAccent, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Icon(
+                painter = painterResource(R.drawable.ic_palette_color_mark),
+                contentDescription = "${colorTheme.title}配色",
+                modifier = Modifier.size(30.dp),
+                tint = Color.Unspecified,
+            )
         }
         Text(
             text = colorTheme.title,
