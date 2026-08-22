@@ -40,6 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
@@ -748,35 +749,73 @@ private fun DetailsFeatureBar(
                         },
                     )
                 },
-            contentAlignment = Alignment.BottomCenter,
+            contentAlignment = Alignment.Center,
         ) {
-            Canvas(Modifier.size(width = 18.dp, height = 6.dp)) {
-                val strokeWidth = 2.dp.toPx()
-                val strokeInset = strokeWidth / 2f
-                val edgeY = if (expanded) size.height - strokeInset else strokeInset
-                val pointY = if (expanded) strokeInset else size.height - strokeInset
-                val arrowPoint = Offset(size.width / 2f, pointY)
-                drawLine(
-                    color = Muted,
-                    start = Offset(strokeInset, edgeY),
-                    end = arrowPoint,
-                    strokeWidth = strokeWidth,
-                    cap = StrokeCap.Round,
-                )
-                drawLine(
-                    color = Muted,
-                    start = Offset(size.width - strokeInset, edgeY),
-                    end = arrowPoint,
-                    strokeWidth = strokeWidth,
-                    cap = StrokeCap.Round,
-                )
-            }
+            DetailsFeatureScrollHandle(expanded = expanded)
         }
-        HorizontalDivider(
-            modifier = Modifier.fillMaxWidth(),
-            thickness = 1.dp,
-            color = Muted,
+    }
+}
+
+@Composable
+private fun DetailsFeatureScrollHandle(expanded: Boolean) {
+    val bodyShape = RoundedCornerShape(4.dp)
+    val endCapShape = RoundedCornerShape(5.dp)
+    val outlineColor = Color(0xFFB8BAC0)
+    val bodyBrush = Brush.verticalGradient(
+        colors = listOf(Color(0xFFF0F0F2), Color(0xFFD5D6DA)),
+    )
+    val endCapBrush = Brush.horizontalGradient(
+        colors = listOf(Color(0xFFBFC1C6), Color(0xFFE8E8EA), Color(0xFFBFC1C6)),
+    )
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp)
+            .height(10.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(8.dp)
+                .background(bodyBrush, bodyShape)
+                .border(0.5.dp, outlineColor, bodyShape),
         )
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .size(10.dp)
+                .background(endCapBrush, endCapShape)
+                .border(0.5.dp, outlineColor, endCapShape),
+        )
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .size(10.dp)
+                .background(endCapBrush, endCapShape)
+                .border(0.5.dp, outlineColor, endCapShape),
+        )
+        Canvas(Modifier.size(width = 18.dp, height = 6.dp)) {
+            val strokeWidth = 2.dp.toPx()
+            val strokeInset = strokeWidth / 2f
+            val edgeY = if (expanded) size.height - strokeInset else strokeInset
+            val pointY = if (expanded) strokeInset else size.height - strokeInset
+            val arrowPoint = Offset(size.width / 2f, pointY)
+            drawLine(
+                color = Muted,
+                start = Offset(strokeInset, edgeY),
+                end = arrowPoint,
+                strokeWidth = strokeWidth,
+                cap = StrokeCap.Round,
+            )
+            drawLine(
+                color = Muted,
+                start = Offset(size.width - strokeInset, edgeY),
+                end = arrowPoint,
+                strokeWidth = strokeWidth,
+                cap = StrokeCap.Round,
+            )
+        }
     }
 }
 
