@@ -155,8 +155,8 @@ internal fun titleBarStyleFromStorage(storageKey: String?): TitleBarStyle =
 
 private val LocalColorTheme = staticCompositionLocalOf { ColorTheme.CLASSIC }
 
-private enum class AppPage { DETAILS, ADD, MORE, TITLE_BAR_STYLE, CATEGORIES, TRASH, THEME }
-private enum class DetailsSection { BILLS, LEDGER, STATISTICS }
+private enum class AppPage { DETAILS, ADD, TITLE_BAR_STYLE, CATEGORIES, TRASH, THEME }
+private enum class DetailsSection { BILLS, LEDGER, STATISTICS, MORE }
 private const val UncategorizedName = "未分类"
 private const val UncategorizedIcon = "⭕"
 
@@ -361,15 +361,15 @@ private fun LedgerApp(
     var addInitialDate by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var addButtonXFraction by remember { mutableFloatStateOf(1f) }
     var addButtonYFraction by remember { mutableFloatStateOf(1f) }
+    var selectedSection by remember { mutableStateOf(DetailsSection.BILLS) }
 
     BackHandler(enabled = page != AppPage.DETAILS) {
         page = when (page) {
             AppPage.ADD -> addReturnPage
-            AppPage.CATEGORIES -> AppPage.MORE
-            AppPage.TRASH -> AppPage.MORE
-            AppPage.THEME -> AppPage.MORE
-            AppPage.TITLE_BAR_STYLE -> AppPage.MORE
-            AppPage.MORE -> AppPage.DETAILS
+            AppPage.CATEGORIES -> AppPage.DETAILS
+            AppPage.TRASH -> AppPage.DETAILS
+            AppPage.THEME -> AppPage.DETAILS
+            AppPage.TITLE_BAR_STYLE -> AppPage.DETAILS
             AppPage.DETAILS -> AppPage.DETAILS
         }
     }
@@ -382,12 +382,17 @@ private fun LedgerApp(
                 expenseCategories = expenses,
                 incomeCategories = incomes,
                 titleBarStyle = selectedTitleBarStyle,
+                selectedSection = selectedSection,
+                onSectionSelected = { selectedSection = it },
                 onAdd = {
                     addReturnPage = AppPage.DETAILS
                     addInitialDate = initialDateForNewEntry(entries)
                     page = AppPage.ADD
                 },
-                onMore = { page = AppPage.MORE },
+                onManageCategories = { page = AppPage.CATEGORIES },
+                onTitleBarStyle = { page = AppPage.TITLE_BAR_STYLE },
+                onTheme = { page = AppPage.THEME },
+                onTrash = { page = AppPage.TRASH },
                 addButtonXFraction = addButtonXFraction,
                 addButtonYFraction = addButtonYFraction,
                 onAddButtonPositionChange = { xFraction, yFraction ->
@@ -408,12 +413,6 @@ private fun LedgerApp(
                     trashEntries.addAll(result.trashEntries)
                     store.saveEntryCollections(entries, trashEntries)
                 },
-            )
-            AppPage.MORE -> MoreScreen(
-                onManageCategories = { page = AppPage.CATEGORIES },
-                onTitleBarStyle = { page = AppPage.TITLE_BAR_STYLE },
-                onTheme = { page = AppPage.THEME },
-                onTrash = { page = AppPage.TRASH },
             )
             AppPage.TITLE_BAR_STYLE -> TitleBarStyleScreen(
                 selectedStyle = selectedTitleBarStyle,
@@ -518,8 +517,13 @@ private fun DetailsScreen(
     expenseCategories: List<LedgerCategory>,
     incomeCategories: List<LedgerCategory>,
     titleBarStyle: TitleBarStyle,
+    selectedSection: DetailsSection,
+    onSectionSelected: (DetailsSection) -> Unit,
     onAdd: () -> Unit,
-    onMore: () -> Unit,
+    onManageCategories: () -> Unit,
+    onTitleBarStyle: () -> Unit,
+    onTheme: () -> Unit,
+    onTrash: () -> Unit,
     addButtonXFraction: Float,
     addButtonYFraction: Float,
     onAddButtonPositionChange: (Float, Float) -> Unit,
@@ -532,7 +536,6 @@ private fun DetailsScreen(
     var revealedEntryId by remember { mutableStateOf<String?>(null) }
     var showBillOptions by remember { mutableStateOf(false) }
     var showEntryFilter by remember { mutableStateOf(false) }
-    var selectedSection by remember { mutableStateOf(DetailsSection.BILLS) }
     val initialFilter = remember {
         val currentTime = System.currentTimeMillis()
         val latestDate = entries.maxOfOrNull { it.date } ?: currentTime
@@ -562,7 +565,7 @@ private fun DetailsScreen(
     }
 
     BackHandler(enabled = selectedSection != DetailsSection.BILLS) {
-        selectedSection = DetailsSection.BILLS
+        onSectionSelected(DetailsSection.BILLS)
     }
 
     LaunchedEffect(entryFilter, titleBarStyle, selectedSection) {
@@ -607,11 +610,10 @@ private fun DetailsScreen(
                 TitleBarStyle.DESIGN_ONE -> DetailsFeatureBar(
                     selectedSection = selectedSection,
                     onSectionSelected = { section ->
-                        selectedSection = section
+                        onSectionSelected(section)
                         revealedEntryId = null
                     },
                     onBillLongClick = { showBillOptions = true },
-                    onMoreClick = onMore,
                 )
                 TitleBarStyle.DESIGN_TWO -> Box(
                     modifier = Modifier
@@ -625,15 +627,22 @@ private fun DetailsScreen(
                         },
                         selectedSection = selectedSection,
                         onSectionSelected = { section ->
-                            selectedSection = section
+                            onSectionSelected(section)
                             revealedEntryId = null
                         },
                         onBillLongClick = { showBillOptions = true },
-                        onMoreClick = onMore,
                     )
                 }
             }
-            if (selectedSection != DetailsSection.BILLS) {
+            if (selectedSection == DetailsSection.MORE) {
+                MoreContent(
+                    modifier = Modifier.weight(1f),
+                    onManageCategories = onManageCategories,
+                    onTitleBarStyle = onTitleBarStyle,
+                    onTheme = onTheme,
+                    onTrash = onTrash,
+                )
+            } else if (selectedSection != DetailsSection.BILLS) {
                 Spacer(Modifier.weight(1f))
             } else if (entries.isEmpty()) {
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -799,7 +808,6 @@ private fun DetailsFeatureBar(
     selectedSection: DetailsSection,
     onSectionSelected: (DetailsSection) -> Unit,
     onBillLongClick: () -> Unit,
-    onMoreClick: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(true) }
     val dragThreshold = with(LocalDensity.current) { 24.dp.toPx() }
@@ -861,7 +869,8 @@ private fun DetailsFeatureBar(
                         Modifier.weight(1f),
                         R.drawable.ic_more_outline,
                         "更多",
-                        onClick = onMoreClick,
+                        selected = selectedSection == DetailsSection.MORE,
+                        onClick = { onSectionSelected(DetailsSection.MORE) },
                     )
                 }
             }
@@ -905,7 +914,6 @@ private fun DetailsAutoCollapsingFeatureBar(
     selectedSection: DetailsSection,
     onSectionSelected: (DetailsSection) -> Unit,
     onBillLongClick: () -> Unit,
-    onMoreClick: () -> Unit,
 ) {
     Box(modifier = modifier.fillMaxWidth().height(85.dp)) {
         Card(
@@ -948,7 +956,8 @@ private fun DetailsAutoCollapsingFeatureBar(
                     Modifier.weight(1f),
                     R.drawable.ic_more_outline,
                     "更多",
-                    onClick = onMoreClick,
+                    selected = selectedSection == DetailsSection.MORE,
+                    onClick = { onSectionSelected(DetailsSection.MORE) },
                 )
             }
         }
@@ -1205,38 +1214,37 @@ private fun FilterNumberPicker(
 }
 
 @Composable
-private fun MoreScreen(
+private fun MoreContent(
+    modifier: Modifier = Modifier,
     onManageCategories: () -> Unit,
     onTitleBarStyle: () -> Unit,
     onTheme: () -> Unit,
     onTrash: () -> Unit,
 ) {
-    Column(Modifier.fillMaxSize().statusBarsPadding()) {
-        Column(Modifier.weight(1f).padding(16.dp)) {
-            MoreMenuItem(
-                title = "类型管理",
-                iconResource = R.drawable.ic_category_manage_color,
-                onClick = onManageCategories,
-            )
-            Spacer(Modifier.height(12.dp))
-            MoreMenuItem(
-                title = "标题栏样式",
-                iconResource = R.drawable.ic_title_bar_style_color,
-                onClick = onTitleBarStyle,
-            )
-            Spacer(Modifier.height(12.dp))
-            MoreMenuItem(
-                title = "主题颜色",
-                iconResource = R.drawable.ic_theme_color,
-                onClick = onTheme,
-            )
-            Spacer(Modifier.height(12.dp))
-            MoreMenuItem(
-                title = "回收站",
-                iconResource = R.drawable.ic_recycle_bin_color,
-                onClick = onTrash,
-            )
-        }
+    Column(modifier.fillMaxWidth().padding(16.dp)) {
+        MoreMenuItem(
+            title = "类型管理",
+            iconResource = R.drawable.ic_category_manage_color,
+            onClick = onManageCategories,
+        )
+        Spacer(Modifier.height(12.dp))
+        MoreMenuItem(
+            title = "标题栏样式",
+            iconResource = R.drawable.ic_title_bar_style_color,
+            onClick = onTitleBarStyle,
+        )
+        Spacer(Modifier.height(12.dp))
+        MoreMenuItem(
+            title = "主题颜色",
+            iconResource = R.drawable.ic_theme_color,
+            onClick = onTheme,
+        )
+        Spacer(Modifier.height(12.dp))
+        MoreMenuItem(
+            title = "回收站",
+            iconResource = R.drawable.ic_recycle_bin_color,
+            onClick = onTrash,
+        )
     }
 }
 
