@@ -699,7 +699,6 @@ private fun DetailsFeatureBar(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .border(width = 1.dp, color = NeutralIconBorder)
             .animateContentSize(animationSpec = tween(durationMillis = 220)),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -750,10 +749,15 @@ private fun DetailsFeatureBar(
         ) {
             Box(
                 modifier = Modifier
-                    .size(width = 72.dp, height = 2.dp)
-                    .background(NeutralIconBorder, RoundedCornerShape(1.dp)),
+                    .size(width = 72.dp, height = 4.dp)
+                    .background(Muted, RoundedCornerShape(1.dp)),
             )
         }
+        HorizontalDivider(
+            modifier = Modifier.fillMaxWidth(),
+            thickness = 1.dp,
+            color = Muted,
+        )
     }
 }
 
