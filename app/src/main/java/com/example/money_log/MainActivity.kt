@@ -2512,7 +2512,9 @@ private fun ThemeOption(colorTheme: ColorTheme, selected: Boolean, onClick: () -
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            Modifier.size(48.dp).background(colorTheme.accent, CircleShape),
+            Modifier
+                .size(48.dp)
+                .background(Color.White, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
