@@ -75,6 +75,8 @@ private val Ink = Color(0xFF2D3037)
 private val IncomeAmountGreen = Color(0xFF57B881)
 private val Muted = Color(0xFF777A81)
 private val Danger = Color(0xFFC43D3D)
+private val DeleteSwipeBackground = Color(0xFFE57373)
+private val DeleteActionRed = Color(0xFFE53935)
 private val NeutralIconBorder = Color(0xFFE5E5E5)
 private const val GoldenRatio = 1.618f
 private const val BookkeepingDialogWidthFraction = 0.8f
@@ -1596,7 +1598,7 @@ private fun EntryCard(
 
     Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))) {
         Box(
-            modifier = Modifier.matchParentSize().background(colorTheme.subtleAccent),
+            modifier = Modifier.matchParentSize().background(DeleteSwipeBackground),
             contentAlignment = Alignment.CenterEnd,
         ) {
             Box(
@@ -1611,7 +1613,7 @@ private fun EntryCard(
                     painter = painterResource(R.drawable.ic_delete_bin_outline),
                     contentDescription = "删除账单",
                     modifier = Modifier.size(27.dp),
-                    tint = colorTheme.accentDark,
+                    tint = Color.White,
                 )
             }
         }
@@ -1814,10 +1816,15 @@ private fun DeleteEntryDialog(entry: Entry, dismiss: () -> Unit, confirm: () -> 
         confirmButton = {
             TextButton(
                 onClick = confirm,
-                colors = ButtonDefaults.textButtonColors(contentColor = Danger),
+                colors = ButtonDefaults.textButtonColors(contentColor = DeleteActionRed),
             ) { Text("删除") }
         },
-        dismissButton = { TextButton(dismiss) { Text("取消") } },
+        dismissButton = {
+            TextButton(
+                onClick = dismiss,
+                colors = ButtonDefaults.textButtonColors(contentColor = Muted),
+            ) { Text("取消") }
+        },
     )
 }
 
