@@ -2,6 +2,7 @@
 
 import android.content.Context
 import android.os.Bundle
+import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -66,6 +67,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextRange
@@ -112,6 +114,34 @@ private val CalculatorDoubleKeyHeight = 144.75.dp
 private val CalculatorKeyboardBottomPadding = 10.dp
 private const val InputPanelTransitionDelayMillis = 220L
 private val RejectCalculatorAmountInput = InputTransformation { revertAllChanges() }
+
+private class InputWindowActions {
+    var hideKeyboard: () -> Unit = {}
+    var clearFocus: () -> Unit = {}
+}
+
+@Composable
+private fun BindInputWindowActions(actions: InputWindowActions) {
+    val focusManager = LocalFocusManager.current
+    val softwareKeyboardController = LocalSoftwareKeyboardController.current
+    val view = LocalView.current
+    val inputMethodManager = remember(view) {
+        view.context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+    }
+    SideEffect {
+        actions.hideKeyboard = {
+            softwareKeyboardController?.hide()
+            inputMethodManager.hideSoftInputFromWindow(view.windowToken, 0)
+        }
+        actions.clearFocus = { focusManager.clearFocus(force = true) }
+    }
+    DisposableEffect(actions) {
+        onDispose {
+            actions.hideKeyboard = {}
+            actions.clearFocus = {}
+        }
+    }
+}
 
 @Composable
 private fun rememberCalculatorAmountFieldState(amount: String): TextFieldState {
@@ -1791,8 +1821,7 @@ private fun EntryEditDialog(
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
-    val focusManager = LocalFocusManager.current
-    val softwareKeyboardController = LocalSoftwareKeyboardController.current
+    val inputWindowActions = remember { InputWindowActions() }
     val amountFocusRequester = remember { FocusRequester() }
     val fixedPrimaryDark = colorResource(R.color.theme_primary_dark)
     val currentCategory = categories.firstOrNull { it.name == entry.category }
@@ -1833,19 +1862,19 @@ private fun EntryEditDialog(
     val changed = selected?.name != entry.category || calculatedAmount != entry.amount ||
         date != entry.date || note.trim() != entry.note
     val collapseInputPanel = {
-        softwareKeyboardController?.hide()
+        inputWindowActions.hideKeyboard()
         noteInputRequested = false
         noteKeyboardWasVisible = false
         showCalculatorKeyboard = false
     }
     val clearInputFocus = {
         collapseInputPanel()
-        focusManager.clearFocus(force = true)
+        inputWindowActions.clearFocus()
     }
 
     LaunchedEffect(showCalculatorKeyboard) {
         if (showCalculatorKeyboard) {
-            softwareKeyboardController?.hide()
+            inputWindowActions.hideKeyboard()
             amountFocusRequester.requestFocus()
         }
     }
@@ -1884,6 +1913,7 @@ private fun EntryEditDialog(
         },
         title = { Text("修改账单") },
         text = {
+            BindInputWindowActions(inputWindowActions)
             Column(
                 Modifier
                     .focusable()
@@ -1923,7 +1953,7 @@ private fun EntryEditDialog(
                                     amountHasFocus = it.isFocused
                                     if (it.isFocused) {
                                         noteInputRequested = false
-                                        softwareKeyboardController?.hide()
+                                        inputWindowActions.hideKeyboard()
                                         showCalculatorKeyboard = true
                                     }
                                 },
@@ -1942,7 +1972,7 @@ private fun EntryEditDialog(
                                 .pointerInput(Unit) {
                                     detectTapGestures {
                                         noteInputRequested = false
-                                        softwareKeyboardController?.hide()
+                                        inputWindowActions.hideKeyboard()
                                         showCalculatorKeyboard = true
                                         amountFocusRequester.requestFocus()
                                     }
@@ -2290,8 +2320,7 @@ private fun EntryInputDialog(
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
-    val focusManager = LocalFocusManager.current
-    val softwareKeyboardController = LocalSoftwareKeyboardController.current
+    val inputWindowActions = remember { InputWindowActions() }
     val amountFocusRequester = remember { FocusRequester() }
     val dateInteractionSource = remember { MutableInteractionSource() }
     val colorTheme = LocalColorTheme.current
@@ -2326,7 +2355,7 @@ private fun EntryInputDialog(
         unfocusedLabelColor = Muted,
     )
     val collapseInputPanel = {
-        softwareKeyboardController?.hide()
+        inputWindowActions.hideKeyboard()
         noteInputRequested = false
         noteKeyboardWasVisible = false
         showCalculatorKeyboard = false
@@ -2334,7 +2363,7 @@ private fun EntryInputDialog(
     }
     val clearInputFocus = {
         collapseInputPanel()
-        focusManager.clearFocus(force = true)
+        inputWindowActions.clearFocus()
     }
 
     LaunchedEffect(visibleImeHeight) {
@@ -2348,7 +2377,7 @@ private fun EntryInputDialog(
 
     LaunchedEffect(showCalculatorKeyboard) {
         if (showCalculatorKeyboard) {
-            softwareKeyboardController?.hide()
+            inputWindowActions.hideKeyboard()
             amountFocusRequester.requestFocus()
         }
     }
@@ -2426,6 +2455,7 @@ private fun EntryInputDialog(
         },
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
+        BindInputWindowActions(inputWindowActions)
         Box(
             Modifier
                 .fillMaxSize()
@@ -2474,7 +2504,7 @@ private fun EntryInputDialog(
                                         amountHasFocus = it.isFocused
                                         if (it.isFocused) {
                                             noteInputRequested = false
-                                            softwareKeyboardController?.hide()
+                                            inputWindowActions.hideKeyboard()
                                             calculatorSurfaceVisible = true
                                             showCalculatorKeyboard = true
                                         }
@@ -2494,7 +2524,7 @@ private fun EntryInputDialog(
                                     .pointerInput(Unit) {
                                         detectTapGestures {
                                             noteInputRequested = false
-                                            softwareKeyboardController?.hide()
+                                            inputWindowActions.hideKeyboard()
                                             calculatorSurfaceVisible = true
                                             showCalculatorKeyboard = true
                                             amountFocusRequester.requestFocus()
