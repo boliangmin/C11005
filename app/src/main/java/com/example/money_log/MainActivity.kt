@@ -93,6 +93,7 @@ private const val GoldenRatio = 1.618f
 private const val BookkeepingDialogWidthFraction = 0.8f
 private val CalculatorKeyboardHeight = 340.dp
 private val CalculatorDialogGap = 12.dp
+private const val InputPanelTransitionDelayMillis = 220L
 
 @Composable
 private fun calculatorAmountDisplayValue(amount: String, active: Boolean): String {
@@ -2256,6 +2257,9 @@ private fun EntryInputDialog(
 
     LaunchedEffect(visibleImeHeight) {
         if (visibleImeHeight > 0) {
+            // 系统键盘展开期间会连续上报中间高度；只采用稳定后的最终高度，
+            // 避免后方分类卡片跟随每个动画帧反复移动。
+            delay(InputPanelTransitionDelayMillis)
             matchedInputPanelHeightPx = visibleImeHeight
         }
     }
@@ -2268,9 +2272,14 @@ private fun EntryInputDialog(
     }
 
     LaunchedEffect(showCalculatorKeyboard, isSystemKeyboardVisible, matchedInputPanelHeight) {
-        onInputPanelHeightChanged(
-            if (showCalculatorKeyboard || isSystemKeyboardVisible) matchedInputPanelHeight else 0.dp,
-        )
+        if (showCalculatorKeyboard || isSystemKeyboardVisible) {
+            onInputPanelHeightChanged(matchedInputPanelHeight)
+        } else {
+            // 金额与备注输入互相切换时，另一个面板的可见状态会稍晚建立。
+            // 暂时保留上一面板高度；若新面板出现，本次 effect 会被取消。
+            delay(InputPanelTransitionDelayMillis)
+            onInputPanelHeightChanged(0.dp)
+        }
     }
 
     BackHandler(enabled = showCalculatorKeyboard) { dismissInput() }
