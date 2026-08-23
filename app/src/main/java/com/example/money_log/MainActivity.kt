@@ -2741,8 +2741,10 @@ private fun AmountCalculatorKeyboard(
                         Icon(
                             painter = painterResource(R.drawable.ic_keyboard_arrow_down),
                             contentDescription = "收起计算器",
-                            modifier = Modifier.size(24.dp),
-                            tint = Muted,
+                            modifier = Modifier
+                                .offset(x = 1.dp, y = (-3.25).dp)
+                                .size(width = 16.5.dp, height = 8.5.dp),
+                            tint = Color(0xFF63666D),
                         )
                     }
                 }
