@@ -77,6 +77,7 @@ private val Danger = Color(0xFFC43D3D)
 private val DeleteSwipeBackground = Color(0xFFE57373)
 private val DeleteActionRed = Color(0xFFE53935)
 private val NeutralIconBorder = Color(0xFFE5E5E5)
+private val EditCategorySelectedGreen = Color(0xFFE4F4E9)
 private const val GoldenRatio = 1.618f
 private const val BookkeepingDialogWidthFraction = 0.8f
 
@@ -1423,6 +1424,8 @@ private fun CategoryActionItem(
     title: String,
     subtitle: String,
     iconResource: Int? = null,
+    iconBackgroundColor: Color? = null,
+    preserveIconColors: Boolean = false,
     destructive: Boolean = false,
     onClick: () -> Unit,
 ) {
@@ -1438,7 +1441,10 @@ private fun CategoryActionItem(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            Modifier.size(42.dp).background(if (destructive) Color(0xFFFFE8E8) else colorTheme.softAccent, CircleShape),
+            Modifier.size(42.dp).background(
+                iconBackgroundColor ?: if (destructive) Color(0xFFFFE8E8) else colorTheme.softAccent,
+                CircleShape,
+            ),
             contentAlignment = Alignment.Center,
         ) {
             if (iconResource == null) {
@@ -1448,7 +1454,7 @@ private fun CategoryActionItem(
                     painter = painterResource(iconResource),
                     contentDescription = null,
                     modifier = Modifier.size(24.dp),
-                    tint = contentColor,
+                    tint = if (preserveIconColors) Color.Unspecified else contentColor,
                 )
             }
         }
@@ -1677,19 +1683,28 @@ private fun EntryActionDialog(
     dismiss: () -> Unit,
     onEdit: () -> Unit,
 ) {
+    val fixedPrimaryDark = colorResource(R.color.theme_primary_dark)
     AlertDialog(
         onDismissRequest = dismiss,
         title = { Text(entry.category) },
         text = {
             CategoryActionItem(
-                symbol = "✎",
+                symbol = "",
                 title = "修改账单",
                 subtitle = "修改分类、金额、日期和备注",
+                iconResource = R.drawable.ic_edit_bill_color,
+                iconBackgroundColor = Color.White,
+                preserveIconColors = true,
                 onClick = onEdit,
             )
         },
         confirmButton = {},
-        dismissButton = { TextButton(dismiss) { Text("取消") } },
+        dismissButton = {
+            TextButton(
+                onClick = dismiss,
+                colors = ButtonDefaults.textButtonColors(contentColor = fixedPrimaryDark),
+            ) { Text("取消") }
+        },
     )
 }
 
@@ -1701,6 +1716,7 @@ private fun EntryEditDialog(
     confirm: (Entry) -> Unit,
 ) {
     val context = LocalContext.current
+    val fixedPrimaryDark = colorResource(R.color.theme_primary_dark)
     val currentCategory = categories.firstOrNull { it.name == entry.category }
     var selected by remember(entry.id, entry.category) { mutableStateOf(currentCategory) }
     var amount by remember(entry.id) { mutableStateOf(entry.amount.toString()) }
@@ -1795,9 +1811,18 @@ private fun EntryEditDialog(
                     else confirm(entry.copy(category = selected!!.name, amount = value, date = date, note = note.trim()))
                 },
                 enabled = selected != null && changed,
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = fixedPrimaryDark,
+                    disabledContentColor = Muted.copy(alpha = 0.38f),
+                ),
             ) { Text("保存") }
         },
-        dismissButton = { TextButton(dismiss) { Text("取消") } },
+        dismissButton = {
+            TextButton(
+                onClick = dismiss,
+                colors = ButtonDefaults.textButtonColors(contentColor = fixedPrimaryDark),
+            ) { Text("取消") }
+        },
     )
     if (showDatePicker) {
         MoneyLogDatePickerDialog(
@@ -1844,19 +1869,18 @@ private fun EntryCategoryChoice(
     onClick: () -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val colorTheme = LocalColorTheme.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .height(78.dp)
-            .background(if (active) colorTheme.accent else Bg, RoundedCornerShape(12.dp))
+            .background(if (active) EditCategorySelectedGreen else Bg, RoundedCornerShape(12.dp))
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
         Text(category.symbol, fontSize = 25.sp)
         Spacer(Modifier.height(3.dp))
-        Text(category.name, fontSize = 11.sp, color = if (active) colorTheme.onAccent else Ink, maxLines = 1)
+        Text(category.name, fontSize = 11.sp, color = Ink, maxLines = 1)
     }
 }
 
