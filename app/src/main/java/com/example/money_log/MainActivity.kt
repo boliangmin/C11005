@@ -2,6 +2,7 @@
 
 import android.content.Context
 import android.os.Bundle
+import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -34,8 +35,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.relocation.BringIntoViewRequester
-import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -82,6 +81,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
 import com.example.money_log.ui.theme.Money_LogTheme
 import org.json.JSONArray
 import org.json.JSONObject
@@ -139,6 +139,21 @@ private fun BindInputWindowActions(actions: InputWindowActions) {
         onDispose {
             actions.hideKeyboard = {}
             actions.clearFocus = {}
+        }
+    }
+}
+
+@Composable
+private fun DisableDialogImeWindowPanning() {
+    val view = LocalView.current
+    val dialogWindow = remember(view) {
+        (view.parent as? DialogWindowProvider)?.window
+    }
+    DisposableEffect(dialogWindow) {
+        val previousSoftInputMode = dialogWindow?.attributes?.softInputMode
+        dialogWindow?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
+        onDispose {
+            previousSoftInputMode?.let { dialogWindow.setSoftInputMode(it) }
         }
     }
 }
@@ -1823,8 +1838,6 @@ private fun EntryEditDialog(
     val density = LocalDensity.current
     val inputWindowActions = remember { InputWindowActions() }
     val amountFocusRequester = remember { FocusRequester() }
-    val amountBringIntoViewRequester = remember { BringIntoViewRequester() }
-    val noteBringIntoViewRequester = remember { BringIntoViewRequester() }
     val editScrollState = rememberScrollState()
     val fixedPrimaryDark = colorResource(R.color.theme_primary_dark)
     val currentCategory = categories.firstOrNull { it.name == entry.category }
@@ -1843,11 +1856,11 @@ private fun EntryEditDialog(
     val imeBottom = WindowInsets.ime.getBottom(density)
     val navigationBarBottom = WindowInsets.navigationBars.getBottom(density)
     val visibleImeHeight = (imeBottom - navigationBarBottom).coerceAtLeast(0)
-    var matchedInputPanelHeightPx by remember(entry.id) {
-        mutableIntStateOf(with(density) { CalculatorKeyboardHeight.roundToPx() })
-    }
     var retainInputPanelPlacement by remember(entry.id) { mutableStateOf(false) }
-    val matchedInputPanelHeight = with(density) { matchedInputPanelHeightPx.toDp() }
+    // 修改账单位于独立 Dialog 窗口，外层 Activity 的 IME Insets 会包含额外的窗口
+    // 调整高度。金额和备注必须共用同一个 340dp 面板基准，才能保持完全一致的
+    // 属性页位置、最大滚动位置与输入面板间隔。
+    val matchedInputPanelHeight = CalculatorKeyboardHeight
     val isSystemKeyboardVisible = imeBottom > navigationBarBottom
     val inputPanelPlacementActive =
         calculatorSurfaceVisible || isSystemKeyboardVisible || retainInputPanelPlacement
@@ -1877,13 +1890,6 @@ private fun EntryEditDialog(
     val clearInputFocus = {
         collapseInputPanel()
         inputWindowActions.clearFocus()
-    }
-
-    LaunchedEffect(visibleImeHeight) {
-        if (visibleImeHeight > 0) {
-            delay(InputPanelTransitionDelayMillis)
-            matchedInputPanelHeightPx = visibleImeHeight
-        }
     }
 
     LaunchedEffect(showCalculatorKeyboard) {
@@ -1940,19 +1946,15 @@ private fun EntryEditDialog(
 
     LaunchedEffect(
         showCalculatorKeyboard,
+        noteHasFocus,
         inputPanelPlacementActive,
         matchedInputPanelHeight,
     ) {
-        if (showCalculatorKeyboard && inputPanelPlacementActive) {
+        if ((showCalculatorKeyboard || noteHasFocus) && inputPanelPlacementActive) {
             withFrameNanos { }
-            amountBringIntoViewRequester.bringIntoView()
-        }
-    }
-
-    LaunchedEffect(noteHasFocus, isSystemKeyboardVisible, matchedInputPanelHeight) {
-        if (noteHasFocus && isSystemKeyboardVisible) {
+            editScrollState.scrollTo(editScrollState.maxValue)
             withFrameNanos { }
-            noteBringIntoViewRequester.bringIntoView()
+            editScrollState.scrollTo(editScrollState.maxValue)
         }
     }
 
@@ -1970,6 +1972,9 @@ private fun EntryEditDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
         BindInputWindowActions(inputWindowActions)
+        // 系统键盘默认会对 Dialog 执行 adjustPan，把整个修改账单页额外推到屏幕顶端。
+        // 禁止窗口级平移，只保留与金额计算器共用的 340dp 面板占位和内部滚动。
+        DisableDialogImeWindowPanning()
         Box(
             Modifier
                 .fillMaxSize()
@@ -2033,11 +2038,7 @@ private fun EntryEditDialog(
                                 }
                             }
                             Spacer(Modifier.height(14.dp))
-                            Box(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .bringIntoViewRequester(amountBringIntoViewRequester),
-                            ) {
+                            Box(Modifier.fillMaxWidth()) {
                                 OutlinedTextField(
                                     state = amountFieldState,
                                     modifier = Modifier
@@ -2107,7 +2108,6 @@ private fun EntryEditDialog(
                                 onValueChange = { if (it.length <= 100) note = it },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .bringIntoViewRequester(noteBringIntoViewRequester)
                                     .onFocusChanged {
                                         noteHasFocus = it.isFocused
                                         if (it.isFocused) {
