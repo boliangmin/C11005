@@ -21,6 +21,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -35,6 +36,13 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.InputTransformation
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.placeCursorAtEnd
+import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.foundation.text.selection.LocalTextSelectionColors
 import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.foundation.verticalScroll
@@ -60,12 +68,8 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.OffsetMapping
-import androidx.compose.ui.text.input.TransformedText
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -107,57 +111,22 @@ private val CalculatorKeyVerticalGap = 12.dp
 private val CalculatorDoubleKeyHeight = 144.75.dp
 private val CalculatorKeyboardBottomPadding = 10.dp
 private const val InputPanelTransitionDelayMillis = 220L
-private const val AmountCursorCharacter = '▏'
-private const val AmountCursorPlaceholderCharacter = '\uE000'
-
-private val AmountCursorVisualTransformation = VisualTransformation { text ->
-    val cursorIndex = text.text.indexOfLast {
-        it == AmountCursorCharacter || it == AmountCursorPlaceholderCharacter
-    }
-    val transformed = if (cursorIndex < 0) {
-        text
-    } else {
-        val cursorVisible = text.text[cursorIndex] == AmountCursorCharacter
-        val transformedText = text.text.replaceRange(
-            startIndex = cursorIndex,
-            endIndex = cursorIndex + 1,
-            replacement = AmountCursorCharacter.toString(),
-        )
-        AnnotatedString.Builder().apply {
-            append(transformedText)
-            addStyle(
-                style = if (cursorVisible) {
-                    SpanStyle(fontSize = 24.sp)
-                } else {
-                    SpanStyle(color = Color.Transparent, fontSize = 24.sp)
-                },
-                start = cursorIndex,
-                end = cursorIndex + 1,
-            )
-        }.toAnnotatedString()
-    }
-    TransformedText(transformed, OffsetMapping.Identity)
-}
+private val RejectCalculatorAmountInput = InputTransformation { revertAllChanges() }
 
 @Composable
-private fun calculatorAmountDisplayValue(amount: String, active: Boolean): String {
-    var cursorVisible by remember { mutableStateOf(false) }
-    LaunchedEffect(active) {
-        if (!active) {
-            cursorVisible = false
-            return@LaunchedEffect
-        }
-        cursorVisible = true
-        while (true) {
-            delay(500)
-            cursorVisible = !cursorVisible
+private fun rememberCalculatorAmountFieldState(amount: String): TextFieldState {
+    val fieldState = rememberTextFieldState(initialText = amount)
+    LaunchedEffect(amount) {
+        if (fieldState.text.toString() != amount) {
+            fieldState.setTextAndPlaceCursorAtEnd(amount)
         }
     }
-    return when {
-        !active -> amount
-        cursorVisible -> amount + AmountCursorCharacter
-        else -> amount + AmountCursorPlaceholderCharacter
+    LaunchedEffect(fieldState.text, fieldState.selection) {
+        if (fieldState.selection != TextRange(fieldState.text.length)) {
+            fieldState.edit { placeCursorAtEnd() }
+        }
     }
+    return fieldState
 }
 
 internal enum class ColorTheme(
@@ -1851,8 +1820,8 @@ private fun EntryEditDialog(
             backgroundColor = Ink.copy(alpha = 0.14f),
         )
     }
+    val amountFieldState = rememberCalculatorAmountFieldState(amount)
     val calculatedAmount = remember(amount) { evaluateAmountExpression(amount) }
-    val displayedAmount = calculatorAmountDisplayValue(amount, showCalculatorKeyboard)
     val changed = selected?.name != entry.category || calculatedAmount != entry.amount ||
         date != entry.date || note.trim() != entry.note
     val dismissInput = {
@@ -1904,27 +1873,37 @@ private fun EntryEditDialog(
                 Spacer(Modifier.height(14.dp))
                 CompositionLocalProvider(LocalTextSelectionColors provides editSelectionColors) {
                     Box(Modifier.fillMaxWidth()) {
-                    OutlinedTextField(
-                        value = displayedAmount,
-                        onValueChange = {},
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .focusRequester(amountFocusRequester)
-                            .onFocusChanged {
-                                if (it.isFocused) {
-                                    softwareKeyboardController?.hide()
-                                    showCalculatorKeyboard = true
-                                }
-                            },
-                        label = { Text("金额") },
-                        visualTransformation = AmountCursorVisualTransformation,
-                        isError = invalid,
-                        supportingText = if (invalid) ({ Text("请输入结果大于 0 的有效算式") }) else null,
-                        readOnly = true,
-                        singleLine = true,
-                        shape = RoundedCornerShape(14.dp),
-                        colors = editFieldColors,
-                    )
+                        OutlinedTextField(
+                            state = amountFieldState,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusRequester(amountFocusRequester)
+                                .onFocusChanged {
+                                    if (it.isFocused) {
+                                        softwareKeyboardController?.hide()
+                                        showCalculatorKeyboard = true
+                                    }
+                                },
+                            label = { Text("金额") },
+                            isError = invalid,
+                            supportingText = if (invalid) ({ Text("请输入结果大于 0 的有效算式") }) else null,
+                            inputTransformation = RejectCalculatorAmountInput,
+                            keyboardOptions = KeyboardOptions(showKeyboardOnFocus = false),
+                            lineLimits = TextFieldLineLimits.SingleLine,
+                            shape = RoundedCornerShape(14.dp),
+                            colors = editFieldColors,
+                        )
+                        Box(
+                            Modifier
+                                .matchParentSize()
+                                .pointerInput(Unit) {
+                                    detectTapGestures {
+                                        softwareKeyboardController?.hide()
+                                        showCalculatorKeyboard = true
+                                        amountFocusRequester.requestFocus()
+                                    }
+                                },
+                        )
                     }
                 }
                 Spacer(Modifier.height(14.dp))
@@ -2287,7 +2266,7 @@ private fun EntryInputDialog(
     val isSystemKeyboardVisible = imeBottom > navigationBarBottom
     val inputPanelPlacementActive =
         calculatorSurfaceVisible || isSystemKeyboardVisible || retainInputPanelPlacement
-    val displayedAmount = calculatorAmountDisplayValue(amount, showCalculatorKeyboard)
+    val amountFieldState = rememberCalculatorAmountFieldState(amount)
     val entryInputFieldBorder = Color(0xFF7A7D83)
     val entryInputFieldColors = OutlinedTextFieldDefaults.colors(
         focusedTextColor = Ink,
@@ -2419,8 +2398,7 @@ private fun EntryInputDialog(
                         Spacer(Modifier.height(22.dp))
                         Box(Modifier.fillMaxWidth()) {
                             OutlinedTextField(
-                                value = displayedAmount,
-                                onValueChange = {},
+                                state = amountFieldState,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .focusRequester(amountFocusRequester)
@@ -2433,13 +2411,26 @@ private fun EntryInputDialog(
                                         }
                                     },
                                 label = { Text("金额") },
-                                visualTransformation = AmountCursorVisualTransformation,
                                 isError = invalid,
                                 supportingText = if (invalid) ({ Text("请输入结果大于 0 的有效算式") }) else null,
-                                readOnly = true,
-                                singleLine = true,
+                                inputTransformation = RejectCalculatorAmountInput,
+                                keyboardOptions = KeyboardOptions(showKeyboardOnFocus = false),
+                                lineLimits = TextFieldLineLimits.SingleLine,
                                 shape = RoundedCornerShape(14.dp),
                                 colors = entryInputFieldColors,
+                            )
+                            Box(
+                                Modifier
+                                    .matchParentSize()
+                                    .pointerInput(Unit) {
+                                        detectTapGestures {
+                                            noteInputRequested = false
+                                            softwareKeyboardController?.hide()
+                                            calculatorSurfaceVisible = true
+                                            showCalculatorKeyboard = true
+                                            amountFocusRequester.requestFocus()
+                                        }
+                                    },
                             )
                         }
                         Spacer(Modifier.height(14.dp))
