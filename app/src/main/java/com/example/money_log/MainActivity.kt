@@ -75,6 +75,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlinx.coroutines.delay
 import kotlin.math.round
 import kotlin.math.roundToInt
 
@@ -90,6 +91,24 @@ private val EditCategorySelectedGreen = Color(0xFFC8E6C9)
 private const val GoldenRatio = 1.618f
 private const val BookkeepingDialogWidthFraction = 0.8f
 private val CalculatorKeyboardHeight = 340.dp
+private val CalculatorDialogGap = 12.dp
+
+@Composable
+private fun calculatorAmountDisplayValue(amount: String, active: Boolean): String {
+    var cursorVisible by remember { mutableStateOf(false) }
+    LaunchedEffect(active) {
+        if (!active) {
+            cursorVisible = false
+            return@LaunchedEffect
+        }
+        cursorVisible = true
+        while (true) {
+            delay(500)
+            cursorVisible = !cursorVisible
+        }
+    }
+    return amount + if (cursorVisible) "│" else ""
+}
 
 internal enum class ColorTheme(
     val storageKey: String,
@@ -1754,7 +1773,7 @@ private fun EntryEditDialog(
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
     val softwareKeyboardController = LocalSoftwareKeyboardController.current
-    val calculatorFocusRequester = remember { FocusRequester() }
+    val amountFocusRequester = remember { FocusRequester() }
     val fixedPrimaryDark = colorResource(R.color.theme_primary_dark)
     val currentCategory = categories.firstOrNull { it.name == entry.category }
     var selected by remember(entry.id, entry.category) { mutableStateOf(currentCategory) }
@@ -1785,6 +1804,7 @@ private fun EntryEditDialog(
         )
     }
     val calculatedAmount = remember(amount) { evaluateAmountExpression(amount) }
+    val displayedAmount = calculatorAmountDisplayValue(amount, showCalculatorKeyboard)
     val changed = selected?.name != entry.category || calculatedAmount != entry.amount ||
         date != entry.date || note.trim() != entry.note
     val dismissInput = {
@@ -1795,9 +1815,8 @@ private fun EntryEditDialog(
 
     LaunchedEffect(showCalculatorKeyboard) {
         if (showCalculatorKeyboard) {
-            focusManager.clearFocus(force = true)
             softwareKeyboardController?.hide()
-            calculatorFocusRequester.requestFocus()
+            amountFocusRequester.requestFocus()
         }
     }
 
@@ -1809,7 +1828,6 @@ private fun EntryEditDialog(
         text = {
             Column(
                 Modifier
-                    .focusRequester(calculatorFocusRequester)
                     .focusable()
                     .verticalScroll(rememberScrollState())
                     .clickable(
@@ -1839,9 +1857,17 @@ private fun EntryEditDialog(
                 CompositionLocalProvider(LocalTextSelectionColors provides editSelectionColors) {
                     Box(Modifier.fillMaxWidth()) {
                     OutlinedTextField(
-                        value = amount,
+                        value = displayedAmount,
                         onValueChange = {},
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(amountFocusRequester)
+                            .onFocusChanged {
+                                if (it.isFocused) {
+                                    softwareKeyboardController?.hide()
+                                    showCalculatorKeyboard = true
+                                }
+                            },
                         label = { Text("金额") },
                         prefix = { Text("¥ ") },
                         isError = invalid,
@@ -1851,15 +1877,6 @@ private fun EntryEditDialog(
                         shape = RoundedCornerShape(14.dp),
                         colors = editFieldColors,
                     )
-                        Box(
-                            Modifier.matchParentSize().clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                            ) {
-                                dismissInput()
-                                showCalculatorKeyboard = true
-                            },
-                        )
                     }
                 }
                 Spacer(Modifier.height(14.dp))
@@ -1912,7 +1929,7 @@ private fun EntryEditDialog(
                             invalid = false
                         },
                         onInvalidExpression = { invalid = true },
-                        onDismiss = { showCalculatorKeyboard = false },
+                        onDismiss = dismissInput,
                     )
                 }
             }
@@ -2191,7 +2208,7 @@ private fun EntryInputDialog(
     val density = LocalDensity.current
     val focusManager = LocalFocusManager.current
     val softwareKeyboardController = LocalSoftwareKeyboardController.current
-    val calculatorFocusRequester = remember { FocusRequester() }
+    val amountFocusRequester = remember { FocusRequester() }
     val dateInteractionSource = remember { MutableInteractionSource() }
     val colorTheme = LocalColorTheme.current
     var showDatePicker by remember { mutableStateOf(false) }
@@ -2206,6 +2223,7 @@ private fun EntryInputDialog(
     }
     val matchedInputPanelHeight = with(density) { matchedInputPanelHeightPx.toDp() }
     val isSystemKeyboardVisible = imeBottom > navigationBarBottom
+    val displayedAmount = calculatorAmountDisplayValue(amount, showCalculatorKeyboard)
     val entryInputFieldBorder = Color(0xFF7A7D83)
     val entryInputFieldColors = OutlinedTextFieldDefaults.colors(
         focusedTextColor = Ink,
@@ -2232,9 +2250,8 @@ private fun EntryInputDialog(
 
     LaunchedEffect(showCalculatorKeyboard) {
         if (showCalculatorKeyboard) {
-            focusManager.clearFocus(force = true)
             softwareKeyboardController?.hide()
-            calculatorFocusRequester.requestFocus()
+            amountFocusRequester.requestFocus()
         }
     }
 
@@ -2247,7 +2264,6 @@ private fun EntryInputDialog(
         Box(
             Modifier
                 .fillMaxSize()
-                .focusRequester(calculatorFocusRequester)
                 .focusable()
                 .clickable(
                     interactionSource = dismissInputInteraction,
@@ -2274,7 +2290,7 @@ private fun EntryInputDialog(
                     .fillMaxSize()
                     .padding(
                         bottom = if (showCalculatorKeyboard || isSystemKeyboardVisible) {
-                            matchedInputPanelHeight
+                            matchedInputPanelHeight + if (showCalculatorKeyboard) CalculatorDialogGap else 0.dp
                         }
                         else {
                             0.dp
@@ -2298,9 +2314,17 @@ private fun EntryInputDialog(
                         Spacer(Modifier.height(22.dp))
                         Box(Modifier.fillMaxWidth()) {
                             OutlinedTextField(
-                                value = amount,
+                                value = displayedAmount,
                                 onValueChange = {},
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .focusRequester(amountFocusRequester)
+                                    .onFocusChanged {
+                                        if (it.isFocused) {
+                                            softwareKeyboardController?.hide()
+                                            showCalculatorKeyboard = true
+                                        }
+                                    },
                                 label = { Text("金额") },
                                 prefix = { Text("¥ ") },
                                 isError = invalid,
@@ -2309,15 +2333,6 @@ private fun EntryInputDialog(
                                 singleLine = true,
                                 shape = RoundedCornerShape(14.dp),
                                 colors = entryInputFieldColors,
-                            )
-                            Box(
-                                Modifier.matchParentSize().clickable(
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = null,
-                                ) {
-                                    dismissInput()
-                                    showCalculatorKeyboard = true
-                                },
                             )
                         }
                         Spacer(Modifier.height(14.dp))
@@ -2382,7 +2397,7 @@ private fun EntryInputDialog(
                     expression = amount,
                     onExpressionChange = onAmountChange,
                     onInvalidExpression = onInvalidAmount,
-                    onDismiss = { showCalculatorKeyboard = false },
+                    onDismiss = dismissInput,
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
@@ -2641,9 +2656,9 @@ private fun AmountCalculatorKeyboard(
                     },
                 )
             },
-        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+        shape = RoundedCornerShape(0.dp),
         color = Color(0xFFF1F3F6),
-        shadowElevation = 12.dp,
+        shadowElevation = 0.dp,
     ) {
         Column(
             modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 10.dp),
@@ -2660,9 +2675,9 @@ private fun AmountCalculatorKeyboard(
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
-                            painter = painterResource(R.drawable.ic_expand_less),
+                            painter = painterResource(R.drawable.ic_keyboard_arrow_down),
                             contentDescription = "收起计算器",
-                            modifier = Modifier.size(24.dp).rotate(180f),
+                            modifier = Modifier.size(24.dp),
                             tint = Muted,
                         )
                     }
