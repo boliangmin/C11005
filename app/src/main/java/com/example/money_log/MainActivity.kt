@@ -35,6 +35,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.selection.LocalTextSelectionColors
+import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -77,7 +79,7 @@ private val Danger = Color(0xFFC43D3D)
 private val DeleteSwipeBackground = Color(0xFFE57373)
 private val DeleteActionRed = Color(0xFFE53935)
 private val NeutralIconBorder = Color(0xFFE5E5E5)
-private val EditCategorySelectedGreen = Color(0xFFE4F4E9)
+private val EditCategorySelectedGreen = Color(0xFFC8E6C9)
 private const val GoldenRatio = 1.618f
 private const val BookkeepingDialogWidthFraction = 0.8f
 
@@ -1426,6 +1428,7 @@ private fun CategoryActionItem(
     iconResource: Int? = null,
     iconBackgroundColor: Color? = null,
     preserveIconColors: Boolean = false,
+    expandIconToBackground: Boolean = false,
     destructive: Boolean = false,
     onClick: () -> Unit,
 ) {
@@ -1453,7 +1456,7 @@ private fun CategoryActionItem(
                 Icon(
                     painter = painterResource(iconResource),
                     contentDescription = null,
-                    modifier = Modifier.size(24.dp),
+                    modifier = Modifier.size(if (expandIconToBackground) 42.dp else 24.dp),
                     tint = if (preserveIconColors) Color.Unspecified else contentColor,
                 )
             }
@@ -1693,8 +1696,9 @@ private fun EntryActionDialog(
                 title = "修改账单",
                 subtitle = "修改分类、金额、日期和备注",
                 iconResource = R.drawable.ic_edit_bill_color,
-                iconBackgroundColor = Color.White,
+                iconBackgroundColor = Color.Transparent,
                 preserveIconColors = true,
+                expandIconToBackground = true,
                 onClick = onEdit,
             )
         },
@@ -1725,6 +1729,24 @@ private fun EntryEditDialog(
     var invalid by remember(entry.id) { mutableStateOf(false) }
     var showDatePicker by remember(entry.id) { mutableStateOf(false) }
     val dateInteractionSource = remember { MutableInteractionSource() }
+    val editFieldBorder = Color(0xFF7A7D83)
+    val editFieldColors = OutlinedTextFieldDefaults.colors(
+        focusedTextColor = Ink,
+        unfocusedTextColor = Ink,
+        cursorColor = Ink,
+        focusedBorderColor = editFieldBorder,
+        unfocusedBorderColor = editFieldBorder,
+        focusedLabelColor = Muted,
+        unfocusedLabelColor = Muted,
+        focusedPrefixColor = Ink,
+        unfocusedPrefixColor = Ink,
+    )
+    val editSelectionColors = remember {
+        TextSelectionColors(
+            handleColor = Ink,
+            backgroundColor = Ink.copy(alpha = 0.14f),
+        )
+    }
     val changed = selected?.name != entry.category || amount.toDoubleOrNull() != entry.amount ||
         date != entry.date || note.trim() != entry.note
 
@@ -1751,21 +1773,24 @@ private fun EntryEditDialog(
                     }
                 }
                 Spacer(Modifier.height(14.dp))
-                OutlinedTextField(
-                    value = amount,
-                    onValueChange = {
-                        if (validAmountInput(it)) amount = it
-                        invalid = false
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("金额") },
-                    prefix = { Text("¥ ") },
-                    isError = invalid,
-                    supportingText = if (invalid) ({ Text("请输入大于 0 的金额") }) else null,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
-                )
+                CompositionLocalProvider(LocalTextSelectionColors provides editSelectionColors) {
+                    OutlinedTextField(
+                        value = amount,
+                        onValueChange = {
+                            if (validAmountInput(it)) amount = it
+                            invalid = false
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("金额") },
+                        prefix = { Text("¥ ") },
+                        isError = invalid,
+                        supportingText = if (invalid) ({ Text("请输入大于 0 的金额") }) else null,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        colors = editFieldColors,
+                    )
+                }
                 Spacer(Modifier.height(14.dp))
                 Box(
                     Modifier.fillMaxWidth().clickable(
@@ -1790,14 +1815,17 @@ private fun EntryEditDialog(
                     )
                 }
                 Spacer(Modifier.height(14.dp))
-                OutlinedTextField(
-                    value = note,
-                    onValueChange = { if (it.length <= 100) note = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("备注") },
-                    maxLines = 3,
-                    shape = RoundedCornerShape(14.dp),
-                )
+                CompositionLocalProvider(LocalTextSelectionColors provides editSelectionColors) {
+                    OutlinedTextField(
+                        value = note,
+                        onValueChange = { if (it.length <= 100) note = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("备注") },
+                        maxLines = 3,
+                        shape = RoundedCornerShape(14.dp),
+                        colors = editFieldColors,
+                    )
+                }
             }
         },
         confirmButton = {
