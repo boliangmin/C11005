@@ -34,6 +34,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -80,8 +82,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.compose.ui.window.Popup
-import androidx.compose.ui.window.PopupProperties
 import com.example.money_log.ui.theme.Money_LogTheme
 import org.json.JSONArray
 import org.json.JSONObject
@@ -1823,6 +1823,9 @@ private fun EntryEditDialog(
     val density = LocalDensity.current
     val inputWindowActions = remember { InputWindowActions() }
     val amountFocusRequester = remember { FocusRequester() }
+    val amountBringIntoViewRequester = remember { BringIntoViewRequester() }
+    val noteBringIntoViewRequester = remember { BringIntoViewRequester() }
+    val editScrollState = rememberScrollState()
     val fixedPrimaryDark = colorResource(R.color.theme_primary_dark)
     val currentCategory = categories.firstOrNull { it.name == entry.category }
     var selected by remember(entry.id, entry.category) { mutableStateOf(currentCategory) }
@@ -1833,12 +1836,21 @@ private fun EntryEditDialog(
     var showDatePicker by remember(entry.id) { mutableStateOf(false) }
     var showCalculatorKeyboard by remember(entry.id) { mutableStateOf(false) }
     var amountHasFocus by remember(entry.id) { mutableStateOf(false) }
+    var calculatorSurfaceVisible by remember(entry.id) { mutableStateOf(false) }
     var noteInputRequested by remember(entry.id) { mutableStateOf(false) }
     var noteKeyboardWasVisible by remember(entry.id) { mutableStateOf(false) }
     var noteHasFocus by remember(entry.id) { mutableStateOf(false) }
     val imeBottom = WindowInsets.ime.getBottom(density)
     val navigationBarBottom = WindowInsets.navigationBars.getBottom(density)
+    val visibleImeHeight = (imeBottom - navigationBarBottom).coerceAtLeast(0)
+    var matchedInputPanelHeightPx by remember(entry.id) {
+        mutableIntStateOf(with(density) { CalculatorKeyboardHeight.roundToPx() })
+    }
+    var retainInputPanelPlacement by remember(entry.id) { mutableStateOf(false) }
+    val matchedInputPanelHeight = with(density) { matchedInputPanelHeightPx.toDp() }
     val isSystemKeyboardVisible = imeBottom > navigationBarBottom
+    val inputPanelPlacementActive =
+        calculatorSurfaceVisible || isSystemKeyboardVisible || retainInputPanelPlacement
     val dismissInputInteraction = remember { MutableInteractionSource() }
     val dateInteractionSource = remember { MutableInteractionSource() }
     val editFieldBorder = Color(0xFF7A7D83)
@@ -1851,12 +1863,6 @@ private fun EntryEditDialog(
         focusedLabelColor = Muted,
         unfocusedLabelColor = Muted,
     )
-    val editSelectionColors = remember {
-        TextSelectionColors(
-            handleColor = Color.Transparent,
-            backgroundColor = Ink.copy(alpha = 0.14f),
-        )
-    }
     val amountFieldState = rememberCalculatorAmountFieldState(amount)
     val calculatedAmount = remember(amount) { evaluateAmountExpression(amount) }
     val changed = selected?.name != entry.category || calculatedAmount != entry.amount ||
@@ -1866,10 +1872,18 @@ private fun EntryEditDialog(
         noteInputRequested = false
         noteKeyboardWasVisible = false
         showCalculatorKeyboard = false
+        calculatorSurfaceVisible = false
     }
     val clearInputFocus = {
         collapseInputPanel()
         inputWindowActions.clearFocus()
+    }
+
+    LaunchedEffect(visibleImeHeight) {
+        if (visibleImeHeight > 0) {
+            delay(InputPanelTransitionDelayMillis)
+            matchedInputPanelHeightPx = visibleImeHeight
+        }
     }
 
     LaunchedEffect(showCalculatorKeyboard) {
@@ -1903,164 +1917,263 @@ private fun EntryEditDialog(
         }
     }
 
-    AlertDialog(
+    LaunchedEffect(showCalculatorKeyboard, noteInputRequested, visibleImeHeight) {
+        when {
+            showCalculatorKeyboard -> calculatorSurfaceVisible = true
+            noteInputRequested && visibleImeHeight > 0 -> {
+                delay(InputPanelTransitionDelayMillis)
+                calculatorSurfaceVisible = false
+            }
+            noteInputRequested -> Unit
+            else -> calculatorSurfaceVisible = false
+        }
+    }
+
+    LaunchedEffect(calculatorSurfaceVisible, isSystemKeyboardVisible) {
+        if (calculatorSurfaceVisible || isSystemKeyboardVisible) {
+            retainInputPanelPlacement = true
+        } else {
+            delay(InputPanelTransitionDelayMillis)
+            retainInputPanelPlacement = false
+        }
+    }
+
+    LaunchedEffect(
+        showCalculatorKeyboard,
+        inputPanelPlacementActive,
+        matchedInputPanelHeight,
+    ) {
+        if (showCalculatorKeyboard && inputPanelPlacementActive) {
+            withFrameNanos { }
+            amountBringIntoViewRequester.bringIntoView()
+        }
+    }
+
+    LaunchedEffect(noteHasFocus, isSystemKeyboardVisible, matchedInputPanelHeight) {
+        if (noteHasFocus && isSystemKeyboardVisible) {
+            withFrameNanos { }
+            noteBringIntoViewRequester.bringIntoView()
+        }
+    }
+
+    Dialog(
         onDismissRequest = {
-            if (showCalculatorKeyboard || noteInputRequested || isSystemKeyboardVisible) {
+            if (
+                showCalculatorKeyboard || noteInputRequested ||
+                calculatorSurfaceVisible || isSystemKeyboardVisible
+            ) {
                 collapseInputPanel()
             } else {
                 dismiss()
             }
         },
-        title = { Text("修改账单") },
-        text = {
-            BindInputWindowActions(inputWindowActions)
-            Column(
-                Modifier
-                    .focusable()
-                    .verticalScroll(rememberScrollState())
-                    .clickable(
-                        interactionSource = dismissInputInteraction,
-                        indication = null,
-                        onClick = collapseInputPanel,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        BindInputWindowActions(inputWindowActions)
+        Box(
+            Modifier
+                .fillMaxSize()
+                .clickable(
+                    interactionSource = dismissInputInteraction,
+                    indication = null,
+                    onClick = collapseInputPanel,
+                ),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(
+                        top = 12.dp,
+                        bottom = if (inputPanelPlacementActive) {
+                            matchedInputPanelHeight + CalculatorDialogGap
+                        } else {
+                            12.dp
+                        },
                     ),
+                contentAlignment = if (inputPanelPlacementActive) {
+                    Alignment.BottomCenter
+                } else {
+                    Alignment.Center
+                },
             ) {
-                Text("分类", fontWeight = FontWeight.Medium, color = Ink)
-                Spacer(Modifier.height(8.dp))
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(4),
-                    modifier = Modifier.fillMaxWidth().heightIn(max = 210.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                Surface(
+                    modifier = Modifier.fillMaxWidth(BookkeepingDialogWidthFraction),
+                    shape = RoundedCornerShape(28.dp),
+                    color = Bg,
+                    shadowElevation = 10.dp,
                 ) {
-                    items(categories.size) { index ->
-                        val category = categories[index]
-                        EntryCategoryChoice(
-                            category = category,
-                            active = selected == category,
-                            onClick = { selected = category },
+                    Column(Modifier.padding(24.dp)) {
+                        Text(
+                            "修改账单",
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Ink,
                         )
-                    }
-                }
-                Spacer(Modifier.height(14.dp))
-                CompositionLocalProvider(LocalTextSelectionColors provides editSelectionColors) {
-                    Box(Modifier.fillMaxWidth()) {
-                        OutlinedTextField(
-                            state = amountFieldState,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .focusRequester(amountFocusRequester)
-                                .onFocusChanged {
-                                    amountHasFocus = it.isFocused
-                                    if (it.isFocused) {
-                                        noteInputRequested = false
-                                        inputWindowActions.hideKeyboard()
-                                        showCalculatorKeyboard = true
-                                    }
-                                },
-                            label = { Text("金额") },
-                            isError = invalid,
-                            supportingText = if (invalid) ({ Text("请输入结果大于 0 的有效算式") }) else null,
-                            inputTransformation = RejectCalculatorAmountInput,
-                            keyboardOptions = KeyboardOptions(showKeyboardOnFocus = false),
-                            lineLimits = TextFieldLineLimits.SingleLine,
-                            shape = RoundedCornerShape(14.dp),
-                            colors = editFieldColors,
-                        )
-                        Box(
+                        Spacer(Modifier.height(18.dp))
+                        Column(
                             Modifier
-                                .matchParentSize()
-                                .pointerInput(Unit) {
-                                    detectTapGestures {
-                                        noteInputRequested = false
-                                        inputWindowActions.hideKeyboard()
-                                        showCalculatorKeyboard = true
-                                        amountFocusRequester.requestFocus()
-                                    }
-                                },
-                        )
-                    }
-                }
-                Spacer(Modifier.height(14.dp))
-                Box(
-                    Modifier.fillMaxWidth().clickable(
-                        interactionSource = dateInteractionSource,
-                        indication = null,
-                    ) {
-                        clearInputFocus()
-                        showDatePicker = true
-                    },
-                ) {
-                    OutlinedTextField(
-                        value = day(date),
-                        onValueChange = {},
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = false,
-                        label = { Text("日期") },
-                        trailingIcon = { Text("选择") },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            disabledTextColor = Ink,
-                            disabledBorderColor = Color(0xFFB9BBC0),
-                            disabledLabelColor = Muted,
-                            disabledTrailingIconColor = Ink,
-                            disabledContainerColor = Color.Transparent,
-                        ),
-                    )
-                }
-                Spacer(Modifier.height(14.dp))
-                CompositionLocalProvider(LocalTextSelectionColors provides editSelectionColors) {
-                    OutlinedTextField(
-                        value = note,
-                        onValueChange = { if (it.length <= 100) note = it },
-                        modifier = Modifier.fillMaxWidth().onFocusChanged {
-                            noteHasFocus = it.isFocused
-                            if (it.isFocused) {
-                                noteInputRequested = true
-                                showCalculatorKeyboard = false
+                                .weight(1f, fill = false)
+                                .verticalScroll(editScrollState),
+                        ) {
+                            Text("分类", fontWeight = FontWeight.Medium, color = Ink)
+                            Spacer(Modifier.height(8.dp))
+                            LazyVerticalGrid(
+                                columns = GridCells.Fixed(4),
+                                modifier = Modifier.fillMaxWidth().heightIn(max = 210.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                items(categories.size) { index ->
+                                    val category = categories[index]
+                                    EntryCategoryChoice(
+                                        category = category,
+                                        active = selected == category,
+                                        onClick = { selected = category },
+                                    )
+                                }
                             }
-                        },
-                        label = { Text("备注") },
-                        maxLines = 3,
-                        shape = RoundedCornerShape(14.dp),
-                        colors = editFieldColors,
-                    )
-                }
-                if (showCalculatorKeyboard) {
-                    AmountCalculatorKeyboardPopup(
-                        expression = amount,
-                        onExpressionChange = {
-                            amount = it
-                            invalid = false
-                        },
-                        onInvalidExpression = { invalid = true },
-                        onDismiss = collapseInputPanel,
-                    )
+                            Spacer(Modifier.height(14.dp))
+                            Box(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .bringIntoViewRequester(amountBringIntoViewRequester),
+                            ) {
+                                OutlinedTextField(
+                                    state = amountFieldState,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .focusRequester(amountFocusRequester)
+                                        .onFocusChanged {
+                                            amountHasFocus = it.isFocused
+                                            if (it.isFocused) {
+                                                noteInputRequested = false
+                                                inputWindowActions.hideKeyboard()
+                                                calculatorSurfaceVisible = true
+                                                showCalculatorKeyboard = true
+                                            }
+                                        },
+                                    label = { Text("金额") },
+                                    isError = invalid,
+                                    supportingText = if (invalid) ({ Text("请输入结果大于 0 的有效算式") }) else null,
+                                    inputTransformation = RejectCalculatorAmountInput,
+                                    keyboardOptions = KeyboardOptions(showKeyboardOnFocus = false),
+                                    lineLimits = TextFieldLineLimits.SingleLine,
+                                    shape = RoundedCornerShape(14.dp),
+                                    colors = editFieldColors,
+                                )
+                                Box(
+                                    Modifier
+                                        .matchParentSize()
+                                        .pointerInput(Unit) {
+                                            detectTapGestures {
+                                                noteInputRequested = false
+                                                inputWindowActions.hideKeyboard()
+                                                calculatorSurfaceVisible = true
+                                                showCalculatorKeyboard = true
+                                                amountFocusRequester.requestFocus()
+                                            }
+                                        },
+                                )
+                            }
+                            Spacer(Modifier.height(14.dp))
+                            Box(
+                                Modifier.fillMaxWidth().clickable(
+                                    interactionSource = dateInteractionSource,
+                                    indication = null,
+                                ) {
+                                    clearInputFocus()
+                                    showDatePicker = true
+                                },
+                            ) {
+                                OutlinedTextField(
+                                    value = day(date),
+                                    onValueChange = {},
+                                    modifier = Modifier.fillMaxWidth(),
+                                    enabled = false,
+                                    label = { Text("日期") },
+                                    trailingIcon = { Text("选择") },
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        disabledTextColor = Ink,
+                                        disabledBorderColor = Color(0xFFB9BBC0),
+                                        disabledLabelColor = Muted,
+                                        disabledTrailingIconColor = Ink,
+                                        disabledContainerColor = Color.Transparent,
+                                    ),
+                                )
+                            }
+                            Spacer(Modifier.height(14.dp))
+                            OutlinedTextField(
+                                value = note,
+                                onValueChange = { if (it.length <= 100) note = it },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .bringIntoViewRequester(noteBringIntoViewRequester)
+                                    .onFocusChanged {
+                                        noteHasFocus = it.isFocused
+                                        if (it.isFocused) {
+                                            noteInputRequested = true
+                                            showCalculatorKeyboard = false
+                                        }
+                                    },
+                                label = { Text("备注") },
+                                maxLines = 3,
+                                shape = RoundedCornerShape(14.dp),
+                                colors = editFieldColors,
+                            )
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            TextButton(
+                                onClick = dismiss,
+                                colors = ButtonDefaults.textButtonColors(contentColor = fixedPrimaryDark),
+                            ) { Text("取消") }
+                            TextButton(
+                                onClick = {
+                                    val value = evaluateAmountExpression(amount)
+                                    if (value == null || value <= 0) invalid = true
+                                    else if (isDateAfterToday(date)) {
+                                        Toast.makeText(context, "不能添加晚于今天的账单", Toast.LENGTH_SHORT).show()
+                                    }
+                                    else confirm(
+                                        entry.copy(
+                                            category = selected!!.name,
+                                            amount = value,
+                                            date = date,
+                                            note = note.trim(),
+                                        ),
+                                    )
+                                },
+                                enabled = selected != null && changed,
+                                colors = ButtonDefaults.textButtonColors(
+                                    contentColor = fixedPrimaryDark,
+                                    disabledContentColor = Muted.copy(alpha = 0.38f),
+                                ),
+                            ) { Text("保存") }
+                        }
+                    }
                 }
             }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    val value = evaluateAmountExpression(amount)
-                    if (value == null || value <= 0) invalid = true
-                    else if (isDateAfterToday(date)) {
-                        Toast.makeText(context, "不能添加晚于今天的账单", Toast.LENGTH_SHORT).show()
-                    }
-                    else confirm(entry.copy(category = selected!!.name, amount = value, date = date, note = note.trim()))
-                },
-                enabled = selected != null && changed,
-                colors = ButtonDefaults.textButtonColors(
-                    contentColor = fixedPrimaryDark,
-                    disabledContentColor = Muted.copy(alpha = 0.38f),
-                ),
-            ) { Text("保存") }
-        },
-        dismissButton = {
-            TextButton(
-                onClick = dismiss,
-                colors = ButtonDefaults.textButtonColors(contentColor = fixedPrimaryDark),
-            ) { Text("取消") }
-        },
-    )
+            if (calculatorSurfaceVisible) {
+                AmountCalculatorKeyboard(
+                    expression = amount,
+                    onExpressionChange = {
+                        amount = it
+                        invalid = false
+                    },
+                    onInvalidExpression = { invalid = true },
+                    onDismiss = collapseInputPanel,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .height(matchedInputPanelHeight),
+                )
+            }
+        }
+    }
     if (showDatePicker) {
         MoneyLogDatePickerDialog(
             initialMillis = date,
@@ -2959,27 +3072,6 @@ private fun AmountCalculatorKeyboard(
                     )
                 }
         }
-    }
-}
-
-@Composable
-private fun AmountCalculatorKeyboardPopup(
-    expression: String,
-    onExpressionChange: (String) -> Unit,
-    onInvalidExpression: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    Popup(
-        alignment = Alignment.BottomCenter,
-        properties = PopupProperties(focusable = false, clippingEnabled = false),
-    ) {
-        AmountCalculatorKeyboard(
-            expression = expression,
-            onExpressionChange = onExpressionChange,
-            onInvalidExpression = onInvalidExpression,
-            onDismiss = onDismiss,
-            modifier = Modifier.fillMaxWidth().height(CalculatorKeyboardHeight),
-        )
     }
 }
 
