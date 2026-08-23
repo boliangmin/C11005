@@ -2323,7 +2323,7 @@ private fun EntryInputDialog(
     val inputWindowActions = remember { InputWindowActions() }
     val amountFocusRequester = remember { FocusRequester() }
     val dateInteractionSource = remember { MutableInteractionSource() }
-    val colorTheme = LocalColorTheme.current
+    val fixedPrimaryDark = colorResource(R.color.theme_primary_dark)
     var showDatePicker by remember { mutableStateOf(false) }
     var showCalculatorKeyboard by remember { mutableStateOf(false) }
     var amountHasFocus by remember { mutableStateOf(false) }
@@ -2586,7 +2586,10 @@ private fun EntryInputDialog(
                             },
                             modifier = Modifier.fillMaxWidth().height(56.dp),
                             shape = RoundedCornerShape(18.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = colorTheme.accent, contentColor = colorTheme.onAccent),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = fixedPrimaryDark,
+                                contentColor = Color.White,
+                            ),
                         ) { Text("完成记账", fontSize = 18.sp, fontWeight = FontWeight.Bold) }
                     }
                 }
