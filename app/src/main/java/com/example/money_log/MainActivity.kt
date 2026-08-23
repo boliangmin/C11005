@@ -60,7 +60,12 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.OffsetMapping
+import androidx.compose.ui.text.input.TransformedText
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -103,6 +108,22 @@ private val CalculatorDoubleKeyHeight = 144.75.dp
 private val CalculatorKeyboardBottomPadding = 10.dp
 private const val InputPanelTransitionDelayMillis = 220L
 private const val AmountCursorCharacter = '▏'
+
+private val AmountCursorVisualTransformation = VisualTransformation { text ->
+    val cursorIndex = text.text.indexOfLast { it == AmountCursorCharacter }
+    val transformed = if (cursorIndex < 0) {
+        text
+    } else {
+        AnnotatedString.Builder(text).apply {
+            addStyle(
+                style = SpanStyle(fontSize = 24.sp),
+                start = cursorIndex,
+                end = cursorIndex + 1,
+            )
+        }.toAnnotatedString()
+    }
+    TransformedText(transformed, OffsetMapping.Identity)
+}
 
 @Composable
 private fun calculatorAmountDisplayValue(amount: String, active: Boolean): String {
@@ -1878,6 +1899,7 @@ private fun EntryEditDialog(
                                 }
                             },
                         label = { Text("金额") },
+                        visualTransformation = AmountCursorVisualTransformation,
                         isError = invalid,
                         supportingText = if (invalid) ({ Text("请输入结果大于 0 的有效算式") }) else null,
                         readOnly = true,
@@ -2393,6 +2415,7 @@ private fun EntryInputDialog(
                                         }
                                     },
                                 label = { Text("金额") },
+                                visualTransformation = AmountCursorVisualTransformation,
                                 isError = invalid,
                                 supportingText = if (invalid) ({ Text("请输入结果大于 0 的有效算式") }) else null,
                                 readOnly = true,
