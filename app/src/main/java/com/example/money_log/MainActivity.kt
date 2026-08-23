@@ -69,6 +69,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlin.math.round
 import kotlin.math.roundToInt
 
 private val Bg = Color(0xFFF7F7F7)
@@ -1771,7 +1772,8 @@ private fun EntryEditDialog(
             backgroundColor = Ink.copy(alpha = 0.14f),
         )
     }
-    val changed = selected?.name != entry.category || amount.toDoubleOrNull() != entry.amount ||
+    val calculatedAmount = remember(amount) { evaluateAmountExpression(amount) }
+    val changed = selected?.name != entry.category || calculatedAmount != entry.amount ||
         date != entry.date || note.trim() != entry.note
 
     AlertDialog(
@@ -1801,20 +1803,29 @@ private fun EntryEditDialog(
                     OutlinedTextField(
                         value = amount,
                         onValueChange = {
-                            if (validAmountInput(it)) amount = it
+                            if (validAmountExpressionInput(it)) amount = it
                             invalid = false
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        label = { Text("金额") },
+                        label = { Text("金额算式") },
                         prefix = { Text("¥ ") },
                         isError = invalid,
-                        supportingText = if (invalid) ({ Text("请输入大于 0 的金额") }) else null,
+                        supportingText = if (invalid) ({ Text("请输入结果大于 0 的有效算式") }) else null,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true,
                         shape = RoundedCornerShape(14.dp),
                         colors = editFieldColors,
                     )
                 }
+                Spacer(Modifier.height(8.dp))
+                AmountCalculatorPanel(
+                    expression = amount,
+                    result = calculatedAmount,
+                    onExpressionChange = {
+                        amount = it
+                        invalid = false
+                    },
+                )
                 Spacer(Modifier.height(14.dp))
                 Box(
                     Modifier.fillMaxWidth().clickable(
@@ -1855,7 +1866,7 @@ private fun EntryEditDialog(
         confirmButton = {
             TextButton(
                 onClick = {
-                    val value = amount.toDoubleOrNull()
+                    val value = evaluateAmountExpression(amount)
                     if (value == null || value <= 0) invalid = true
                     else if (isDateAfterToday(date)) {
                         Toast.makeText(context, "不能添加晚于今天的账单", Toast.LENGTH_SHORT).show()
@@ -2027,7 +2038,7 @@ private fun AddScreen(
             note = note,
             invalid = invalid,
             onAmountChange = {
-                if (validAmountInput(it)) amount = it
+                if (validAmountExpressionInput(it)) amount = it
                 invalid = false
             },
             onDateSelected = { date = it },
@@ -2126,6 +2137,7 @@ private fun EntryInputDialog(
     val dateInteractionSource = remember { MutableInteractionSource() }
     val colorTheme = LocalColorTheme.current
     var showDatePicker by remember { mutableStateOf(false) }
+    val calculatedAmount = remember(amount) { evaluateAmountExpression(amount) }
     val entryInputFieldBorder = Color(0xFF7A7D83)
     val entryInputFieldColors = OutlinedTextFieldDefaults.colors(
         focusedTextColor = Ink,
@@ -2153,14 +2165,20 @@ private fun EntryInputDialog(
                     value = amount,
                     onValueChange = onAmountChange,
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("金额") },
+                    label = { Text("金额算式") },
                     prefix = { Text("¥ ") },
                     isError = invalid,
-                    supportingText = if (invalid) ({ Text("请输入大于 0 的金额") }) else null,
+                    supportingText = if (invalid) ({ Text("请输入结果大于 0 的有效算式") }) else null,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     singleLine = true,
                     shape = RoundedCornerShape(14.dp),
                     colors = entryInputFieldColors,
+                )
+                Spacer(Modifier.height(8.dp))
+                AmountCalculatorPanel(
+                    expression = amount,
+                    result = calculatedAmount,
+                    onExpressionChange = onAmountChange,
                 )
                 Spacer(Modifier.height(14.dp))
                 Box(
@@ -2198,7 +2216,7 @@ private fun EntryInputDialog(
                 Spacer(Modifier.height(24.dp))
                 Button(
                     onClick = {
-                        val value = amount.toDoubleOrNull()
+                        val value = evaluateAmountExpression(amount)
                         if (value == null || value <= 0) onInvalidAmount()
                         else if (isDateAfterToday(date)) {
                             Toast.makeText(context, "不能添加晚于今天的账单", Toast.LENGTH_SHORT).show()
@@ -2406,10 +2424,125 @@ private fun IconChoice(symbol: String, active: Boolean, onClick: () -> Unit) {
     }
 }
 
-private fun validAmountInput(value: String): Boolean {
-    if (value.any { !it.isDigit() && it != '.' } || value.count { it == '.' } > 1) return false
-    val parts = value.split('.')
-    return parts[0].length <= 9 && (parts.size == 1 || parts[1].length <= 2)
+@Composable
+private fun AmountCalculatorPanel(
+    expression: String,
+    result: Double?,
+    onExpressionChange: (String) -> Unit,
+) {
+    val fixedPrimaryDark = colorResource(R.color.theme_primary_dark)
+    val operators = listOf("+" to "+", "−" to "-", "×" to "×", "÷" to "÷")
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        operators.forEach { (label, value) ->
+            val interactionSource = remember { MutableInteractionSource() }
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(38.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color.White)
+                    .border(1.dp, NeutralIconBorder, RoundedCornerShape(10.dp))
+                    .clickable(interactionSource = interactionSource, indication = null) {
+                        onExpressionChange(appendAmountOperator(expression, value))
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(label, color = fixedPrimaryDark, fontSize = 20.sp, fontWeight = FontWeight.Medium)
+            }
+        }
+    }
+    Spacer(Modifier.height(8.dp))
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("合计", color = Muted, fontSize = 13.sp)
+        Text(
+            text = result?.let { "¥${money(it)}" } ?: "—",
+            color = if (result == null) Muted else fixedPrimaryDark,
+            fontSize = 17.sp,
+            fontWeight = FontWeight.Bold,
+        )
+    }
+}
+
+internal fun appendAmountOperator(expression: String, operator: String): String {
+    if (expression.isEmpty()) return if (operator == "-") "-" else expression
+    if (expression.last() == '.') return expression
+    val operators = setOf('+', '-', '*', '/', '×', '÷')
+    return if (expression.last() in operators) expression.dropLast(1) + operator else expression + operator
+}
+
+internal fun validAmountExpressionInput(value: String): Boolean {
+    if (value.length > 80) return false
+    val operators = setOf('+', '-', '*', '/', '×', '÷')
+    if (value.any { !it.isDigit() && it != '.' && it !in operators }) return false
+
+    fun validNumberToken(token: String): Boolean {
+        if (token.count { it == '.' } > 1) return false
+        val parts = token.split('.')
+        return parts[0].length <= 9 && (parts.size == 1 || parts[1].length <= 2)
+    }
+
+    var start = 0
+    value.forEachIndexed { index, character ->
+        if (character in operators) {
+            if (index > start && !validNumberToken(value.substring(start, index))) return false
+            start = index + 1
+        }
+    }
+    return start >= value.length || validNumberToken(value.substring(start))
+}
+
+internal fun evaluateAmountExpression(expression: String): Double? {
+    if (!validAmountExpressionInput(expression)) return null
+    val input = expression.replace('×', '*').replace('÷', '/')
+    if (input.isEmpty()) return null
+    var index = 0
+
+    fun parseNumber(): Double? {
+        var sign = 1.0
+        if (index < input.length && (input[index] == '+' || input[index] == '-')) {
+            if (input[index] == '-') sign = -1.0
+            index++
+        }
+        val start = index
+        var hasDigit = false
+        while (index < input.length && (input[index].isDigit() || input[index] == '.')) {
+            if (input[index].isDigit()) hasDigit = true
+            index++
+        }
+        if (!hasDigit) return null
+        return input.substring(start, index).toDoubleOrNull()?.times(sign)
+    }
+
+    fun parseProduct(): Double? {
+        var value = parseNumber() ?: return null
+        while (index < input.length && (input[index] == '*' || input[index] == '/')) {
+            val operator = input[index++]
+            val right = parseNumber() ?: return null
+            if (operator == '/' && right == 0.0) return null
+            value = if (operator == '*') value * right else value / right
+            if (!value.isFinite()) return null
+        }
+        return value
+    }
+
+    var value = parseProduct() ?: return null
+    while (index < input.length) {
+        val operator = input[index]
+        if (operator != '+' && operator != '-') return null
+        index++
+        val right = parseProduct() ?: return null
+        value = if (operator == '+') value + right else value - right
+        if (!value.isFinite()) return null
+    }
+    if (kotlin.math.abs(value) > 999_999_999.99) return null
+    return round(value * 100.0) / 100.0
 }
 
 internal fun isDateAfterToday(date: Long, currentTime: Long = System.currentTimeMillis()): Boolean {

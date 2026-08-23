@@ -22,6 +22,38 @@ class ExampleUnitTest {
     }
 
     @Test
+    fun evaluateAmountExpression_obeysOperatorPrecedence() {
+        assertEquals(41.0, evaluateAmountExpression("12+8*4-6/2")!!, 0.0)
+    }
+
+    @Test
+    fun evaluateAmountExpression_supportsDisplayMultiplicationAndDivisionSymbols() {
+        assertEquals(9.0, evaluateAmountExpression("12÷2+3×1")!!, 0.0)
+    }
+
+    @Test
+    fun evaluateAmountExpression_roundsTheFinalResultToTwoDecimals() {
+        assertEquals(3.33, evaluateAmountExpression("10/3")!!, 0.0)
+    }
+
+    @Test
+    fun evaluateAmountExpression_rejectsIncompleteInvalidAndDivisionByZeroExpressions() {
+        assertNull(evaluateAmountExpression(""))
+        assertNull(evaluateAmountExpression("12+"))
+        assertNull(evaluateAmountExpression("4/0"))
+        assertNull(evaluateAmountExpression("1..2+3"))
+        assertNull(evaluateAmountExpression("1000000000"))
+    }
+
+    @Test
+    fun appendAmountOperator_replacesAnExistingTrailingOperator() {
+        assertEquals("12×", appendAmountOperator("12+", "×"))
+        assertEquals("12+", appendAmountOperator("12", "+"))
+        assertEquals("-", appendAmountOperator("", "-"))
+        assertEquals("", appendAmountOperator("", "×"))
+    }
+
+    @Test
     fun updateEntriesCategory_onlyUpdatesMatchingKindAndCategory() {
         val expense = Entry("1", "支出", "交通", 12.0, 1L)
         val sameNameIncome = Entry("2", "收入", "交通", 20.0, 2L)
