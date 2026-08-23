@@ -1662,7 +1662,7 @@ private fun EntryCard(
                 }
                 Text(
                     "${if (income) "+" else "−"}¥${money(entry.amount)}",
-                    fontSize = 18.sp,
+                    fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = if (income) IncomeAmountGreen else Ink,
                 )
