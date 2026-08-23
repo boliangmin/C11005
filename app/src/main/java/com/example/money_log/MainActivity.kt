@@ -18,6 +18,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -44,6 +45,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -54,6 +57,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -1749,6 +1753,8 @@ private fun EntryEditDialog(
 ) {
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
+    val softwareKeyboardController = LocalSoftwareKeyboardController.current
+    val calculatorFocusRequester = remember { FocusRequester() }
     val fixedPrimaryDark = colorResource(R.color.theme_primary_dark)
     val currentCategory = categories.firstOrNull { it.name == entry.category }
     var selected by remember(entry.id, entry.category) { mutableStateOf(currentCategory) }
@@ -1758,6 +1764,7 @@ private fun EntryEditDialog(
     var invalid by remember(entry.id) { mutableStateOf(false) }
     var showDatePicker by remember(entry.id) { mutableStateOf(false) }
     var showCalculatorKeyboard by remember(entry.id) { mutableStateOf(false) }
+    val dismissInputInteraction = remember { MutableInteractionSource() }
     val dateInteractionSource = remember { MutableInteractionSource() }
     val editFieldBorder = Color(0xFF7A7D83)
     val editFieldColors = OutlinedTextFieldDefaults.colors(
@@ -1780,12 +1787,37 @@ private fun EntryEditDialog(
     val calculatedAmount = remember(amount) { evaluateAmountExpression(amount) }
     val changed = selected?.name != entry.category || calculatedAmount != entry.amount ||
         date != entry.date || note.trim() != entry.note
+    val dismissInput = {
+        focusManager.clearFocus(force = true)
+        softwareKeyboardController?.hide()
+        showCalculatorKeyboard = false
+    }
+
+    LaunchedEffect(showCalculatorKeyboard) {
+        if (showCalculatorKeyboard) {
+            focusManager.clearFocus(force = true)
+            softwareKeyboardController?.hide()
+            calculatorFocusRequester.requestFocus()
+        }
+    }
+
+    BackHandler(enabled = showCalculatorKeyboard) { dismissInput() }
 
     AlertDialog(
         onDismissRequest = dismiss,
         title = { Text("修改账单") },
         text = {
-            Column(Modifier.verticalScroll(rememberScrollState())) {
+            Column(
+                Modifier
+                    .focusRequester(calculatorFocusRequester)
+                    .focusable()
+                    .verticalScroll(rememberScrollState())
+                    .clickable(
+                        interactionSource = dismissInputInteraction,
+                        indication = null,
+                        onClick = dismissInput,
+                    ),
+            ) {
                 Text("分类", fontWeight = FontWeight.Medium, color = Ink)
                 Spacer(Modifier.height(8.dp))
                 LazyVerticalGrid(
@@ -1824,7 +1856,7 @@ private fun EntryEditDialog(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
                             ) {
-                                focusManager.clearFocus()
+                                dismissInput()
                                 showCalculatorKeyboard = true
                             },
                         )
@@ -1836,7 +1868,7 @@ private fun EntryEditDialog(
                         interactionSource = dateInteractionSource,
                         indication = null,
                     ) {
-                        showCalculatorKeyboard = false
+                        dismissInput()
                         showDatePicker = true
                     },
                 ) {
@@ -1862,7 +1894,9 @@ private fun EntryEditDialog(
                         value = note,
                         onValueChange = { if (it.length <= 100) note = it },
                         modifier = Modifier.fillMaxWidth().onFocusChanged {
-                            if (it.isFocused) showCalculatorKeyboard = false
+                            if (it.isFocused) {
+                                showCalculatorKeyboard = false
+                            }
                         },
                         label = { Text("备注") },
                         maxLines = 3,
@@ -2155,10 +2189,14 @@ private fun EntryInputDialog(
 ) {
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
+    val softwareKeyboardController = LocalSoftwareKeyboardController.current
+    val calculatorFocusRequester = remember { FocusRequester() }
     val dateInteractionSource = remember { MutableInteractionSource() }
     val colorTheme = LocalColorTheme.current
     var showDatePicker by remember { mutableStateOf(false) }
     var showCalculatorKeyboard by remember { mutableStateOf(false) }
+    val dismissInputInteraction = remember { MutableInteractionSource() }
+    val dismissInputDragThreshold = with(LocalDensity.current) { 24.dp.toPx() }
     val entryInputFieldBorder = Color(0xFF7A7D83)
     val entryInputFieldColors = OutlinedTextFieldDefaults.colors(
         focusedTextColor = Ink,
@@ -2171,12 +2209,51 @@ private fun EntryInputDialog(
         focusedPrefixColor = Ink,
         unfocusedPrefixColor = Ink,
     )
+    val dismissInput = {
+        focusManager.clearFocus(force = true)
+        softwareKeyboardController?.hide()
+        showCalculatorKeyboard = false
+    }
+
+    LaunchedEffect(showCalculatorKeyboard) {
+        if (showCalculatorKeyboard) {
+            focusManager.clearFocus(force = true)
+            softwareKeyboardController?.hide()
+            calculatorFocusRequester.requestFocus()
+        }
+    }
+
+    BackHandler(enabled = showCalculatorKeyboard) { dismissInput() }
 
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
-        Box(Modifier.fillMaxSize()) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .focusRequester(calculatorFocusRequester)
+                .focusable()
+                .clickable(
+                    interactionSource = dismissInputInteraction,
+                    indication = null,
+                    onClick = dismissInput,
+                )
+                .pointerInput(dismissInputDragThreshold) {
+                    var totalDragY = 0f
+                    detectVerticalDragGestures(
+                        onDragStart = { totalDragY = 0f },
+                        onVerticalDrag = { _, dragAmount -> totalDragY += dragAmount },
+                        onDragEnd = {
+                            if (totalDragY <= -dismissInputDragThreshold ||
+                                totalDragY >= dismissInputDragThreshold
+                            ) {
+                                dismissInput()
+                            }
+                        },
+                    )
+                },
+        ) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -2211,7 +2288,7 @@ private fun EntryInputDialog(
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null,
                                 ) {
-                                    focusManager.clearFocus()
+                                    dismissInput()
                                     showCalculatorKeyboard = true
                                 },
                             )
@@ -2222,7 +2299,7 @@ private fun EntryInputDialog(
                                 interactionSource = dateInteractionSource,
                                 indication = null,
                             ) {
-                                showCalculatorKeyboard = false
+                                dismissInput()
                                 showDatePicker = true
                             },
                         ) {
@@ -2247,7 +2324,9 @@ private fun EntryInputDialog(
                             value = note,
                             onValueChange = onNoteChange,
                             modifier = Modifier.fillMaxWidth().onFocusChanged {
-                                if (it.isFocused) showCalculatorKeyboard = false
+                                if (it.isFocused) {
+                                    showCalculatorKeyboard = false
+                                }
                             },
                             label = { Text("备注") },
                             maxLines = 3,
@@ -2487,6 +2566,9 @@ private fun AmountCalculatorKeyboard(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val dismissInteraction = remember { MutableInteractionSource() }
+    val dismissDragThreshold = with(LocalDensity.current) { 24.dp.toPx() }
+
     fun applyKey(label: String) {
         val nextExpression = when (label) {
             "C" -> ""
@@ -2510,34 +2592,54 @@ private fun AmountCalculatorKeyboard(
     }
 
     val rows = listOf(
-        listOf("C", "⌫", "÷", "×"),
         listOf("7", "8", "9", "−"),
         listOf("4", "5", "6", "+"),
     )
     Surface(
-        modifier = modifier,
+        modifier = modifier
+            .clickable(
+                interactionSource = dismissInteraction,
+                indication = null,
+                onClick = onDismiss,
+            )
+            .pointerInput(dismissDragThreshold) {
+                var totalDragY = 0f
+                detectVerticalDragGestures(
+                    onDragStart = { totalDragY = 0f },
+                    onVerticalDrag = { _, dragAmount -> totalDragY += dragAmount },
+                    onDragEnd = {
+                        if (totalDragY <= -dismissDragThreshold || totalDragY >= dismissDragThreshold) {
+                            onDismiss()
+                        }
+                    },
+                )
+            },
         shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
         color = Color(0xFFF1F3F6),
         shadowElevation = 12.dp,
     ) {
-        Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
-                Row(
+        Column(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.SpaceBetween,
+        ) {
+                Box(
                     modifier = Modifier.fillMaxWidth().height(30.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("计算器", color = Muted, fontSize = 13.sp)
-                    val dismissInteraction = remember { MutableInteractionSource() }
                     Box(
                         modifier = Modifier
+                            .align(Alignment.CenterEnd)
                             .size(36.dp)
                             .clickable(dismissInteraction, indication = null, onClick = onDismiss),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text("⌄", color = Muted, fontSize = 24.sp)
+                        Icon(
+                            painter = painterResource(R.drawable.ic_expand_less),
+                            contentDescription = "收起计算器",
+                            modifier = Modifier.size(24.dp).rotate(180f),
+                            tint = Muted,
+                        )
                     }
                 }
-                Spacer(Modifier.height(8.dp))
                 rows.forEach { row ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -2551,7 +2653,6 @@ private fun AmountCalculatorKeyboard(
                             )
                         }
                     }
-                    Spacer(Modifier.height(8.dp))
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth().height(100.dp),
@@ -2578,14 +2679,19 @@ private fun AmountCalculatorKeyboard(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             CalculatorKeyboardKey(
-                                label = "0",
-                                modifier = Modifier.weight(2f).height(46.dp),
-                                onClick = { applyKey("0") },
-                            )
-                            CalculatorKeyboardKey(
                                 label = ".",
                                 modifier = Modifier.weight(1f).height(46.dp),
                                 onClick = { applyKey(".") },
+                            )
+                            CalculatorKeyboardKey(
+                                label = "0",
+                                modifier = Modifier.weight(1f).height(46.dp),
+                                onClick = { applyKey("0") },
+                            )
+                            CalculatorKeyboardKey(
+                                label = "⌫",
+                                modifier = Modifier.weight(1f).height(46.dp),
+                                onClick = { applyKey("⌫") },
                             )
                         }
                     }
