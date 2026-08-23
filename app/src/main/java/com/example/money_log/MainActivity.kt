@@ -314,6 +314,12 @@ private fun LedgerRoot() {
     val store = remember { Store(context.applicationContext) }
     val colorTheme = remember { store.colorTheme() }
     var titleBarStyle by remember { mutableStateOf(store.titleBarStyle()) }
+    val appTextSelectionColors = remember {
+        TextSelectionColors(
+            handleColor = Color.Transparent,
+            backgroundColor = Ink.copy(alpha = 0.14f),
+        )
+    }
     Money_LogTheme(
         darkTheme = false,
         dynamicColor = false,
@@ -325,6 +331,7 @@ private fun LedgerRoot() {
         CompositionLocalProvider(
             LocalColorTheme provides colorTheme,
             LocalRippleConfiguration provides null,
+            LocalTextSelectionColors provides appTextSelectionColors,
         ) {
             LedgerApp(
                 store = store,
@@ -1411,10 +1418,13 @@ private fun CategoryActionDialog(
                 if (canDelete) {
                     Spacer(Modifier.height(10.dp))
                     CategoryActionItem(
-                        symbol = "×",
+                        symbol = "",
                         title = "删除类型",
                         subtitle = "对应账目将归入未分类",
-                        destructive = true,
+                        iconResource = R.drawable.ic_delete_category_color,
+                        iconBackgroundColor = Color.Transparent,
+                        preserveIconColors = true,
+                        expandIconToBackground = true,
                         onClick = onDelete,
                     )
                 }
@@ -1439,13 +1449,11 @@ private fun CategoryActionItem(
     iconBackgroundColor: Color? = null,
     preserveIconColors: Boolean = false,
     expandIconToBackground: Boolean = false,
-    destructive: Boolean = false,
     onClick: () -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val colorTheme = LocalColorTheme.current
-    val contentColor = if (destructive) DeleteActionRed else Ink
-    val iconContentColor = if (destructive) Color.White else contentColor
+    val contentColor = Ink
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1456,19 +1464,19 @@ private fun CategoryActionItem(
     ) {
         Box(
             Modifier.size(42.dp).background(
-                iconBackgroundColor ?: if (destructive) DeleteSwipeBackground else colorTheme.softAccent,
+                iconBackgroundColor ?: colorTheme.softAccent,
                 CircleShape,
             ),
             contentAlignment = Alignment.Center,
         ) {
             if (iconResource == null) {
-                Text(symbol, fontSize = 22.sp, color = iconContentColor)
+                Text(symbol, fontSize = 22.sp, color = contentColor)
             } else {
                 Icon(
                     painter = painterResource(iconResource),
                     contentDescription = null,
                     modifier = Modifier.size(if (expandIconToBackground) 42.dp else 24.dp),
-                    tint = if (preserveIconColors) Color.Unspecified else iconContentColor,
+                    tint = if (preserveIconColors) Color.Unspecified else contentColor,
                 )
             }
         }
@@ -1476,7 +1484,7 @@ private fun CategoryActionItem(
             Text(title, fontSize = 17.sp, fontWeight = FontWeight.Medium, color = contentColor)
             Text(subtitle, fontSize = 13.sp, color = Muted)
         }
-        Text("›", fontSize = 26.sp, color = if (destructive) DeleteActionRed else Muted)
+        Text("›", fontSize = 26.sp, color = Muted)
     }
 }
 
@@ -1759,7 +1767,7 @@ private fun EntryEditDialog(
     )
     val editSelectionColors = remember {
         TextSelectionColors(
-            handleColor = Ink,
+            handleColor = Color.Transparent,
             backgroundColor = Ink.copy(alpha = 0.14f),
         )
     }
@@ -2118,6 +2126,18 @@ private fun EntryInputDialog(
     val dateInteractionSource = remember { MutableInteractionSource() }
     val colorTheme = LocalColorTheme.current
     var showDatePicker by remember { mutableStateOf(false) }
+    val entryInputFieldBorder = Color(0xFF7A7D83)
+    val entryInputFieldColors = OutlinedTextFieldDefaults.colors(
+        focusedTextColor = Ink,
+        unfocusedTextColor = Ink,
+        cursorColor = Ink,
+        focusedBorderColor = entryInputFieldBorder,
+        unfocusedBorderColor = entryInputFieldBorder,
+        focusedLabelColor = Muted,
+        unfocusedLabelColor = Muted,
+        focusedPrefixColor = Ink,
+        unfocusedPrefixColor = Ink,
+    )
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -2140,6 +2160,7 @@ private fun EntryInputDialog(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     singleLine = true,
                     shape = RoundedCornerShape(14.dp),
+                    colors = entryInputFieldColors,
                 )
                 Spacer(Modifier.height(14.dp))
                 Box(
@@ -2172,6 +2193,7 @@ private fun EntryInputDialog(
                     label = { Text("备注") },
                     maxLines = 3,
                     shape = RoundedCornerShape(14.dp),
+                    colors = entryInputFieldColors,
                 )
                 Spacer(Modifier.height(24.dp))
                 Button(
@@ -2306,7 +2328,7 @@ private fun CategoryDialog(
     )
     val categorySelectionColors = remember {
         TextSelectionColors(
-            handleColor = Ink,
+            handleColor = Color.Transparent,
             backgroundColor = Ink.copy(alpha = 0.14f),
         )
     }
