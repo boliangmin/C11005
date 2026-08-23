@@ -108,15 +108,29 @@ private val CalculatorDoubleKeyHeight = 144.75.dp
 private val CalculatorKeyboardBottomPadding = 10.dp
 private const val InputPanelTransitionDelayMillis = 220L
 private const val AmountCursorCharacter = '▏'
+private const val AmountCursorPlaceholderCharacter = '\uE000'
 
 private val AmountCursorVisualTransformation = VisualTransformation { text ->
-    val cursorIndex = text.text.indexOfLast { it == AmountCursorCharacter }
+    val cursorIndex = text.text.indexOfLast {
+        it == AmountCursorCharacter || it == AmountCursorPlaceholderCharacter
+    }
     val transformed = if (cursorIndex < 0) {
         text
     } else {
-        AnnotatedString.Builder(text).apply {
+        val cursorVisible = text.text[cursorIndex] == AmountCursorCharacter
+        val transformedText = text.text.replaceRange(
+            startIndex = cursorIndex,
+            endIndex = cursorIndex + 1,
+            replacement = AmountCursorCharacter.toString(),
+        )
+        AnnotatedString.Builder().apply {
+            append(transformedText)
             addStyle(
-                style = SpanStyle(fontSize = 24.sp),
+                style = if (cursorVisible) {
+                    SpanStyle(fontSize = 24.sp)
+                } else {
+                    SpanStyle(color = Color.Transparent, fontSize = 24.sp)
+                },
                 start = cursorIndex,
                 end = cursorIndex + 1,
             )
@@ -139,7 +153,11 @@ private fun calculatorAmountDisplayValue(amount: String, active: Boolean): Strin
             cursorVisible = !cursorVisible
         }
     }
-    return amount + if (cursorVisible) AmountCursorCharacter else ""
+    return when {
+        !active -> amount
+        cursorVisible -> amount + AmountCursorCharacter
+        else -> amount + AmountCursorPlaceholderCharacter
+    }
 }
 
 internal enum class ColorTheme(
