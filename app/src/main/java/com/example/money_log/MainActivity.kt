@@ -1803,6 +1803,7 @@ private fun EntryEditDialog(
     var invalid by remember(entry.id) { mutableStateOf(false) }
     var showDatePicker by remember(entry.id) { mutableStateOf(false) }
     var showCalculatorKeyboard by remember(entry.id) { mutableStateOf(false) }
+    var amountHasFocus by remember(entry.id) { mutableStateOf(false) }
     var noteInputRequested by remember(entry.id) { mutableStateOf(false) }
     var noteKeyboardWasVisible by remember(entry.id) { mutableStateOf(false) }
     var noteHasFocus by remember(entry.id) { mutableStateOf(false) }
@@ -1849,6 +1850,16 @@ private fun EntryEditDialog(
         }
     }
 
+    LaunchedEffect(amountHasFocus, showCalculatorKeyboard) {
+        if (showCalculatorKeyboard && !amountHasFocus) {
+            withFrameNanos { }
+            if (showCalculatorKeyboard && !amountHasFocus && !noteHasFocus && !showDatePicker) {
+                collapseInputPanel()
+                amountFocusRequester.requestFocus()
+            }
+        }
+    }
+
     LaunchedEffect(noteHasFocus, noteInputRequested, isSystemKeyboardVisible) {
         when {
             !noteHasFocus -> {
@@ -1863,10 +1874,14 @@ private fun EntryEditDialog(
         }
     }
 
-    BackHandler(enabled = showCalculatorKeyboard || noteInputRequested) { collapseInputPanel() }
-
     AlertDialog(
-        onDismissRequest = dismiss,
+        onDismissRequest = {
+            if (showCalculatorKeyboard || noteInputRequested || isSystemKeyboardVisible) {
+                collapseInputPanel()
+            } else {
+                dismiss()
+            }
+        },
         title = { Text("修改账单") },
         text = {
             Column(
@@ -1905,6 +1920,7 @@ private fun EntryEditDialog(
                                 .fillMaxWidth()
                                 .focusRequester(amountFocusRequester)
                                 .onFocusChanged {
+                                    amountHasFocus = it.isFocused
                                     if (it.isFocused) {
                                         noteInputRequested = false
                                         softwareKeyboardController?.hide()
@@ -2281,6 +2297,7 @@ private fun EntryInputDialog(
     val colorTheme = LocalColorTheme.current
     var showDatePicker by remember { mutableStateOf(false) }
     var showCalculatorKeyboard by remember { mutableStateOf(false) }
+    var amountHasFocus by remember { mutableStateOf(false) }
     var calculatorSurfaceVisible by remember { mutableStateOf(false) }
     var noteInputRequested by remember { mutableStateOf(false) }
     var noteKeyboardWasVisible by remember { mutableStateOf(false) }
@@ -2337,6 +2354,16 @@ private fun EntryInputDialog(
         }
     }
 
+    LaunchedEffect(amountHasFocus, showCalculatorKeyboard) {
+        if (showCalculatorKeyboard && !amountHasFocus) {
+            withFrameNanos { }
+            if (showCalculatorKeyboard && !amountHasFocus && !noteHasFocus && !showDatePicker) {
+                collapseInputPanel()
+                amountFocusRequester.requestFocus()
+            }
+        }
+    }
+
     LaunchedEffect(noteHasFocus, noteInputRequested, isSystemKeyboardVisible) {
         when {
             !noteHasFocus -> {
@@ -2387,21 +2414,22 @@ private fun EntryInputDialog(
         }
     }
 
-    BackHandler(enabled = showCalculatorKeyboard || noteInputRequested) { collapseInputPanel() }
-
     Dialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {
+            if (
+                showCalculatorKeyboard || noteInputRequested ||
+                calculatorSurfaceVisible || isSystemKeyboardVisible
+            ) {
+                collapseInputPanel()
+            } else {
+                onDismiss()
+            }
+        },
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
         Box(
             Modifier
                 .fillMaxSize()
-                .focusable()
-                .clickable(
-                    interactionSource = dismissInputInteraction,
-                    indication = null,
-                    onClick = collapseInputPanel,
-                )
                 .pointerInput(dismissInputDragThreshold) {
                     var totalDragY = 0f
                     detectVerticalDragGestures(
@@ -2417,6 +2445,15 @@ private fun EntryInputDialog(
                     )
                 },
         ) {
+            Box(
+                Modifier
+                    .matchParentSize()
+                    .clickable(
+                        interactionSource = dismissInputInteraction,
+                        indication = null,
+                        onClick = collapseInputPanel,
+                    ),
+            )
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -2438,7 +2475,13 @@ private fun EntryInputDialog(
                 },
             ) {
                 Surface(
-                    modifier = Modifier.fillMaxWidth(BookkeepingDialogWidthFraction),
+                    modifier = Modifier
+                        .fillMaxWidth(BookkeepingDialogWidthFraction)
+                        .clickable(
+                            interactionSource = dismissInputInteraction,
+                            indication = null,
+                            onClick = collapseInputPanel,
+                        ),
                     shape = RoundedCornerShape(28.dp),
                     color = Bg,
                     shadowElevation = 10.dp,
@@ -2453,6 +2496,7 @@ private fun EntryInputDialog(
                                     .fillMaxWidth()
                                     .focusRequester(amountFocusRequester)
                                     .onFocusChanged {
+                                        amountHasFocus = it.isFocused
                                         if (it.isFocused) {
                                             noteInputRequested = false
                                             softwareKeyboardController?.hide()
