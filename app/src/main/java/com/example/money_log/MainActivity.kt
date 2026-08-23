@@ -2226,6 +2226,8 @@ private fun EntryInputDialog(
     val colorTheme = LocalColorTheme.current
     var showDatePicker by remember { mutableStateOf(false) }
     var showCalculatorKeyboard by remember { mutableStateOf(false) }
+    var calculatorSurfaceVisible by remember { mutableStateOf(false) }
+    var noteInputRequested by remember { mutableStateOf(false) }
     val dismissInputInteraction = remember { MutableInteractionSource() }
     val dismissInputDragThreshold = with(density) { 24.dp.toPx() }
     val imeBottom = WindowInsets.ime.getBottom(density)
@@ -2234,8 +2236,11 @@ private fun EntryInputDialog(
     var matchedInputPanelHeightPx by remember {
         mutableIntStateOf(with(density) { CalculatorKeyboardHeight.roundToPx() })
     }
+    var retainInputPanelPlacement by remember { mutableStateOf(false) }
     val matchedInputPanelHeight = with(density) { matchedInputPanelHeightPx.toDp() }
     val isSystemKeyboardVisible = imeBottom > navigationBarBottom
+    val inputPanelPlacementActive =
+        calculatorSurfaceVisible || isSystemKeyboardVisible || retainInputPanelPlacement
     val displayedAmount = calculatorAmountDisplayValue(amount, showCalculatorKeyboard)
     val entryInputFieldBorder = Color(0xFF7A7D83)
     val entryInputFieldColors = OutlinedTextFieldDefaults.colors(
@@ -2252,7 +2257,9 @@ private fun EntryInputDialog(
     val dismissInput = {
         focusManager.clearFocus(force = true)
         softwareKeyboardController?.hide()
+        noteInputRequested = false
         showCalculatorKeyboard = false
+        calculatorSurfaceVisible = false
     }
 
     LaunchedEffect(visibleImeHeight) {
@@ -2271,14 +2278,39 @@ private fun EntryInputDialog(
         }
     }
 
-    LaunchedEffect(showCalculatorKeyboard, isSystemKeyboardVisible, matchedInputPanelHeight) {
-        if (showCalculatorKeyboard || isSystemKeyboardVisible) {
+    LaunchedEffect(showCalculatorKeyboard, noteInputRequested, visibleImeHeight) {
+        when {
+            showCalculatorKeyboard -> calculatorSurfaceVisible = true
+            noteInputRequested && visibleImeHeight > 0 -> {
+                // 金额切换到备注时，让计算器保留在系统键盘下方，
+                // 只在键盘高度稳定后移除，避免底部面板先消失再弹出。
+                delay(InputPanelTransitionDelayMillis)
+                calculatorSurfaceVisible = false
+            }
+            noteInputRequested -> Unit
+            else -> calculatorSurfaceVisible = false
+        }
+    }
+
+    LaunchedEffect(calculatorSurfaceVisible, isSystemKeyboardVisible, matchedInputPanelHeight) {
+        if (calculatorSurfaceVisible || isSystemKeyboardVisible) {
             onInputPanelHeightChanged(matchedInputPanelHeight)
         } else {
             // 金额与备注输入互相切换时，另一个面板的可见状态会稍晚建立。
             // 暂时保留上一面板高度；若新面板出现，本次 effect 会被取消。
             delay(InputPanelTransitionDelayMillis)
             onInputPanelHeightChanged(0.dp)
+        }
+    }
+
+    LaunchedEffect(calculatorSurfaceVisible, isSystemKeyboardVisible) {
+        if (calculatorSurfaceVisible || isSystemKeyboardVisible) {
+            retainInputPanelPlacement = true
+        } else {
+            // 计算器关闭到系统键盘 Insets 建立之间存在短暂空档。
+            // 在交接结束前保持记账弹窗位置，防止先居中再被键盘顶回。
+            delay(InputPanelTransitionDelayMillis)
+            retainInputPanelPlacement = false
         }
     }
 
@@ -2316,14 +2348,14 @@ private fun EntryInputDialog(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(
-                        bottom = if (showCalculatorKeyboard || isSystemKeyboardVisible) {
+                        bottom = if (inputPanelPlacementActive) {
                             matchedInputPanelHeight + if (showCalculatorKeyboard) CalculatorDialogGap else 0.dp
                         }
                         else {
                             0.dp
                         },
                     ),
-                contentAlignment = if (showCalculatorKeyboard || isSystemKeyboardVisible) {
+                contentAlignment = if (inputPanelPlacementActive) {
                     Alignment.BottomCenter
                 }
                 else {
@@ -2348,7 +2380,9 @@ private fun EntryInputDialog(
                                     .focusRequester(amountFocusRequester)
                                     .onFocusChanged {
                                         if (it.isFocused) {
+                                            noteInputRequested = false
                                             softwareKeyboardController?.hide()
+                                            calculatorSurfaceVisible = true
                                             showCalculatorKeyboard = true
                                         }
                                     },
@@ -2394,6 +2428,7 @@ private fun EntryInputDialog(
                             onValueChange = onNoteChange,
                             modifier = Modifier.fillMaxWidth().onFocusChanged {
                                 if (it.isFocused) {
+                                    noteInputRequested = true
                                     showCalculatorKeyboard = false
                                 }
                             },
@@ -2419,7 +2454,7 @@ private fun EntryInputDialog(
                     }
                 }
             }
-            if (showCalculatorKeyboard) {
+            if (calculatorSurfaceVisible) {
                 AmountCalculatorKeyboard(
                     expression = amount,
                     onExpressionChange = onAmountChange,
