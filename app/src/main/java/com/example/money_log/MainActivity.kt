@@ -93,6 +93,14 @@ private const val GoldenRatio = 1.618f
 private const val BookkeepingDialogWidthFraction = 0.8f
 private val CalculatorKeyboardHeight = 340.dp
 private val CalculatorDialogGap = 12.dp
+// 340dp = (10dp arrow top gap + 8.5dp arrow) + 10dp arrow-to-keys gap
+//     + 4 * 66.375dp key rows + 3 * 12dp key-row gaps + 10dp bottom padding.
+private val CalculatorArrowAreaHeight = 18.5.dp
+private val CalculatorArrowToKeysGap = 10.dp
+private val CalculatorKeyHeight = 66.375.dp
+private val CalculatorKeyVerticalGap = 12.dp
+private val CalculatorDoubleKeyHeight = 144.75.dp
+private val CalculatorKeyboardBottomPadding = 10.dp
 private const val InputPanelTransitionDelayMillis = 220L
 
 @Composable
@@ -2725,30 +2733,40 @@ private fun AmountCalculatorKeyboard(
         shadowElevation = 0.dp,
     ) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(
+                    start = 12.dp,
+                    end = 12.dp,
+                    bottom = CalculatorKeyboardBottomPadding,
+                ),
         ) {
                 Box(
-                    modifier = Modifier.fillMaxWidth().height(32.dp).padding(end = 16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(CalculatorArrowAreaHeight)
+                        .padding(end = 16.dp),
                 ) {
                     Box(
                         modifier = Modifier
-                            .align(Alignment.CenterEnd)
-                            .size(32.dp)
+                            .align(Alignment.BottomEnd)
+                            .size(width = 32.dp, height = CalculatorArrowAreaHeight)
                             .clickable(dismissInteraction, indication = null, onClick = onDismiss),
-                        contentAlignment = Alignment.Center,
+                        contentAlignment = Alignment.BottomCenter,
                     ) {
                         Icon(
                             painter = painterResource(R.drawable.ic_keyboard_arrow_down),
                             contentDescription = "收起计算器",
                             modifier = Modifier
-                                .offset(x = 1.dp, y = (-3.25).dp)
+                                .offset(x = 1.dp)
                                 .size(width = 16.5.dp, height = 8.5.dp),
                             tint = Color(0xFF63666D),
                         )
                     }
                 }
-                rows.forEach { row ->
+                Spacer(Modifier.height(CalculatorArrowToKeysGap))
+                rows.forEachIndexed { rowIndex, row ->
+                    if (rowIndex > 0) Spacer(Modifier.height(CalculatorKeyVerticalGap))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -2756,19 +2774,20 @@ private fun AmountCalculatorKeyboard(
                         row.forEach { label ->
                             CalculatorKeyboardKey(
                                 label = label,
-                                modifier = Modifier.weight(1f).height(60.dp),
+                                modifier = Modifier.weight(1f).height(CalculatorKeyHeight),
                                 onClick = { applyKey(label) },
                             )
                         }
                     }
                 }
+                Spacer(Modifier.height(CalculatorKeyVerticalGap))
                 Row(
-                    modifier = Modifier.fillMaxWidth().height(132.dp),
+                    modifier = Modifier.fillMaxWidth().height(CalculatorDoubleKeyHeight),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Column(
                         modifier = Modifier.weight(3f),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(CalculatorKeyVerticalGap),
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -2777,7 +2796,7 @@ private fun AmountCalculatorKeyboard(
                             listOf("1", "2", "3").forEach { label ->
                                 CalculatorKeyboardKey(
                                     label = label,
-                                    modifier = Modifier.weight(1f).height(60.dp),
+                                    modifier = Modifier.weight(1f).height(CalculatorKeyHeight),
                                     onClick = { applyKey(label) },
                                 )
                             }
@@ -2788,17 +2807,17 @@ private fun AmountCalculatorKeyboard(
                         ) {
                             CalculatorKeyboardKey(
                                 label = ".",
-                                modifier = Modifier.weight(1f).height(60.dp),
+                                modifier = Modifier.weight(1f).height(CalculatorKeyHeight),
                                 onClick = { applyKey(".") },
                             )
                             CalculatorKeyboardKey(
                                 label = "0",
-                                modifier = Modifier.weight(1f).height(60.dp),
+                                modifier = Modifier.weight(1f).height(CalculatorKeyHeight),
                                 onClick = { applyKey("0") },
                             )
                             CalculatorKeyboardKey(
                                 label = "⌫",
-                                modifier = Modifier.weight(1f).height(60.dp),
+                                modifier = Modifier.weight(1f).height(CalculatorKeyHeight),
                                 onClick = { applyKey("⌫") },
                             )
                         }
