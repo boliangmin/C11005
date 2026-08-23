@@ -3,10 +3,6 @@
 
     <style name="Theme.Money_Log" parent="android:Theme.Material.Light.NoActionBar" />
 
-    <style name="MoneyLogDatePickerPrimary" parent="android:style/Theme.Material.Light.Dialog.Alert">
-        <item name="android:colorAccent">@color/theme_primary_dark</item>
-    </style>
-
     <style name="MoneyLogDatePickerClassic" parent="android:style/Theme.Material.Light.Dialog.Alert">
         <item name="android:colorAccent">@color/date_picker_classic</item>
     </style>

@@ -1,6 +1,5 @@
 ﻿package com.example.money_log
 
-import android.app.DatePickerDialog
 import android.content.Context
 import android.os.Bundle
 import android.widget.Toast
@@ -1702,13 +1701,13 @@ private fun EntryEditDialog(
     confirm: (Entry) -> Unit,
 ) {
     val context = LocalContext.current
-    val colorTheme = LocalColorTheme.current
     val currentCategory = categories.firstOrNull { it.name == entry.category }
     var selected by remember(entry.id, entry.category) { mutableStateOf(currentCategory) }
     var amount by remember(entry.id) { mutableStateOf(entry.amount.toString()) }
     var date by remember(entry.id) { mutableLongStateOf(entry.date) }
     var note by remember(entry.id) { mutableStateOf(entry.note) }
     var invalid by remember(entry.id) { mutableStateOf(false) }
+    var showDatePicker by remember(entry.id) { mutableStateOf(false) }
     val dateInteractionSource = remember { MutableInteractionSource() }
     val changed = selected?.name != entry.category || amount.toDoubleOrNull() != entry.amount ||
         date != entry.date || note.trim() != entry.note
@@ -1756,7 +1755,7 @@ private fun EntryEditDialog(
                     Modifier.fillMaxWidth().clickable(
                         interactionSource = dateInteractionSource,
                         indication = null,
-                    ) { pickDate(context, date) { date = it } },
+                    ) { showDatePicker = true },
                 ) {
                     OutlinedTextField(
                         value = day(date),
@@ -1800,6 +1799,16 @@ private fun EntryEditDialog(
         },
         dismissButton = { TextButton(dismiss) { Text("取消") } },
     )
+    if (showDatePicker) {
+        MoneyLogDatePickerDialog(
+            initialMillis = date,
+            onDismiss = { showDatePicker = false },
+            onDateSelected = {
+                date = it
+                showDatePicker = false
+            },
+        )
+    }
 }
 
 @Composable
@@ -2040,6 +2049,7 @@ private fun EntryInputDialog(
     val context = LocalContext.current
     val dateInteractionSource = remember { MutableInteractionSource() }
     val colorTheme = LocalColorTheme.current
+    var showDatePicker by remember { mutableStateOf(false) }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -2068,7 +2078,7 @@ private fun EntryInputDialog(
                     Modifier.fillMaxWidth().clickable(
                         interactionSource = dateInteractionSource,
                         indication = null,
-                    ) { pickDate(context, date, selected = onDateSelected) },
+                    ) { showDatePicker = true },
                 ) {
                     OutlinedTextField(
                         value = day(date),
@@ -2111,6 +2121,16 @@ private fun EntryInputDialog(
                 ) { Text("完成记账", fontSize = 18.sp, fontWeight = FontWeight.Bold) }
             }
         }
+    }
+    if (showDatePicker) {
+        MoneyLogDatePickerDialog(
+            initialMillis = date,
+            onDismiss = { showDatePicker = false },
+            onDateSelected = {
+                onDateSelected(it)
+                showDatePicker = false
+            },
+        )
     }
 }
 
@@ -2289,26 +2309,175 @@ internal fun initialDateForNewEntry(entries: List<Entry>, currentTime: Long = Sy
     return if (isDateAfterToday(previousMonthFirst, currentTime)) currentTime else previousMonthFirst
 }
 
-private fun pickDate(
-    context: Context,
-    millis: Long,
-    currentTime: Long = System.currentTimeMillis(),
-    selected: (Long) -> Unit,
+@Composable
+private fun MoneyLogDatePickerDialog(
+    initialMillis: Long,
+    onDismiss: () -> Unit,
+    onDateSelected: (Long) -> Unit,
 ) {
-    val initialDate = if (isDateAfterToday(millis, currentTime)) currentTime else millis
-    val c = Calendar.getInstance().apply { timeInMillis = initialDate }
-    val maximumDate = Calendar.getInstance().apply {
-        timeInMillis = currentTime
-        set(Calendar.HOUR_OF_DAY, 23)
-        set(Calendar.MINUTE, 59)
-        set(Calendar.SECOND, 59)
-        set(Calendar.MILLISECOND, 999)
-    }.timeInMillis
-    DatePickerDialog(context, R.style.MoneyLogDatePickerPrimary, { _, y, m, d ->
-        selected(Calendar.getInstance().apply { set(y, m, d, 12, 0, 0); set(Calendar.MILLISECOND, 0) }.timeInMillis)
-    }, c[Calendar.YEAR], c[Calendar.MONTH], c[Calendar.DAY_OF_MONTH]).apply {
-        datePicker.maxDate = maximumDate
-    }.show()
+    val primary = colorResource(R.color.theme_primary_dark)
+    val currentTime = remember { System.currentTimeMillis() }
+    val safeInitialDate = remember(initialMillis, currentTime) {
+        if (isDateAfterToday(initialMillis, currentTime)) currentTime else initialMillis
+    }
+    val initialCalendar = remember(safeInitialDate) {
+        Calendar.getInstance().apply { timeInMillis = safeInitialDate }
+    }
+    val todayCalendar = remember(currentTime) {
+        Calendar.getInstance().apply { timeInMillis = currentTime }
+    }
+    var selectedDate by remember(safeInitialDate) { mutableLongStateOf(safeInitialDate) }
+    var displayedYear by remember(safeInitialDate) { mutableIntStateOf(initialCalendar[Calendar.YEAR]) }
+    var displayedMonth by remember(safeInitialDate) { mutableIntStateOf(initialCalendar[Calendar.MONTH]) }
+    val selectedCalendar = remember(selectedDate) {
+        Calendar.getInstance().apply { timeInMillis = selectedDate }
+    }
+    val weekLabels = remember { listOf("日", "一", "二", "三", "四", "五", "六") }
+    val firstDayOffset = remember(displayedYear, displayedMonth) {
+        Calendar.getInstance().apply {
+            clear()
+            set(displayedYear, displayedMonth, 1, 12, 0, 0)
+        }[Calendar.DAY_OF_WEEK] - Calendar.SUNDAY
+    }
+    val daysInMonth = remember(displayedYear, displayedMonth) {
+        Calendar.getInstance().apply {
+            clear()
+            set(displayedYear, displayedMonth, 1, 12, 0, 0)
+        }.getActualMaximum(Calendar.DAY_OF_MONTH)
+    }
+    val canShowNextMonth = displayedYear < todayCalendar[Calendar.YEAR] ||
+        displayedYear == todayCalendar[Calendar.YEAR] && displayedMonth < todayCalendar[Calendar.MONTH]
+
+    fun shiftDisplayedMonth(offset: Int) {
+        val shifted = Calendar.getInstance().apply {
+            clear()
+            set(displayedYear, displayedMonth, 1, 12, 0, 0)
+            add(Calendar.MONTH, offset)
+        }
+        displayedYear = shifted[Calendar.YEAR]
+        displayedMonth = shifted[Calendar.MONTH]
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = Color(0xFFF9F9F9),
+            shape = RoundedCornerShape(4.dp),
+            shadowElevation = 12.dp,
+        ) {
+            Column {
+                Column(
+                    Modifier.fillMaxWidth().background(primary).padding(horizontal = 28.dp, vertical = 24.dp),
+                ) {
+                    Text(
+                        text = "${selectedCalendar[Calendar.YEAR]}年",
+                        color = Color.White.copy(alpha = 0.72f),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = "${selectedCalendar[Calendar.MONTH] + 1}月${selectedCalendar[Calendar.DAY_OF_MONTH]}日周${weekLabels[selectedCalendar[Calendar.DAY_OF_WEEK] - Calendar.SUNDAY]}",
+                        color = Color.White,
+                        fontSize = 32.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
+                Column(Modifier.padding(horizontal = 22.dp, vertical = 14.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        TextButton(onClick = { shiftDisplayedMonth(-1) }) {
+                            Text("‹", color = Ink, fontSize = 34.sp, lineHeight = 34.sp)
+                        }
+                        Text(
+                            text = "${displayedYear}年${displayedMonth + 1}月",
+                            color = Ink,
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Medium,
+                        )
+                        TextButton(
+                            onClick = { shiftDisplayedMonth(1) },
+                            enabled = canShowNextMonth,
+                        ) {
+                            Text(
+                                "›",
+                                color = if (canShowNextMonth) Ink else Muted.copy(alpha = 0.28f),
+                                fontSize = 34.sp,
+                                lineHeight = 34.sp,
+                            )
+                        }
+                    }
+                    Row(Modifier.fillMaxWidth()) {
+                        weekLabels.forEach { label ->
+                            Box(Modifier.weight(1f).height(38.dp), contentAlignment = Alignment.Center) {
+                                Text(label, color = Muted, fontSize = 13.sp)
+                            }
+                        }
+                    }
+                    repeat(6) { row ->
+                        Row(Modifier.fillMaxWidth()) {
+                            repeat(7) { column ->
+                                val day = row * 7 + column - firstDayOffset + 1
+                                if (day in 1..daysInMonth) {
+                                    val dayMillis = Calendar.getInstance().apply {
+                                        clear()
+                                        set(displayedYear, displayedMonth, day, 12, 0, 0)
+                                    }.timeInMillis
+                                    val enabled = !isDateAfterToday(dayMillis, currentTime)
+                                    val isSelected = selectedCalendar[Calendar.YEAR] == displayedYear &&
+                                        selectedCalendar[Calendar.MONTH] == displayedMonth &&
+                                        selectedCalendar[Calendar.DAY_OF_MONTH] == day
+                                    val selectedTextSize by animateFloatAsState(
+                                        targetValue = if (isSelected) 20f else 15f,
+                                        animationSpec = tween(160),
+                                        label = "selectedDateTextSize",
+                                    )
+                                    Box(
+                                        modifier = Modifier.weight(1f).height(46.dp),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(40.dp)
+                                                .clip(CircleShape)
+                                                .background(if (isSelected) primary else Color.Transparent)
+                                                .clickable(enabled = enabled) { selectedDate = dayMillis },
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            Text(
+                                                text = day.toString(),
+                                                color = when {
+                                                    isSelected -> Color.White
+                                                    enabled -> Ink
+                                                    else -> Muted.copy(alpha = 0.32f)
+                                                },
+                                                fontSize = selectedTextSize.sp,
+                                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                            )
+                                        }
+                                    }
+                                }
+                                else {
+                                    Spacer(Modifier.weight(1f).height(46.dp))
+                                }
+                            }
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                        horizontalArrangement = Arrangement.End,
+                    ) {
+                        TextButton(onClick = onDismiss) { Text("取消", color = primary) }
+                        Spacer(Modifier.width(10.dp))
+                        TextButton(onClick = { onDateSelected(selectedDate) }) { Text("确定", color = primary) }
+                    }
+                }
+            }
+        }
+    }
 }
 private fun defaultIcon(value: String) = legacyDefaultIcons[value] ?: "◉"
 internal fun updateEntriesCategory(
