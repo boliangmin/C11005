@@ -1756,7 +1756,7 @@ private fun EntryEditDialog(
                     Modifier.fillMaxWidth().clickable(
                         interactionSource = dateInteractionSource,
                         indication = null,
-                    ) { pickDate(context, date, colorTheme) { date = it } },
+                    ) { pickDate(context, date) { date = it } },
                 ) {
                     OutlinedTextField(
                         value = day(date),
@@ -2068,7 +2068,7 @@ private fun EntryInputDialog(
                     Modifier.fillMaxWidth().clickable(
                         interactionSource = dateInteractionSource,
                         indication = null,
-                    ) { pickDate(context, date, colorTheme, selected = onDateSelected) },
+                    ) { pickDate(context, date, selected = onDateSelected) },
                 ) {
                     OutlinedTextField(
                         value = day(date),
@@ -2292,7 +2292,6 @@ internal fun initialDateForNewEntry(entries: List<Entry>, currentTime: Long = Sy
 private fun pickDate(
     context: Context,
     millis: Long,
-    colorTheme: ColorTheme,
     currentTime: Long = System.currentTimeMillis(),
     selected: (Long) -> Unit,
 ) {
@@ -2305,14 +2304,7 @@ private fun pickDate(
         set(Calendar.SECOND, 59)
         set(Calendar.MILLISECOND, 999)
     }.timeInMillis
-    val dialogTheme = when (colorTheme) {
-        ColorTheme.CLASSIC -> R.style.MoneyLogDatePickerClassic
-        ColorTheme.FRESH_GREEN -> R.style.MoneyLogDatePickerFreshGreen
-        ColorTheme.SKY_BLUE -> R.style.MoneyLogDatePickerSkyBlue
-        ColorTheme.SOFT_PURPLE -> R.style.MoneyLogDatePickerSoftPurple
-        ColorTheme.CORAL_ORANGE -> R.style.MoneyLogDatePickerCoralOrange
-    }
-    DatePickerDialog(context, dialogTheme, { _, y, m, d ->
+    DatePickerDialog(context, R.style.MoneyLogDatePickerPrimary, { _, y, m, d ->
         selected(Calendar.getInstance().apply { set(y, m, d, 12, 0, 0); set(Calendar.MILLISECOND, 0) }.timeInMillis)
     }, c[Calendar.YEAR], c[Calendar.MONTH], c[Calendar.DAY_OF_MONTH]).apply {
         datePicker.maxDate = maximumDate
