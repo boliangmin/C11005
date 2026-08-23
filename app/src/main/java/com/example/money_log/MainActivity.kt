@@ -2729,12 +2729,12 @@ private fun AmountCalculatorKeyboard(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
                 Box(
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    modifier = Modifier.fillMaxWidth().height(32.dp).padding(end = 16.dp),
                 ) {
                     Box(
                         modifier = Modifier
                             .align(Alignment.CenterEnd)
-                            .size(36.dp)
+                            .size(32.dp)
                             .clickable(dismissInteraction, indication = null, onClick = onDismiss),
                         contentAlignment = Alignment.Center,
                     ) {
@@ -2754,14 +2754,14 @@ private fun AmountCalculatorKeyboard(
                         row.forEach { label ->
                             CalculatorKeyboardKey(
                                 label = label,
-                                modifier = Modifier.weight(1f).height(56.dp),
+                                modifier = Modifier.weight(1f).height(60.dp),
                                 onClick = { applyKey(label) },
                             )
                         }
                     }
                 }
                 Row(
-                    modifier = Modifier.fillMaxWidth().height(124.dp),
+                    modifier = Modifier.fillMaxWidth().height(132.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Column(
@@ -2775,7 +2775,7 @@ private fun AmountCalculatorKeyboard(
                             listOf("1", "2", "3").forEach { label ->
                                 CalculatorKeyboardKey(
                                     label = label,
-                                    modifier = Modifier.weight(1f).height(56.dp),
+                                    modifier = Modifier.weight(1f).height(60.dp),
                                     onClick = { applyKey(label) },
                                 )
                             }
@@ -2786,17 +2786,17 @@ private fun AmountCalculatorKeyboard(
                         ) {
                             CalculatorKeyboardKey(
                                 label = ".",
-                                modifier = Modifier.weight(1f).height(56.dp),
+                                modifier = Modifier.weight(1f).height(60.dp),
                                 onClick = { applyKey(".") },
                             )
                             CalculatorKeyboardKey(
                                 label = "0",
-                                modifier = Modifier.weight(1f).height(56.dp),
+                                modifier = Modifier.weight(1f).height(60.dp),
                                 onClick = { applyKey("0") },
                             )
                             CalculatorKeyboardKey(
                                 label = "⌫",
-                                modifier = Modifier.weight(1f).height(56.dp),
+                                modifier = Modifier.weight(1f).height(60.dp),
                                 onClick = { applyKey("⌫") },
                             )
                         }
