@@ -102,6 +102,7 @@ private val CalculatorKeyVerticalGap = 12.dp
 private val CalculatorDoubleKeyHeight = 144.75.dp
 private val CalculatorKeyboardBottomPadding = 10.dp
 private const val InputPanelTransitionDelayMillis = 220L
+private const val AmountCursorCharacter = '▏'
 
 @Composable
 private fun calculatorAmountDisplayValue(amount: String, active: Boolean): String {
@@ -117,7 +118,7 @@ private fun calculatorAmountDisplayValue(amount: String, active: Boolean): Strin
             cursorVisible = !cursorVisible
         }
     }
-    return amount + if (cursorVisible) "│" else ""
+    return amount + if (cursorVisible) AmountCursorCharacter else ""
 }
 
 internal enum class ColorTheme(
@@ -1804,8 +1805,6 @@ private fun EntryEditDialog(
         unfocusedBorderColor = editFieldBorder,
         focusedLabelColor = Muted,
         unfocusedLabelColor = Muted,
-        focusedPrefixColor = Ink,
-        unfocusedPrefixColor = Ink,
     )
     val editSelectionColors = remember {
         TextSelectionColors(
@@ -1879,7 +1878,6 @@ private fun EntryEditDialog(
                                 }
                             },
                         label = { Text("金额") },
-                        prefix = { Text("¥ ") },
                         isError = invalid,
                         supportingText = if (invalid) ({ Text("请输入结果大于 0 的有效算式") }) else null,
                         readOnly = true,
@@ -2259,8 +2257,6 @@ private fun EntryInputDialog(
         unfocusedBorderColor = entryInputFieldBorder,
         focusedLabelColor = Muted,
         unfocusedLabelColor = Muted,
-        focusedPrefixColor = Ink,
-        unfocusedPrefixColor = Ink,
     )
     val dismissInput = {
         focusManager.clearFocus(force = true)
@@ -2397,7 +2393,6 @@ private fun EntryInputDialog(
                                         }
                                     },
                                 label = { Text("金额") },
-                                prefix = { Text("¥ ") },
                                 isError = invalid,
                                 supportingText = if (invalid) ({ Text("请输入结果大于 0 的有效算式") }) else null,
                                 readOnly = true,
