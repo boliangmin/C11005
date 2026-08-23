@@ -2349,7 +2349,9 @@ private fun EntryInputDialog(
                     .fillMaxSize()
                     .padding(
                         bottom = if (inputPanelPlacementActive) {
-                            matchedInputPanelHeight + if (showCalculatorKeyboard) CalculatorDialogGap else 0.dp
+                            // 计算器与系统键盘必须共用完全相同的弹窗位置。
+                            // 不能再按输入类型增减间距，否则金额与备注切换时弹窗会跳动。
+                            matchedInputPanelHeight + CalculatorDialogGap
                         }
                         else {
                             0.dp
