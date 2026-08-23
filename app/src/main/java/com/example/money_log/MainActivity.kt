@@ -1790,6 +1790,7 @@ private fun EntryEditDialog(
     confirm: (Entry) -> Unit,
 ) {
     val context = LocalContext.current
+    val density = LocalDensity.current
     val focusManager = LocalFocusManager.current
     val softwareKeyboardController = LocalSoftwareKeyboardController.current
     val amountFocusRequester = remember { FocusRequester() }
@@ -1802,6 +1803,12 @@ private fun EntryEditDialog(
     var invalid by remember(entry.id) { mutableStateOf(false) }
     var showDatePicker by remember(entry.id) { mutableStateOf(false) }
     var showCalculatorKeyboard by remember(entry.id) { mutableStateOf(false) }
+    var noteInputRequested by remember(entry.id) { mutableStateOf(false) }
+    var noteKeyboardWasVisible by remember(entry.id) { mutableStateOf(false) }
+    var noteHasFocus by remember(entry.id) { mutableStateOf(false) }
+    val imeBottom = WindowInsets.ime.getBottom(density)
+    val navigationBarBottom = WindowInsets.navigationBars.getBottom(density)
+    val isSystemKeyboardVisible = imeBottom > navigationBarBottom
     val dismissInputInteraction = remember { MutableInteractionSource() }
     val dateInteractionSource = remember { MutableInteractionSource() }
     val editFieldBorder = Color(0xFF7A7D83)
@@ -1824,10 +1831,15 @@ private fun EntryEditDialog(
     val calculatedAmount = remember(amount) { evaluateAmountExpression(amount) }
     val changed = selected?.name != entry.category || calculatedAmount != entry.amount ||
         date != entry.date || note.trim() != entry.note
-    val dismissInput = {
-        focusManager.clearFocus(force = true)
+    val collapseInputPanel = {
         softwareKeyboardController?.hide()
+        noteInputRequested = false
+        noteKeyboardWasVisible = false
         showCalculatorKeyboard = false
+    }
+    val clearInputFocus = {
+        collapseInputPanel()
+        focusManager.clearFocus(force = true)
     }
 
     LaunchedEffect(showCalculatorKeyboard) {
@@ -1837,7 +1849,21 @@ private fun EntryEditDialog(
         }
     }
 
-    BackHandler(enabled = showCalculatorKeyboard) { dismissInput() }
+    LaunchedEffect(noteHasFocus, noteInputRequested, isSystemKeyboardVisible) {
+        when {
+            !noteHasFocus -> {
+                noteInputRequested = false
+                noteKeyboardWasVisible = false
+            }
+            isSystemKeyboardVisible -> {
+                noteInputRequested = true
+                noteKeyboardWasVisible = true
+            }
+            noteInputRequested && noteKeyboardWasVisible -> collapseInputPanel()
+        }
+    }
+
+    BackHandler(enabled = showCalculatorKeyboard || noteInputRequested) { collapseInputPanel() }
 
     AlertDialog(
         onDismissRequest = dismiss,
@@ -1850,7 +1876,7 @@ private fun EntryEditDialog(
                     .clickable(
                         interactionSource = dismissInputInteraction,
                         indication = null,
-                        onClick = dismissInput,
+                        onClick = collapseInputPanel,
                     ),
             ) {
                 Text("分类", fontWeight = FontWeight.Medium, color = Ink)
@@ -1880,6 +1906,7 @@ private fun EntryEditDialog(
                                 .focusRequester(amountFocusRequester)
                                 .onFocusChanged {
                                     if (it.isFocused) {
+                                        noteInputRequested = false
                                         softwareKeyboardController?.hide()
                                         showCalculatorKeyboard = true
                                     }
@@ -1898,6 +1925,7 @@ private fun EntryEditDialog(
                                 .matchParentSize()
                                 .pointerInput(Unit) {
                                     detectTapGestures {
+                                        noteInputRequested = false
                                         softwareKeyboardController?.hide()
                                         showCalculatorKeyboard = true
                                         amountFocusRequester.requestFocus()
@@ -1912,7 +1940,7 @@ private fun EntryEditDialog(
                         interactionSource = dateInteractionSource,
                         indication = null,
                     ) {
-                        dismissInput()
+                        clearInputFocus()
                         showDatePicker = true
                     },
                 ) {
@@ -1938,7 +1966,9 @@ private fun EntryEditDialog(
                         value = note,
                         onValueChange = { if (it.length <= 100) note = it },
                         modifier = Modifier.fillMaxWidth().onFocusChanged {
+                            noteHasFocus = it.isFocused
                             if (it.isFocused) {
+                                noteInputRequested = true
                                 showCalculatorKeyboard = false
                             }
                         },
@@ -1956,7 +1986,7 @@ private fun EntryEditDialog(
                             invalid = false
                         },
                         onInvalidExpression = { invalid = true },
-                        onDismiss = dismissInput,
+                        onDismiss = collapseInputPanel,
                     )
                 }
             }
@@ -2253,6 +2283,8 @@ private fun EntryInputDialog(
     var showCalculatorKeyboard by remember { mutableStateOf(false) }
     var calculatorSurfaceVisible by remember { mutableStateOf(false) }
     var noteInputRequested by remember { mutableStateOf(false) }
+    var noteKeyboardWasVisible by remember { mutableStateOf(false) }
+    var noteHasFocus by remember { mutableStateOf(false) }
     val dismissInputInteraction = remember { MutableInteractionSource() }
     val dismissInputDragThreshold = with(density) { 24.dp.toPx() }
     val imeBottom = WindowInsets.ime.getBottom(density)
@@ -2277,12 +2309,16 @@ private fun EntryInputDialog(
         focusedLabelColor = Muted,
         unfocusedLabelColor = Muted,
     )
-    val dismissInput = {
-        focusManager.clearFocus(force = true)
+    val collapseInputPanel = {
         softwareKeyboardController?.hide()
         noteInputRequested = false
+        noteKeyboardWasVisible = false
         showCalculatorKeyboard = false
         calculatorSurfaceVisible = false
+    }
+    val clearInputFocus = {
+        collapseInputPanel()
+        focusManager.clearFocus(force = true)
     }
 
     LaunchedEffect(visibleImeHeight) {
@@ -2298,6 +2334,20 @@ private fun EntryInputDialog(
         if (showCalculatorKeyboard) {
             softwareKeyboardController?.hide()
             amountFocusRequester.requestFocus()
+        }
+    }
+
+    LaunchedEffect(noteHasFocus, noteInputRequested, isSystemKeyboardVisible) {
+        when {
+            !noteHasFocus -> {
+                noteInputRequested = false
+                noteKeyboardWasVisible = false
+            }
+            isSystemKeyboardVisible -> {
+                noteInputRequested = true
+                noteKeyboardWasVisible = true
+            }
+            noteInputRequested && noteKeyboardWasVisible -> collapseInputPanel()
         }
     }
 
@@ -2337,7 +2387,7 @@ private fun EntryInputDialog(
         }
     }
 
-    BackHandler(enabled = showCalculatorKeyboard) { dismissInput() }
+    BackHandler(enabled = showCalculatorKeyboard || noteInputRequested) { collapseInputPanel() }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -2350,7 +2400,7 @@ private fun EntryInputDialog(
                 .clickable(
                     interactionSource = dismissInputInteraction,
                     indication = null,
-                    onClick = dismissInput,
+                    onClick = collapseInputPanel,
                 )
                 .pointerInput(dismissInputDragThreshold) {
                     var totalDragY = 0f
@@ -2361,7 +2411,7 @@ private fun EntryInputDialog(
                             if (totalDragY <= -dismissInputDragThreshold ||
                                 totalDragY >= dismissInputDragThreshold
                             ) {
-                                dismissInput()
+                                collapseInputPanel()
                             }
                         },
                     )
@@ -2439,7 +2489,7 @@ private fun EntryInputDialog(
                                 interactionSource = dateInteractionSource,
                                 indication = null,
                             ) {
-                                dismissInput()
+                                clearInputFocus()
                                 showDatePicker = true
                             },
                         ) {
@@ -2464,6 +2514,7 @@ private fun EntryInputDialog(
                             value = note,
                             onValueChange = onNoteChange,
                             modifier = Modifier.fillMaxWidth().onFocusChanged {
+                                noteHasFocus = it.isFocused
                                 if (it.isFocused) {
                                     noteInputRequested = true
                                     showCalculatorKeyboard = false
@@ -2496,7 +2547,7 @@ private fun EntryInputDialog(
                     expression = amount,
                     onExpressionChange = onAmountChange,
                     onInvalidExpression = onInvalidAmount,
-                    onDismiss = dismissInput,
+                    onDismiss = collapseInputPanel,
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
