@@ -2045,12 +2045,18 @@ private fun EntryEditDialog(
                                         .fillMaxWidth()
                                         .focusRequester(amountFocusRequester)
                                         .onFocusChanged {
+                                            val lostAmountFocus = amountHasFocus && !it.isFocused
                                             amountHasFocus = it.isFocused
                                             if (it.isFocused) {
                                                 noteInputRequested = false
                                                 inputWindowActions.hideKeyboard()
                                                 calculatorSurfaceVisible = true
                                                 showCalculatorKeyboard = true
+                                            } else if (lostAmountFocus) {
+                                                formatEvaluatedAmount(amount)?.let { result ->
+                                                    amount = result
+                                                    invalid = false
+                                                }
                                             }
                                         },
                                     label = { Text("金额") },
@@ -2614,12 +2620,15 @@ private fun EntryInputDialog(
                                     .fillMaxWidth()
                                     .focusRequester(amountFocusRequester)
                                     .onFocusChanged {
+                                        val lostAmountFocus = amountHasFocus && !it.isFocused
                                         amountHasFocus = it.isFocused
                                         if (it.isFocused) {
                                             noteInputRequested = false
                                             inputWindowActions.hideKeyboard()
                                             calculatorSurfaceVisible = true
                                             showCalculatorKeyboard = true
+                                        } else if (lostAmountFocus) {
+                                            formatEvaluatedAmount(amount)?.let(onAmountChange)
                                         }
                                     },
                                 label = { Text("金额") },
@@ -2936,12 +2945,12 @@ private fun AmountCalculatorKeyboard(
             "÷" -> appendAmountOperator(expression, "÷")
             "." -> appendAmountDecimal(expression)
             "=" -> {
-                val result = evaluateAmountExpression(expression)
-                if (result == null || result <= 0) {
+                val result = formatEvaluatedAmount(expression)
+                if (result == null) {
                     onInvalidExpression()
                     return
                 }
-                String.format(Locale.US, "%.2f", result)
+                result
             }
             else -> expression + label
         }
@@ -3185,6 +3194,12 @@ internal fun evaluateAmountExpression(expression: String): Double? {
     }
     if (kotlin.math.abs(value) > 999_999_999.99) return null
     return round(value * 100.0) / 100.0
+}
+
+private fun formatEvaluatedAmount(expression: String): String? {
+    val result = evaluateAmountExpression(expression) ?: return null
+    if (result <= 0) return null
+    return String.format(Locale.US, "%.2f", result)
 }
 
 internal fun isDateAfterToday(date: Long, currentTime: Long = System.currentTimeMillis()): Boolean {
