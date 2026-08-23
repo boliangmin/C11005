@@ -54,6 +54,14 @@ class ExampleUnitTest {
     }
 
     @Test
+    fun appendAmountDecimal_addsOneDecimalPointToTheCurrentNumber() {
+        assertEquals("0.", appendAmountDecimal(""))
+        assertEquals("12.3", appendAmountDecimal("12.3"))
+        assertEquals("12+0.", appendAmountDecimal("12+"))
+        assertEquals("12+3.", appendAmountDecimal("12+3"))
+    }
+
+    @Test
     fun updateEntriesCategory_onlyUpdatesMatchingKindAndCategory() {
         val expense = Entry("1", "支出", "交通", 12.0, 1L)
         val sameNameIncome = Entry("2", "收入", "交通", 20.0, 2L)

@@ -34,7 +34,6 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.LocalTextSelectionColors
 import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.foundation.verticalScroll
@@ -45,6 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -53,10 +53,10 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -64,6 +64,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import com.example.money_log.ui.theme.Money_LogTheme
 import org.json.JSONArray
 import org.json.JSONObject
@@ -1745,6 +1747,7 @@ private fun EntryEditDialog(
     confirm: (Entry) -> Unit,
 ) {
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
     val fixedPrimaryDark = colorResource(R.color.theme_primary_dark)
     val currentCategory = categories.firstOrNull { it.name == entry.category }
     var selected by remember(entry.id, entry.category) { mutableStateOf(currentCategory) }
@@ -1753,6 +1756,7 @@ private fun EntryEditDialog(
     var note by remember(entry.id) { mutableStateOf(entry.note) }
     var invalid by remember(entry.id) { mutableStateOf(false) }
     var showDatePicker by remember(entry.id) { mutableStateOf(false) }
+    var showCalculatorKeyboard by remember(entry.id) { mutableStateOf(false) }
     val dateInteractionSource = remember { MutableInteractionSource() }
     val editFieldBorder = Color(0xFF7A7D83)
     val editFieldColors = OutlinedTextFieldDefaults.colors(
@@ -1800,38 +1804,40 @@ private fun EntryEditDialog(
                 }
                 Spacer(Modifier.height(14.dp))
                 CompositionLocalProvider(LocalTextSelectionColors provides editSelectionColors) {
+                    Box(Modifier.fillMaxWidth()) {
                     OutlinedTextField(
                         value = amount,
-                        onValueChange = {
-                            if (validAmountExpressionInput(it)) amount = it
-                            invalid = false
-                        },
+                        onValueChange = {},
                         modifier = Modifier.fillMaxWidth(),
-                        label = { Text("金额算式") },
+                        label = { Text("金额") },
                         prefix = { Text("¥ ") },
                         isError = invalid,
                         supportingText = if (invalid) ({ Text("请输入结果大于 0 的有效算式") }) else null,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        readOnly = true,
                         singleLine = true,
                         shape = RoundedCornerShape(14.dp),
                         colors = editFieldColors,
                     )
+                        Box(
+                            Modifier.matchParentSize().clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                            ) {
+                                focusManager.clearFocus()
+                                showCalculatorKeyboard = true
+                            },
+                        )
+                    }
                 }
-                Spacer(Modifier.height(8.dp))
-                AmountCalculatorPanel(
-                    expression = amount,
-                    result = calculatedAmount,
-                    onExpressionChange = {
-                        amount = it
-                        invalid = false
-                    },
-                )
                 Spacer(Modifier.height(14.dp))
                 Box(
                     Modifier.fillMaxWidth().clickable(
                         interactionSource = dateInteractionSource,
                         indication = null,
-                    ) { showDatePicker = true },
+                    ) {
+                        showCalculatorKeyboard = false
+                        showDatePicker = true
+                    },
                 ) {
                     OutlinedTextField(
                         value = day(date),
@@ -1854,7 +1860,9 @@ private fun EntryEditDialog(
                     OutlinedTextField(
                         value = note,
                         onValueChange = { if (it.length <= 100) note = it },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().onFocusChanged {
+                            if (it.isFocused) showCalculatorKeyboard = false
+                        },
                         label = { Text("备注") },
                         maxLines = 3,
                         shape = RoundedCornerShape(14.dp),
@@ -1887,6 +1895,17 @@ private fun EntryEditDialog(
             ) { Text("取消") }
         },
     )
+    if (showCalculatorKeyboard) {
+        AmountCalculatorKeyboard(
+            expression = amount,
+            onExpressionChange = {
+                amount = it
+                invalid = false
+            },
+            onInvalidExpression = { invalid = true },
+            onDismiss = { showCalculatorKeyboard = false },
+        )
+    }
     if (showDatePicker) {
         MoneyLogDatePickerDialog(
             initialMillis = date,
@@ -2134,10 +2153,11 @@ private fun EntryInputDialog(
     onSave: (Double) -> Unit,
 ) {
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
     val dateInteractionSource = remember { MutableInteractionSource() }
     val colorTheme = LocalColorTheme.current
     var showDatePicker by remember { mutableStateOf(false) }
-    val calculatedAmount = remember(amount) { evaluateAmountExpression(amount) }
+    var showCalculatorKeyboard by remember { mutableStateOf(false) }
     val entryInputFieldBorder = Color(0xFF7A7D83)
     val entryInputFieldColors = OutlinedTextFieldDefaults.colors(
         focusedTextColor = Ink,
@@ -2161,31 +2181,39 @@ private fun EntryInputDialog(
             Column(Modifier.padding(24.dp)) {
                 Text("${category.symbol}  ${category.name}", fontSize = 21.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(22.dp))
-                OutlinedTextField(
-                    value = amount,
-                    onValueChange = onAmountChange,
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("金额算式") },
-                    prefix = { Text("¥ ") },
-                    isError = invalid,
-                    supportingText = if (invalid) ({ Text("请输入结果大于 0 的有效算式") }) else null,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
-                    colors = entryInputFieldColors,
-                )
-                Spacer(Modifier.height(8.dp))
-                AmountCalculatorPanel(
-                    expression = amount,
-                    result = calculatedAmount,
-                    onExpressionChange = onAmountChange,
-                )
+                Box(Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = amount,
+                        onValueChange = {},
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("金额") },
+                        prefix = { Text("¥ ") },
+                        isError = invalid,
+                        supportingText = if (invalid) ({ Text("请输入结果大于 0 的有效算式") }) else null,
+                        readOnly = true,
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        colors = entryInputFieldColors,
+                    )
+                    Box(
+                        Modifier.matchParentSize().clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                        ) {
+                            focusManager.clearFocus()
+                            showCalculatorKeyboard = true
+                        },
+                    )
+                }
                 Spacer(Modifier.height(14.dp))
                 Box(
                     Modifier.fillMaxWidth().clickable(
                         interactionSource = dateInteractionSource,
                         indication = null,
-                    ) { showDatePicker = true },
+                    ) {
+                        showCalculatorKeyboard = false
+                        showDatePicker = true
+                    },
                 ) {
                     OutlinedTextField(
                         value = day(date),
@@ -2207,7 +2235,9 @@ private fun EntryInputDialog(
                 OutlinedTextField(
                     value = note,
                     onValueChange = onNoteChange,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().onFocusChanged {
+                        if (it.isFocused) showCalculatorKeyboard = false
+                    },
                     label = { Text("备注") },
                     maxLines = 3,
                     shape = RoundedCornerShape(14.dp),
@@ -2229,6 +2259,14 @@ private fun EntryInputDialog(
                 ) { Text("完成记账", fontSize = 18.sp, fontWeight = FontWeight.Bold) }
             }
         }
+    }
+    if (showCalculatorKeyboard) {
+        AmountCalculatorKeyboard(
+            expression = amount,
+            onExpressionChange = onAmountChange,
+            onInvalidExpression = onInvalidAmount,
+            onDismiss = { showCalculatorKeyboard = false },
+        )
     }
     if (showDatePicker) {
         MoneyLogDatePickerDialog(
@@ -2425,49 +2463,164 @@ private fun IconChoice(symbol: String, active: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun AmountCalculatorPanel(
+private fun AmountCalculatorKeyboard(
     expression: String,
-    result: Double?,
     onExpressionChange: (String) -> Unit,
+    onInvalidExpression: () -> Unit,
+    onDismiss: () -> Unit,
 ) {
-    val fixedPrimaryDark = colorResource(R.color.theme_primary_dark)
-    val operators = listOf("+" to "+", "−" to "-", "×" to "×", "÷" to "÷")
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    fun applyKey(label: String) {
+        val nextExpression = when (label) {
+            "C" -> ""
+            "⌫" -> expression.dropLast(1)
+            "+" -> appendAmountOperator(expression, "+")
+            "−" -> appendAmountOperator(expression, "-")
+            "×" -> appendAmountOperator(expression, "×")
+            "÷" -> appendAmountOperator(expression, "÷")
+            "." -> appendAmountDecimal(expression)
+            "=" -> {
+                val result = evaluateAmountExpression(expression)
+                if (result == null || result <= 0) {
+                    onInvalidExpression()
+                    return
+                }
+                String.format(Locale.US, "%.2f", result)
+            }
+            else -> expression + label
+        }
+        if (validAmountExpressionInput(nextExpression)) onExpressionChange(nextExpression)
+    }
+
+    val rows = listOf(
+        listOf("C", "⌫", "÷", "×"),
+        listOf("7", "8", "9", "−"),
+        listOf("4", "5", "6", "+"),
+    )
+    Popup(
+        alignment = Alignment.BottomCenter,
+        properties = PopupProperties(focusable = false, clippingEnabled = false),
     ) {
-        operators.forEach { (label, value) ->
-            val interactionSource = remember { MutableInteractionSource() }
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(38.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(Color.White)
-                    .border(1.dp, NeutralIconBorder, RoundedCornerShape(10.dp))
-                    .clickable(interactionSource = interactionSource, indication = null) {
-                        onExpressionChange(appendAmountOperator(expression, value))
-                    },
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(label, color = fixedPrimaryDark, fontSize = 20.sp, fontWeight = FontWeight.Medium)
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+            color = Color(0xFFF1F3F6),
+            shadowElevation = 12.dp,
+        ) {
+            Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().height(30.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("计算器", color = Muted, fontSize = 13.sp)
+                    val dismissInteraction = remember { MutableInteractionSource() }
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clickable(dismissInteraction, indication = null, onClick = onDismiss),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text("⌄", color = Muted, fontSize = 24.sp)
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                rows.forEach { row ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        row.forEach { label ->
+                            CalculatorKeyboardKey(
+                                label = label,
+                                modifier = Modifier.weight(1f).height(46.dp),
+                                onClick = { applyKey(label) },
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth().height(100.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Column(
+                        modifier = Modifier.weight(3f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            listOf("1", "2", "3").forEach { label ->
+                                CalculatorKeyboardKey(
+                                    label = label,
+                                    modifier = Modifier.weight(1f).height(46.dp),
+                                    onClick = { applyKey(label) },
+                                )
+                            }
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            CalculatorKeyboardKey(
+                                label = "0",
+                                modifier = Modifier.weight(2f).height(46.dp),
+                                onClick = { applyKey("0") },
+                            )
+                            CalculatorKeyboardKey(
+                                label = ".",
+                                modifier = Modifier.weight(1f).height(46.dp),
+                                onClick = { applyKey(".") },
+                            )
+                        }
+                    }
+                    CalculatorKeyboardKey(
+                        label = "=",
+                        modifier = Modifier.weight(1f).fillMaxHeight(),
+                        onClick = { applyKey("=") },
+                    )
+                }
             }
         }
     }
-    Spacer(Modifier.height(8.dp))
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text("合计", color = Muted, fontSize = 13.sp)
-        Text(
-            text = result?.let { "¥${money(it)}" } ?: "—",
-            color = if (result == null) Muted else fixedPrimaryDark,
-            fontSize = 17.sp,
-            fontWeight = FontWeight.Bold,
-        )
+}
+
+@Composable
+private fun CalculatorKeyboardKey(
+    label: String,
+    modifier: Modifier,
+    onClick: () -> Unit,
+) {
+    val fixedPrimaryDark = colorResource(R.color.theme_primary_dark)
+    val operator = label in setOf("+", "−", "×", "÷")
+    val action = label == "C" || label == "⌫"
+    val background = when {
+        label == "=" -> fixedPrimaryDark
+        operator -> Color(0xFFE5EBF2)
+        action -> Color(0xFFE7E9ED)
+        else -> Color.White
     }
+    val foreground = if (label == "=") Color.White else if (operator) fixedPrimaryDark else Ink
+    val interactionSource = remember { MutableInteractionSource() }
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(background)
+            .border(1.dp, NeutralIconBorder, RoundedCornerShape(10.dp))
+            .clickable(interactionSource, indication = null, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(label, color = foreground, fontSize = 20.sp, fontWeight = FontWeight.Medium)
+    }
+}
+
+internal fun appendAmountDecimal(expression: String): String {
+    val operators = setOf('+', '-', '*', '/', '×', '÷')
+    val tokenStart = expression.indexOfLast { it in operators } + 1
+    val currentToken = expression.substring(tokenStart)
+    if ('.' in currentToken) return expression
+    return if (currentToken.isEmpty()) expression + "0." else expression + "."
 }
 
 internal fun appendAmountOperator(expression: String, operator: String): String {
