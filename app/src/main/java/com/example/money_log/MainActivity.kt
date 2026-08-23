@@ -2303,7 +2303,6 @@ private fun EntryInputDialog(
     var noteKeyboardWasVisible by remember { mutableStateOf(false) }
     var noteHasFocus by remember { mutableStateOf(false) }
     val dismissInputInteraction = remember { MutableInteractionSource() }
-    val dismissInputDragThreshold = with(density) { 24.dp.toPx() }
     val imeBottom = WindowInsets.ime.getBottom(density)
     val navigationBarBottom = WindowInsets.navigationBars.getBottom(density)
     val visibleImeHeight = (imeBottom - navigationBarBottom).coerceAtLeast(0)
@@ -2430,30 +2429,12 @@ private fun EntryInputDialog(
         Box(
             Modifier
                 .fillMaxSize()
-                .pointerInput(dismissInputDragThreshold) {
-                    var totalDragY = 0f
-                    detectVerticalDragGestures(
-                        onDragStart = { totalDragY = 0f },
-                        onVerticalDrag = { _, dragAmount -> totalDragY += dragAmount },
-                        onDragEnd = {
-                            if (totalDragY <= -dismissInputDragThreshold ||
-                                totalDragY >= dismissInputDragThreshold
-                            ) {
-                                collapseInputPanel()
-                            }
-                        },
-                    )
-                },
+                .clickable(
+                    interactionSource = dismissInputInteraction,
+                    indication = null,
+                    onClick = collapseInputPanel,
+                ),
         ) {
-            Box(
-                Modifier
-                    .matchParentSize()
-                    .clickable(
-                        interactionSource = dismissInputInteraction,
-                        indication = null,
-                        onClick = collapseInputPanel,
-                    ),
-            )
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -2475,13 +2456,7 @@ private fun EntryInputDialog(
                 },
             ) {
                 Surface(
-                    modifier = Modifier
-                        .fillMaxWidth(BookkeepingDialogWidthFraction)
-                        .clickable(
-                            interactionSource = dismissInputInteraction,
-                            indication = null,
-                            onClick = collapseInputPanel,
-                        ),
+                    modifier = Modifier.fillMaxWidth(BookkeepingDialogWidthFraction),
                     shape = RoundedCornerShape(28.dp),
                     color = Bg,
                     shadowElevation = 10.dp,
