@@ -64,6 +64,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -2035,6 +2036,7 @@ private fun AddScreen(
     var invalid by remember { mutableStateOf(false) }
     var categoryActionTarget by remember { mutableStateOf<CategoryEditTarget?>(null) }
     var editingIconTarget by remember { mutableStateOf<CategoryEditTarget?>(null) }
+    var inputPanelHeight by remember { mutableStateOf(0.dp) }
     val selectedCategory = selected
     val initialPagerPage = remember { (Int.MAX_VALUE / 2).let { it - it % 2 } }
     val pagerState = rememberPagerState(initialPage = initialPagerPage) { Int.MAX_VALUE }
@@ -2048,53 +2050,60 @@ private fun AddScreen(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
-        Surface(
+        Box(
             modifier = Modifier
-                .fillMaxWidth(BookkeepingDialogWidthFraction)
-                .aspectRatio(1f / GoldenRatio),
-            shape = RoundedCornerShape(24.dp),
-            color = Bg,
-            shadowElevation = 12.dp,
+                .fillMaxSize()
+                .padding(bottom = inputPanelHeight),
+            contentAlignment = Alignment.Center,
         ) {
-            Column(Modifier.fillMaxSize()) {
-                HorizontalPager(
-                    state = pagerState,
-                    modifier = Modifier.fillMaxWidth().weight(1f),
-                    flingBehavior = pagerFlingBehavior,
-                ) { page ->
-                    val pageKind = if (page % 2 == 0) "支出" else "收入"
-                    val pageCategories = if (pageKind == "支出") expenseCategories else incomeCategories
-                    CategorySelectionSection(
-                        title = "${pageKind}分类",
-                        categories = pageCategories,
-                        modifier = Modifier.fillMaxSize(),
-                        onCategorySelected = {
-                            kind = pageKind
-                            amount = ""
-                            date = initialDate
-                            note = ""
-                            invalid = false
-                            selected = it
-                        },
-                        onCategoryLongPressed = { categoryActionTarget = CategoryEditTarget(pageKind, it) },
-                    )
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth().height(28.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    repeat(2) { pageIndex ->
-                        Box(
-                            Modifier
-                                .size(7.dp)
-                                .background(
-                                    if (pagerState.currentPage % 2 == pageIndex) colorTheme.accentDark
-                                    else Color(0xFFD0D1D3),
-                                    CircleShape,
-                                ),
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth(BookkeepingDialogWidthFraction)
+                    .aspectRatio(1f / GoldenRatio),
+                shape = RoundedCornerShape(24.dp),
+                color = Bg,
+                shadowElevation = 12.dp,
+            ) {
+                Column(Modifier.fillMaxSize()) {
+                    HorizontalPager(
+                        state = pagerState,
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                        flingBehavior = pagerFlingBehavior,
+                    ) { page ->
+                        val pageKind = if (page % 2 == 0) "支出" else "收入"
+                        val pageCategories = if (pageKind == "支出") expenseCategories else incomeCategories
+                        CategorySelectionSection(
+                            title = "${pageKind}分类",
+                            categories = pageCategories,
+                            modifier = Modifier.fillMaxSize(),
+                            onCategorySelected = {
+                                kind = pageKind
+                                amount = ""
+                                date = initialDate
+                                note = ""
+                                invalid = false
+                                selected = it
+                            },
+                            onCategoryLongPressed = { categoryActionTarget = CategoryEditTarget(pageKind, it) },
                         )
-                        if (pageIndex == 0) Spacer(Modifier.width(7.dp))
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth().height(28.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        repeat(2) { pageIndex ->
+                            Box(
+                                Modifier
+                                    .size(7.dp)
+                                    .background(
+                                        if (pagerState.currentPage % 2 == pageIndex) colorTheme.accentDark
+                                        else Color(0xFFD0D1D3),
+                                        CircleShape,
+                                    ),
+                            )
+                            if (pageIndex == 0) Spacer(Modifier.width(7.dp))
+                        }
                     }
                 }
             }
@@ -2115,7 +2124,9 @@ private fun AddScreen(
             onDateSelected = { date = it },
             onNoteChange = { if (it.length <= 100) note = it },
             onInvalidAmount = { invalid = true },
+            onInputPanelHeightChanged = { inputPanelHeight = it },
             onDismiss = {
+                inputPanelHeight = 0.dp
                 selected = null
                 amount = ""
                 date = initialDate
@@ -2201,6 +2212,7 @@ private fun EntryInputDialog(
     onDateSelected: (Long) -> Unit,
     onNoteChange: (String) -> Unit,
     onInvalidAmount: () -> Unit,
+    onInputPanelHeightChanged: (Dp) -> Unit,
     onDismiss: () -> Unit,
     onSave: (Double) -> Unit,
 ) {
@@ -2253,6 +2265,12 @@ private fun EntryInputDialog(
             softwareKeyboardController?.hide()
             amountFocusRequester.requestFocus()
         }
+    }
+
+    LaunchedEffect(showCalculatorKeyboard, isSystemKeyboardVisible, matchedInputPanelHeight) {
+        onInputPanelHeightChanged(
+            if (showCalculatorKeyboard || isSystemKeyboardVisible) matchedInputPanelHeight else 0.dp,
+        )
     }
 
     BackHandler(enabled = showCalculatorKeyboard) { dismissInput() }
