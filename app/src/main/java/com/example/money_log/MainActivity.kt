@@ -89,7 +89,7 @@ private val NeutralIconBorder = Color(0xFFE5E5E5)
 private val EditCategorySelectedGreen = Color(0xFFC8E6C9)
 private const val GoldenRatio = 1.618f
 private const val BookkeepingDialogWidthFraction = 0.8f
-private val CalculatorKeyboardHeight = 320.dp
+private val CalculatorKeyboardHeight = 340.dp
 
 internal enum class ColorTheme(
     val storageKey: String,
@@ -2188,6 +2188,7 @@ private fun EntryInputDialog(
     onSave: (Double) -> Unit,
 ) {
     val context = LocalContext.current
+    val density = LocalDensity.current
     val focusManager = LocalFocusManager.current
     val softwareKeyboardController = LocalSoftwareKeyboardController.current
     val calculatorFocusRequester = remember { FocusRequester() }
@@ -2196,7 +2197,15 @@ private fun EntryInputDialog(
     var showDatePicker by remember { mutableStateOf(false) }
     var showCalculatorKeyboard by remember { mutableStateOf(false) }
     val dismissInputInteraction = remember { MutableInteractionSource() }
-    val dismissInputDragThreshold = with(LocalDensity.current) { 24.dp.toPx() }
+    val dismissInputDragThreshold = with(density) { 24.dp.toPx() }
+    val imeBottom = WindowInsets.ime.getBottom(density)
+    val navigationBarBottom = WindowInsets.navigationBars.getBottom(density)
+    val visibleImeHeight = (imeBottom - navigationBarBottom).coerceAtLeast(0)
+    var matchedInputPanelHeightPx by remember {
+        mutableIntStateOf(with(density) { CalculatorKeyboardHeight.roundToPx() })
+    }
+    val matchedInputPanelHeight = with(density) { matchedInputPanelHeightPx.toDp() }
+    val isSystemKeyboardVisible = imeBottom > navigationBarBottom
     val entryInputFieldBorder = Color(0xFF7A7D83)
     val entryInputFieldColors = OutlinedTextFieldDefaults.colors(
         focusedTextColor = Ink,
@@ -2213,6 +2222,12 @@ private fun EntryInputDialog(
         focusManager.clearFocus(force = true)
         softwareKeyboardController?.hide()
         showCalculatorKeyboard = false
+    }
+
+    LaunchedEffect(visibleImeHeight) {
+        if (visibleImeHeight > 0) {
+            matchedInputPanelHeightPx = visibleImeHeight
+        }
     }
 
     LaunchedEffect(showCalculatorKeyboard) {
@@ -2257,8 +2272,20 @@ private fun EntryInputDialog(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(bottom = if (showCalculatorKeyboard) CalculatorKeyboardHeight else 0.dp),
-                contentAlignment = Alignment.Center,
+                    .padding(
+                        bottom = if (showCalculatorKeyboard || isSystemKeyboardVisible) {
+                            matchedInputPanelHeight
+                        }
+                        else {
+                            0.dp
+                        },
+                    ),
+                contentAlignment = if (showCalculatorKeyboard || isSystemKeyboardVisible) {
+                    Alignment.BottomCenter
+                }
+                else {
+                    Alignment.Center
+                },
             ) {
                 Surface(
                     modifier = Modifier.fillMaxWidth(BookkeepingDialogWidthFraction),
@@ -2359,7 +2386,7 @@ private fun EntryInputDialog(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
-                        .height(CalculatorKeyboardHeight),
+                        .height(matchedInputPanelHeight),
                 )
             }
         }
@@ -2620,10 +2647,10 @@ private fun AmountCalculatorKeyboard(
     ) {
         Column(
             modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.SpaceBetween,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
                 Box(
-                    modifier = Modifier.fillMaxWidth().height(30.dp),
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
                 ) {
                     Box(
                         modifier = Modifier
@@ -2648,19 +2675,19 @@ private fun AmountCalculatorKeyboard(
                         row.forEach { label ->
                             CalculatorKeyboardKey(
                                 label = label,
-                                modifier = Modifier.weight(1f).height(46.dp),
+                                modifier = Modifier.weight(1f).height(56.dp),
                                 onClick = { applyKey(label) },
                             )
                         }
                     }
                 }
                 Row(
-                    modifier = Modifier.fillMaxWidth().height(100.dp),
+                    modifier = Modifier.fillMaxWidth().height(124.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Column(
                         modifier = Modifier.weight(3f),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -2669,7 +2696,7 @@ private fun AmountCalculatorKeyboard(
                             listOf("1", "2", "3").forEach { label ->
                                 CalculatorKeyboardKey(
                                     label = label,
-                                    modifier = Modifier.weight(1f).height(46.dp),
+                                    modifier = Modifier.weight(1f).height(56.dp),
                                     onClick = { applyKey(label) },
                                 )
                             }
@@ -2680,17 +2707,17 @@ private fun AmountCalculatorKeyboard(
                         ) {
                             CalculatorKeyboardKey(
                                 label = ".",
-                                modifier = Modifier.weight(1f).height(46.dp),
+                                modifier = Modifier.weight(1f).height(56.dp),
                                 onClick = { applyKey(".") },
                             )
                             CalculatorKeyboardKey(
                                 label = "0",
-                                modifier = Modifier.weight(1f).height(46.dp),
+                                modifier = Modifier.weight(1f).height(56.dp),
                                 onClick = { applyKey("0") },
                             )
                             CalculatorKeyboardKey(
                                 label = "⌫",
-                                modifier = Modifier.weight(1f).height(46.dp),
+                                modifier = Modifier.weight(1f).height(56.dp),
                                 onClick = { applyKey("⌫") },
                             )
                         }
