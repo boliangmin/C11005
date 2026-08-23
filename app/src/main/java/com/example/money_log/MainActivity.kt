@@ -1392,15 +1392,20 @@ private fun CategoryActionDialog(
     onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
+    val fixedPrimaryDark = colorResource(R.color.theme_primary_dark)
     AlertDialog(
         onDismissRequest = dismiss,
         title = { Text("${category.symbol}  ${category.name}") },
         text = {
             Column {
                 CategoryActionItem(
-                    symbol = "✎",
+                    symbol = "",
                     title = if (canDelete) "修改类型" else "修改图标",
                     subtitle = if (canDelete) "修改类型名称和图标" else "未分类名称固定，只能修改图标",
+                    iconResource = R.drawable.ic_edit_bill_color,
+                    iconBackgroundColor = Color.Transparent,
+                    preserveIconColors = true,
+                    expandIconToBackground = true,
                     onClick = onEdit,
                 )
                 if (canDelete) {
@@ -1416,7 +1421,12 @@ private fun CategoryActionDialog(
             }
         },
         confirmButton = {},
-        dismissButton = { TextButton(dismiss) { Text("取消") } },
+        dismissButton = {
+            TextButton(
+                onClick = dismiss,
+                colors = ButtonDefaults.textButtonColors(contentColor = fixedPrimaryDark),
+            ) { Text("取消") }
+        },
     )
 }
 
@@ -1434,7 +1444,8 @@ private fun CategoryActionItem(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val colorTheme = LocalColorTheme.current
-    val contentColor = if (destructive) Danger else Ink
+    val contentColor = if (destructive) DeleteActionRed else Ink
+    val iconContentColor = if (destructive) Color.White else contentColor
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1445,19 +1456,19 @@ private fun CategoryActionItem(
     ) {
         Box(
             Modifier.size(42.dp).background(
-                iconBackgroundColor ?: if (destructive) Color(0xFFFFE8E8) else colorTheme.softAccent,
+                iconBackgroundColor ?: if (destructive) DeleteSwipeBackground else colorTheme.softAccent,
                 CircleShape,
             ),
             contentAlignment = Alignment.Center,
         ) {
             if (iconResource == null) {
-                Text(symbol, fontSize = 22.sp, color = contentColor)
+                Text(symbol, fontSize = 22.sp, color = iconContentColor)
             } else {
                 Icon(
                     painter = painterResource(iconResource),
                     contentDescription = null,
                     modifier = Modifier.size(if (expandIconToBackground) 42.dp else 24.dp),
-                    tint = if (preserveIconColors) Color.Unspecified else contentColor,
+                    tint = if (preserveIconColors) Color.Unspecified else iconContentColor,
                 )
             }
         }
@@ -1465,7 +1476,7 @@ private fun CategoryActionItem(
             Text(title, fontSize = 17.sp, fontWeight = FontWeight.Medium, color = contentColor)
             Text(subtitle, fontSize = 13.sp, color = Muted)
         }
-        Text("›", fontSize = 26.sp, color = if (destructive) Danger else Muted)
+        Text("›", fontSize = 26.sp, color = if (destructive) DeleteActionRed else Muted)
     }
 }
 
@@ -1486,16 +1497,21 @@ private fun DeleteCategoryDialog(
                 } else {
                     "即将删除“${category.name}”类型。该类型下的历史账目会全部归入“未分类”。"
                 },
-                color = Ink,
+                color = Muted,
             )
         },
         confirmButton = {
             TextButton(
                 onClick = confirm,
-                colors = ButtonDefaults.textButtonColors(contentColor = Danger),
+                colors = ButtonDefaults.textButtonColors(contentColor = DeleteActionRed),
             ) { Text(if (isFinalConfirmation) "确认删除" else "继续") }
         },
-        dismissButton = { TextButton(dismiss) { Text("取消") } },
+        dismissButton = {
+            TextButton(
+                onClick = dismiss,
+                colors = ButtonDefaults.textButtonColors(contentColor = Muted),
+            ) { Text("取消") }
+        },
     )
 }
 
@@ -2192,19 +2208,29 @@ private fun CategoryIconActionDialog(
     dismiss: () -> Unit,
     onEditIcon: () -> Unit,
 ) {
+    val fixedPrimaryDark = colorResource(R.color.theme_primary_dark)
     AlertDialog(
         onDismissRequest = dismiss,
         title = { Text("${category.symbol}  ${category.name}") },
         text = {
             CategoryActionItem(
-                symbol = "✎",
+                symbol = "",
                 title = "修改图标",
                 subtitle = "为该类型选择新的图标",
+                iconResource = R.drawable.ic_edit_bill_color,
+                iconBackgroundColor = Color.Transparent,
+                preserveIconColors = true,
+                expandIconToBackground = true,
                 onClick = onEditIcon,
             )
         },
         confirmButton = {},
-        dismissButton = { TextButton(dismiss) { Text("取消") } },
+        dismissButton = {
+            TextButton(
+                onClick = dismiss,
+                colors = ButtonDefaults.textButtonColors(contentColor = fixedPrimaryDark),
+            ) { Text("取消") }
+        },
     )
 }
 
@@ -2260,6 +2286,7 @@ private fun CategoryDialog(
     dismiss: () -> Unit,
     confirm: (LedgerCategory) -> Unit,
 ) {
+    val fixedPrimaryDark = colorResource(R.color.theme_primary_dark)
     var input by remember(initial) { mutableStateOf(initial?.name.orEmpty()) }
     val availableIcons = if (kind == "支出") expenseIcons else incomeIcons
     val icons = remember(kind, initial?.symbol) {
@@ -2267,6 +2294,22 @@ private fun CategoryDialog(
         else availableIcons
     }
     var selectedIcon by remember(initial) { mutableStateOf(initial?.symbol) }
+    val categoryFieldBorder = Color(0xFF7A7D83)
+    val categoryFieldColors = OutlinedTextFieldDefaults.colors(
+        focusedTextColor = Ink,
+        unfocusedTextColor = Ink,
+        cursorColor = Ink,
+        focusedBorderColor = categoryFieldBorder,
+        unfocusedBorderColor = categoryFieldBorder,
+        focusedLabelColor = Muted,
+        unfocusedLabelColor = Muted,
+    )
+    val categorySelectionColors = remember {
+        TextSelectionColors(
+            handleColor = Ink,
+            backgroundColor = Ink.copy(alpha = 0.14f),
+        )
+    }
     val name = input.trim()
     val changed = initial == null || name != initial.name || selectedIcon != initial.symbol
     AlertDialog(
@@ -2279,14 +2322,17 @@ private fun CategoryDialog(
         },
         text = {
             Column {
-                OutlinedTextField(
-                    value = input,
-                    onValueChange = { if (!lockName && it.length <= 8) input = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text(if (lockName) "类型名称（固定）" else "类型名称") },
-                    readOnly = lockName,
-                    singleLine = true,
-                )
+                CompositionLocalProvider(LocalTextSelectionColors provides categorySelectionColors) {
+                    OutlinedTextField(
+                        value = input,
+                        onValueChange = { if (!lockName && it.length <= 8) input = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text(if (lockName) "类型名称（固定）" else "类型名称") },
+                        readOnly = lockName,
+                        singleLine = true,
+                        colors = categoryFieldColors,
+                    )
+                }
                 Spacer(Modifier.height(18.dp))
                 Text("选择图标", fontWeight = FontWeight.Medium, color = Ink)
                 Text("图标可用于任意类型", fontSize = 12.sp, color = Muted)
@@ -2308,25 +2354,33 @@ private fun CategoryDialog(
             TextButton(
                 onClick = { confirm(LedgerCategory(name, selectedIcon!!)) },
                 enabled = name.isNotEmpty() && name !in existing && selectedIcon != null && changed,
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = fixedPrimaryDark,
+                    disabledContentColor = Muted.copy(alpha = 0.38f),
+                ),
             ) { Text(if (initial == null) "添加" else "保存") }
         },
-        dismissButton = { TextButton(dismiss) { Text("取消") } },
+        dismissButton = {
+            TextButton(
+                onClick = dismiss,
+                colors = ButtonDefaults.textButtonColors(contentColor = fixedPrimaryDark),
+            ) { Text("取消") }
+        },
     )
 }
 
 @Composable
 private fun IconChoice(symbol: String, active: Boolean, onClick: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
-    val colorTheme = LocalColorTheme.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(if (active) colorTheme.accent else Bg, RoundedCornerShape(12.dp))
+            .background(if (active) EditCategorySelectedGreen else Bg, RoundedCornerShape(12.dp))
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
             .padding(vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(symbol, fontSize = 27.sp, color = if (active) colorTheme.onAccent else Ink)
+        Text(symbol, fontSize = 27.sp, color = Ink)
     }
 }
 
