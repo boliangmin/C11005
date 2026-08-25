@@ -3071,18 +3071,15 @@ private fun EntryCategoryChoice(
 @Composable
 private fun LedgerIconChoice(symbol: String, active: Boolean, onClick: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(78.dp)
+            .height(64.dp)
             .background(if (active) EditCategorySelectedGreen else Bg, RoundedCornerShape(12.dp))
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
+        contentAlignment = Alignment.Center,
     ) {
         Text(symbol, fontSize = 25.sp)
-        Spacer(Modifier.height(3.dp))
-        Spacer(Modifier.height(13.dp))
     }
 }
 
