@@ -250,7 +250,7 @@ internal fun titleBarStyleFromStorage(storageKey: String?): TitleBarStyle =
 
 private val LocalColorTheme = staticCompositionLocalOf { ColorTheme.CLASSIC }
 
-private enum class AppPage { DETAILS, ADD, TITLE_BAR_STYLE, CATEGORIES }
+private enum class AppPage { DETAILS, ADD_ENTRY, ADD_LEDGER, LEDGER_DETAILS, TITLE_BAR_STYLE, CATEGORIES }
 private enum class DetailsSection { BILLS, LEDGER, STATISTICS, MORE }
 private const val UncategorizedName = "未分类"
 private const val UncategorizedIcon = "⭕"
@@ -262,6 +262,15 @@ data class Entry(
     val amount: Double,
     val date: Long,
     val note: String = "",
+    val ledgerId: String? = null,
+)
+data class LedgerBook(
+    val id: String,
+    val symbol: String,
+    val name: String,
+    val date: Long,
+    val note: String = "",
+    val includeInBills: Boolean = true,
 )
 data class LedgerCategory(val name: String, val symbol: String)
 internal data class EntryMonthGroup(val year: Int, val month: Int, val entries: List<Entry>)
@@ -288,6 +297,12 @@ private val expenseIcons = listOf(
 private val incomeIcons = listOf(
     "💰", "💼", "🎁", "📈", "🏠", "🧧", "💵", "🪙",
     "🏦", "💳", "📊", "🧾", "⭐", "🤝", "🛍️", "⭕",
+)
+
+private val ledgerIcons = listOf(
+    "📒", "📕", "📗", "📘", "📙", "📓", "📔", "📚",
+    "🏠", "🚗", "✈️", "🎓", "💼", "💰", "💳", "🧾",
+    "🛍️", "🎁", "❤️", "👨‍👩‍👧", "🐾", "🏃", "🎮", "⭐",
 )
 
 private val legacyDefaultIcons = mapOf(
@@ -360,6 +375,11 @@ private class Store(context: Context) {
                 amount = o.getDouble("amount"),
                 date = o.getLong("date"),
                 note = o.optString("note", ""),
+                ledgerId = if (o.isNull("ledgerId")) {
+                    null
+                } else {
+                    o.optString("ledgerId").takeIf { value -> value.isNotBlank() }
+                },
             )
         }
     }.getOrDefault(emptyList())
@@ -374,6 +394,7 @@ private class Store(context: Context) {
                 put("amount", e.amount)
                 put("date", e.date)
                 put("note", e.note)
+                e.ledgerId?.let { put("ledgerId", it) }
             })
         }
         return a.toString()
@@ -384,6 +405,34 @@ private class Store(context: Context) {
 
     fun entries() = readEntries("entries")
     fun saveEntries(value: List<Entry>) = saveEntryList("entries", value)
+    fun ledgers(): List<LedgerBook> = runCatching {
+        val values = JSONArray(p.getString("ledgers", null)!!)
+        List(values.length()) { index ->
+            val value = values.getJSONObject(index)
+            LedgerBook(
+                id = value.getString("id"),
+                symbol = value.optString("symbol", ledgerIcons.first()),
+                name = value.getString("name"),
+                date = value.getLong("date"),
+                note = value.optString("note", ""),
+                includeInBills = value.optBoolean("includeInBills", true),
+            )
+        }
+    }.getOrDefault(emptyList())
+    fun saveLedgers(value: List<LedgerBook>) {
+        val values = JSONArray()
+        value.forEach { ledger ->
+            values.put(JSONObject().apply {
+                put("id", ledger.id)
+                put("symbol", ledger.symbol)
+                put("name", ledger.name)
+                put("date", ledger.date)
+                put("note", ledger.note)
+                put("includeInBills", ledger.includeInBills)
+            })
+        }
+        p.edit().putString("ledgers", values.toString()).apply()
+    }
     fun colorTheme() = colorThemeFromStorage(p.getString("colorTheme", null))
     fun titleBarStyle() = titleBarStyleFromStorage(p.getString("titleBarStyle", null))
     fun saveTitleBarStyle(value: TitleBarStyle) = p.edit().putString("titleBarStyle", value.storageKey).apply()
@@ -445,16 +494,37 @@ private fun LedgerApp(
     val expenses = remember { mutableStateListOf<LedgerCategory>().apply { addAll(store.categories("支出")) } }
     val incomes = remember { mutableStateListOf<LedgerCategory>().apply { addAll(store.categories("收入")) } }
     val entries = remember { mutableStateListOf<Entry>().apply { addAll(store.entries()) } }
+    val ledgers = remember { mutableStateListOf<LedgerBook>().apply { addAll(store.ledgers()) } }
     var page by remember { mutableStateOf(AppPage.DETAILS) }
     var addReturnPage by remember { mutableStateOf(AppPage.DETAILS) }
+    var addEntryLedgerId by remember { mutableStateOf<String?>(null) }
     var addInitialDate by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var addLedgerInitialDate by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var addButtonXFraction by remember { mutableFloatStateOf(1f) }
     var addButtonYFraction by remember { mutableFloatStateOf(1f) }
     var selectedSection by remember { mutableStateOf(DetailsSection.BILLS) }
+    var selectedLedgerId by remember { mutableStateOf<String?>(null) }
+    val selectedLedger = ledgers.firstOrNull { it.id == selectedLedgerId }
+    val mainBillEntries = entriesForMainBills(entries, ledgers)
+
+    val updateStoredEntry: (Entry) -> Unit = { updatedEntry ->
+        val updatedEntries = updateEntry(entries, updatedEntry)
+        entries.clear()
+        entries.addAll(updatedEntries)
+        store.saveEntries(entries)
+    }
+    val deleteStoredEntry: (Entry) -> Unit = { entry ->
+        val updatedEntries = deleteEntry(entries, entry.id)
+        entries.clear()
+        entries.addAll(updatedEntries)
+        store.saveEntries(entries)
+    }
 
     BackHandler(enabled = page != AppPage.DETAILS) {
         page = when (page) {
-            AppPage.ADD -> addReturnPage
+            AppPage.ADD_ENTRY -> addReturnPage
+            AppPage.ADD_LEDGER -> AppPage.DETAILS
+            AppPage.LEDGER_DETAILS -> AppPage.DETAILS
             AppPage.CATEGORIES -> AppPage.DETAILS
             AppPage.TITLE_BAR_STYLE -> AppPage.DETAILS
             AppPage.DETAILS -> AppPage.DETAILS
@@ -463,86 +533,111 @@ private fun LedgerApp(
 
     Surface(Modifier.fillMaxSize(), color = Bg) {
         Box(Modifier.fillMaxSize()) {
-            when (page) {
-            AppPage.DETAILS, AppPage.ADD -> DetailsScreen(
-                entries = entries,
-                expenseCategories = expenses,
-                incomeCategories = incomes,
-                titleBarStyle = selectedTitleBarStyle,
-                selectedSection = selectedSection,
-                onSectionSelected = { selectedSection = it },
-                onAdd = {
-                    addReturnPage = AppPage.DETAILS
-                    addInitialDate = initialDateForNewEntry(entries)
-                    page = AppPage.ADD
-                },
-                onManageCategories = { page = AppPage.CATEGORIES },
-                onTitleBarStyle = { page = AppPage.TITLE_BAR_STYLE },
-                addButtonXFraction = addButtonXFraction,
-                addButtonYFraction = addButtonYFraction,
-                onAddButtonPositionChange = { xFraction, yFraction ->
-                    addButtonXFraction = xFraction
-                    addButtonYFraction = yFraction
-                },
-                onUpdateEntry = { updatedEntry ->
-                    val updatedEntries = updateEntry(entries, updatedEntry)
-                    entries.clear()
-                    entries.addAll(updatedEntries)
-                    store.saveEntries(entries)
-                },
-                onDeleteEntry = { entry ->
-                    val updatedEntries = deleteEntry(entries, entry.id)
-                    entries.clear()
-                    entries.addAll(updatedEntries)
-                    store.saveEntries(entries)
-                },
-            )
-            AppPage.TITLE_BAR_STYLE -> TitleBarStyleScreen(
-                selectedStyle = selectedTitleBarStyle,
-                onStyleSelected = onTitleBarStyleSelected,
-            )
-            AppPage.CATEGORIES -> CategoryOverviewScreen(
-                expenseCategories = expenses,
-                incomeCategories = incomes,
-                onNewCategory = { kind, category ->
-                    val target = if (kind == "支出") expenses else incomes
-                    val updatedCategories = ensureUncategorizedCategory(target + category)
-                    target.clear()
-                    target.addAll(updatedCategories)
-                    store.saveCategories(kind, updatedCategories)
-                },
-                onEditCategory = { kind, current, updated ->
-                    val target = if (kind == "支出") expenses else incomes
-                    val categoryIndex = target.indexOf(current)
-                    if (categoryIndex >= 0) {
-                        val safeUpdated = if (current.name == UncategorizedName) {
-                            updated.copy(name = UncategorizedName)
-                        } else updated
-                        target[categoryIndex] = safeUpdated
-                        store.saveCategories(kind, target)
-                        val updatedEntries = updateEntriesCategory(entries, kind, current.name, safeUpdated.name)
-                        entries.clear()
-                        entries.addAll(updatedEntries)
-                        store.saveEntries(entries)
-                    }
-                },
-                onDeleteCategory = { kind, category ->
-                    val target = if (kind == "支出") expenses else incomes
-                    if (category.name != UncategorizedName && target.remove(category)) {
-                        val updatedEntries = updateEntriesCategory(entries, kind, category.name, UncategorizedName)
-                        entries.clear()
-                        entries.addAll(updatedEntries)
-                        store.saveCategories(kind, target)
-                        store.saveEntries(entries)
-                    }
-                },
-            )
+            val showLedgerDetail = page == AppPage.LEDGER_DETAILS ||
+                page == AppPage.ADD_ENTRY && addReturnPage == AppPage.LEDGER_DETAILS
+            when {
+                showLedgerDetail && selectedLedger != null -> LedgerDetailScreen(
+                    ledger = selectedLedger,
+                    entries = entries.filter { it.ledgerId == selectedLedger.id },
+                    expenseCategories = expenses,
+                    incomeCategories = incomes,
+                    onBack = { page = AppPage.DETAILS },
+                    onAdd = {
+                        addReturnPage = AppPage.LEDGER_DETAILS
+                        addEntryLedgerId = selectedLedger.id
+                        addInitialDate = initialDateForNewEntry(entries.filter { it.ledgerId == selectedLedger.id })
+                        page = AppPage.ADD_ENTRY
+                    },
+                    addButtonXFraction = addButtonXFraction,
+                    addButtonYFraction = addButtonYFraction,
+                    onAddButtonPositionChange = { xFraction, yFraction ->
+                        addButtonXFraction = xFraction
+                        addButtonYFraction = yFraction
+                    },
+                    onUpdateEntry = updateStoredEntry,
+                    onDeleteEntry = deleteStoredEntry,
+                )
+                page == AppPage.DETAILS || page == AppPage.ADD_ENTRY || page == AppPage.ADD_LEDGER -> DetailsScreen(
+                    entries = mainBillEntries,
+                    allEntries = entries,
+                    ledgers = ledgers,
+                    expenseCategories = expenses,
+                    incomeCategories = incomes,
+                    titleBarStyle = selectedTitleBarStyle,
+                    selectedSection = selectedSection,
+                    onSectionSelected = { selectedSection = it },
+                    onAddEntry = {
+                        addReturnPage = AppPage.DETAILS
+                        addEntryLedgerId = null
+                        addInitialDate = initialDateForNewEntry(mainBillEntries)
+                        page = AppPage.ADD_ENTRY
+                    },
+                    onAddLedger = {
+                        addLedgerInitialDate = System.currentTimeMillis()
+                        page = AppPage.ADD_LEDGER
+                    },
+                    onOpenLedger = { ledger ->
+                        selectedLedgerId = ledger.id
+                        page = AppPage.LEDGER_DETAILS
+                    },
+                    onManageCategories = { page = AppPage.CATEGORIES },
+                    onTitleBarStyle = { page = AppPage.TITLE_BAR_STYLE },
+                    addButtonXFraction = addButtonXFraction,
+                    addButtonYFraction = addButtonYFraction,
+                    onAddButtonPositionChange = { xFraction, yFraction ->
+                        addButtonXFraction = xFraction
+                        addButtonYFraction = yFraction
+                    },
+                    onUpdateEntry = updateStoredEntry,
+                    onDeleteEntry = deleteStoredEntry,
+                )
+                page == AppPage.TITLE_BAR_STYLE -> TitleBarStyleScreen(
+                    selectedStyle = selectedTitleBarStyle,
+                    onStyleSelected = onTitleBarStyleSelected,
+                )
+                page == AppPage.CATEGORIES -> CategoryOverviewScreen(
+                    expenseCategories = expenses,
+                    incomeCategories = incomes,
+                    onNewCategory = { kind, category ->
+                        val target = if (kind == "支出") expenses else incomes
+                        val updatedCategories = ensureUncategorizedCategory(target + category)
+                        target.clear()
+                        target.addAll(updatedCategories)
+                        store.saveCategories(kind, updatedCategories)
+                    },
+                    onEditCategory = { kind, current, updated ->
+                        val target = if (kind == "支出") expenses else incomes
+                        val categoryIndex = target.indexOf(current)
+                        if (categoryIndex >= 0) {
+                            val safeUpdated = if (current.name == UncategorizedName) {
+                                updated.copy(name = UncategorizedName)
+                            } else updated
+                            target[categoryIndex] = safeUpdated
+                            store.saveCategories(kind, target)
+                            val updatedEntries = updateEntriesCategory(entries, kind, current.name, safeUpdated.name)
+                            entries.clear()
+                            entries.addAll(updatedEntries)
+                            store.saveEntries(entries)
+                        }
+                    },
+                    onDeleteCategory = { kind, category ->
+                        val target = if (kind == "支出") expenses else incomes
+                        if (category.name != UncategorizedName && target.remove(category)) {
+                            val updatedEntries = updateEntriesCategory(entries, kind, category.name, UncategorizedName)
+                            entries.clear()
+                            entries.addAll(updatedEntries)
+                            store.saveCategories(kind, target)
+                            store.saveEntries(entries)
+                        }
+                    },
+                )
             }
-            if (page == AppPage.ADD) {
+            if (page == AppPage.ADD_ENTRY) {
                 AddScreen(
                     expenseCategories = expenses,
                     incomeCategories = incomes,
                     initialDate = addInitialDate,
+                    ledgerId = addEntryLedgerId,
                     onDismiss = { page = addReturnPage },
                     onEditCategoryIcon = { kind, current, updated ->
                         val target = if (kind == "支出") expenses else incomes
@@ -555,6 +650,19 @@ private fun LedgerApp(
                     onSave = {
                         entries.add(it)
                         store.saveEntries(entries)
+                        page = addReturnPage
+                    },
+                )
+            }
+            if (page == AppPage.ADD_LEDGER) {
+                LedgerEditorDialog(
+                    existingNames = ledgers.map { it.name },
+                    initialDate = addLedgerInitialDate,
+                    onDismiss = { page = AppPage.DETAILS },
+                    onSave = { ledger ->
+                        ledgers.add(ledger)
+                        store.saveLedgers(ledgers)
+                        selectedSection = DetailsSection.LEDGER
                         page = AppPage.DETAILS
                     },
                 )
@@ -566,12 +674,16 @@ private fun LedgerApp(
 @Composable
 private fun DetailsScreen(
     entries: List<Entry>,
+    allEntries: List<Entry>,
+    ledgers: List<LedgerBook>,
     expenseCategories: List<LedgerCategory>,
     incomeCategories: List<LedgerCategory>,
     titleBarStyle: TitleBarStyle,
     selectedSection: DetailsSection,
     onSectionSelected: (DetailsSection) -> Unit,
-    onAdd: () -> Unit,
+    onAddEntry: () -> Unit,
+    onAddLedger: () -> Unit,
+    onOpenLedger: (LedgerBook) -> Unit,
     onManageCategories: () -> Unit,
     onTitleBarStyle: () -> Unit,
     addButtonXFraction: Float,
@@ -690,6 +802,13 @@ private fun DetailsScreen(
                     onManageCategories = onManageCategories,
                     onTitleBarStyle = onTitleBarStyle,
                 )
+            } else if (selectedSection == DetailsSection.LEDGER) {
+                LedgerListContent(
+                    modifier = Modifier.weight(1f),
+                    ledgers = ledgers,
+                    entries = allEntries,
+                    onOpenLedger = onOpenLedger,
+                )
             } else if (selectedSection != DetailsSection.BILLS) {
                 Spacer(Modifier.weight(1f))
             } else if (entries.isEmpty()) {
@@ -741,9 +860,9 @@ private fun DetailsScreen(
                 }
             }
         }
-        if (selectedSection == DetailsSection.BILLS) {
+        if (selectedSection == DetailsSection.BILLS || selectedSection == DetailsSection.LEDGER) {
             FloatingActionButton(
-                onClick = onAdd,
+                onClick = if (selectedSection == DetailsSection.BILLS) onAddEntry else onAddLedger,
                 modifier = Modifier
                     .offset { IntOffset(addButtonX.roundToInt(), addButtonY.roundToInt()) }
                     .size(addButtonSize)
@@ -834,6 +953,472 @@ private fun DetailsScreen(
                 entryFilter = updatedFilter
                 showEntryFilter = false
                 revealedEntryId = null
+            },
+        )
+    }
+}
+
+@Composable
+private fun LedgerListContent(
+    ledgers: List<LedgerBook>,
+    entries: List<Entry>,
+    onOpenLedger: (LedgerBook) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (ledgers.isEmpty()) {
+        Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("📒", fontSize = 52.sp)
+                Spacer(Modifier.height(8.dp))
+                Text("还没有账本", fontSize = 18.sp, color = Muted)
+                Text("点击右下角“＋”添加第一个账本", color = Color(0xFFAAADB3))
+            }
+        }
+    } else {
+        LazyColumn(
+            modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            contentPadding = PaddingValues(top = 12.dp, bottom = 92.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            items(ledgers.sortedByDescending { it.date }, key = { it.id }) { ledger ->
+                LedgerCard(
+                    ledger = ledger,
+                    entryCount = entries.count { it.ledgerId == ledger.id },
+                    onClick = { onOpenLedger(ledger) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LedgerCard(
+    ledger: LedgerBook,
+    entryCount: Int,
+    onClick: () -> Unit,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val colorTheme = LocalColorTheme.current
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable(
+            interactionSource = interactionSource,
+            indication = null,
+            onClick = onClick,
+        ),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        shape = RoundedCornerShape(16.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier.size(52.dp).background(colorTheme.softAccent, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(ledger.symbol, fontSize = 30.sp)
+            }
+            Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
+                Text(
+                    ledger.name,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Ink,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(3.dp))
+                Text(day(ledger.date), fontSize = 12.sp, color = Muted)
+                if (ledger.note.isNotBlank()) {
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        ledger.note,
+                        fontSize = 12.sp,
+                        color = colorTheme.accentDark,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    if (ledger.includeInBills) "账单合入总账单" else "账单仅在本账本显示",
+                    fontSize = 11.sp,
+                    color = if (ledger.includeInBills) IncomeAmountGreen else Muted,
+                )
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text("${entryCount}笔", fontSize = 13.sp, color = Muted)
+                Text("›", fontSize = 28.sp, color = Muted)
+            }
+        }
+    }
+}
+
+@Composable
+private fun LedgerDetailScreen(
+    ledger: LedgerBook,
+    entries: List<Entry>,
+    expenseCategories: List<LedgerCategory>,
+    incomeCategories: List<LedgerCategory>,
+    onBack: () -> Unit,
+    onAdd: () -> Unit,
+    addButtonXFraction: Float,
+    addButtonYFraction: Float,
+    onAddButtonPositionChange: (Float, Float) -> Unit,
+    onUpdateEntry: (Entry) -> Unit,
+    onDeleteEntry: (Entry) -> Unit,
+) {
+    var actionEntry by remember { mutableStateOf<Entry?>(null) }
+    var editingEntry by remember { mutableStateOf<Entry?>(null) }
+    var deleteEntryRequest by remember { mutableStateOf<Entry?>(null) }
+    var revealedEntryId by remember { mutableStateOf<String?>(null) }
+    val dayGroups = groupEntriesByDay(entries)
+    val density = LocalDensity.current
+    val fixedPrimaryDark = colorResource(R.color.theme_primary_dark)
+
+    BackHandler(onBack = onBack)
+
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val addButtonSize = 52.dp
+        val edgePadding = 20.dp
+        val addButtonSizePx = with(density) { addButtonSize.toPx() }
+        val edgePaddingPx = with(density) { edgePadding.toPx() }
+        val minimumX = edgePaddingPx
+        val maximumX = (constraints.maxWidth - addButtonSizePx - edgePaddingPx).coerceAtLeast(minimumX)
+        val minimumY = WindowInsets.statusBars.getTop(density) + edgePaddingPx
+        val maximumY = (
+            constraints.maxHeight -
+                WindowInsets.navigationBars.getBottom(density) -
+                addButtonSizePx -
+                edgePaddingPx
+            ).coerceAtLeast(minimumY)
+        val addButtonX = minimumX + (maximumX - minimumX) * addButtonXFraction.coerceIn(0f, 1f)
+        val addButtonY = minimumY + (maximumY - minimumY) * addButtonYFraction.coerceIn(0f, 1f)
+        val currentAddButtonX by rememberUpdatedState(addButtonX)
+        val currentAddButtonY by rememberUpdatedState(addButtonY)
+
+        Column(Modifier.fillMaxSize().statusBarsPadding()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TextButton(
+                    onClick = onBack,
+                    modifier = Modifier.size(48.dp),
+                    contentPadding = PaddingValues(0.dp),
+                ) {
+                    Text("‹", fontSize = 36.sp, color = Ink, lineHeight = 36.sp)
+                }
+                Text(ledger.symbol, fontSize = 29.sp)
+                Column(Modifier.weight(1f).padding(start = 10.dp)) {
+                    Text(
+                        ledger.name,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Ink,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text("账本账单", fontSize = 12.sp, color = Muted)
+                }
+            }
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                shape = RoundedCornerShape(16.dp),
+            ) {
+                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(day(ledger.date), fontSize = 13.sp, color = Muted)
+                        Spacer(Modifier.weight(1f))
+                        Text(
+                            if (ledger.includeInBills) "已合入总账单" else "独立账本",
+                            fontSize = 12.sp,
+                            color = if (ledger.includeInBills) IncomeAmountGreen else Muted,
+                        )
+                    }
+                    if (ledger.note.isNotBlank()) {
+                        Spacer(Modifier.height(6.dp))
+                        Text(ledger.note, fontSize = 13.sp, color = Ink)
+                    }
+                }
+            }
+            if (entries.isEmpty()) {
+                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("🧾", fontSize = 52.sp)
+                        Spacer(Modifier.height(8.dp))
+                        Text("账本中还没有账单", fontSize = 18.sp, color = Muted)
+                        Text("点击右下角“＋”添加第一笔记录", color = Color(0xFFAAADB3))
+                    }
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.weight(1f).padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    contentPadding = PaddingValues(top = 12.dp, bottom = 92.dp),
+                ) {
+                    dayGroups.forEach { dayGroup ->
+                        item(key = "ledger-day-${dayGroup.year}-${dayGroup.month}-${dayGroup.day}") {
+                            EntryDayHeader(dayGroup.month, dayGroup.day)
+                        }
+                        items(dayGroup.entries, key = { it.id }) { entry ->
+                            val categories = if (entry.kind == "收入") incomeCategories else expenseCategories
+                            val symbol = categories.firstOrNull { it.name == entry.category }?.symbol
+                                ?: defaultIcon(entry.category)
+                            EntryCard(
+                                entry = entry,
+                                symbol = symbol,
+                                revealed = revealedEntryId == entry.id,
+                                onRevealChange = { reveal -> revealedEntryId = if (reveal) entry.id else null },
+                                onLongClick = {
+                                    revealedEntryId = null
+                                    actionEntry = entry
+                                },
+                                onDeleteClick = { deleteEntryRequest = entry },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        FloatingActionButton(
+            onClick = onAdd,
+            modifier = Modifier
+                .offset { IntOffset(addButtonX.roundToInt(), addButtonY.roundToInt()) }
+                .size(addButtonSize)
+                .pointerInput(minimumX, maximumX, minimumY, maximumY) {
+                    var dragX = currentAddButtonX
+                    var dragY = currentAddButtonY
+                    detectDragGestures(
+                        onDragStart = {
+                            dragX = currentAddButtonX
+                            dragY = currentAddButtonY
+                        },
+                        onDrag = { _, dragAmount ->
+                            dragX = (dragX + dragAmount.x).coerceIn(minimumX, maximumX)
+                            dragY = (dragY + dragAmount.y).coerceIn(minimumY, maximumY)
+                            val xFraction = if (maximumX == minimumX) 0f else {
+                                (dragX - minimumX) / (maximumX - minimumX)
+                            }
+                            val yFraction = if (maximumY == minimumY) 0f else {
+                                (dragY - minimumY) / (maximumY - minimumY)
+                            }
+                            onAddButtonPositionChange(xFraction, yFraction)
+                        },
+                    )
+                },
+            shape = RoundedCornerShape(15.dp),
+            containerColor = fixedPrimaryDark,
+            contentColor = Color.White,
+            elevation = FloatingActionButtonDefaults.elevation(
+                defaultElevation = 5.dp,
+                pressedElevation = 7.dp,
+            ),
+        ) {
+            Text("+", fontSize = 34.sp, fontWeight = FontWeight.Normal)
+        }
+    }
+
+    actionEntry?.let { entry ->
+        EntryActionDialog(
+            entry = entry,
+            dismiss = { actionEntry = null },
+            onEdit = {
+                actionEntry = null
+                editingEntry = entry
+            },
+        )
+    }
+    editingEntry?.let { entry ->
+        val categories = if (entry.kind == "收入") incomeCategories else expenseCategories
+        EntryEditDialog(
+            entry = entry,
+            categories = categories,
+            dismiss = { editingEntry = null },
+            confirm = { updatedEntry ->
+                onUpdateEntry(updatedEntry)
+                editingEntry = null
+            },
+        )
+    }
+    deleteEntryRequest?.let { entry ->
+        DeleteEntryDialog(
+            entry = entry,
+            dismiss = {
+                deleteEntryRequest = null
+                revealedEntryId = null
+            },
+            confirm = {
+                onDeleteEntry(entry)
+                deleteEntryRequest = null
+                revealedEntryId = null
+            },
+        )
+    }
+}
+
+@Composable
+private fun LedgerEditorDialog(
+    existingNames: List<String>,
+    initialDate: Long,
+    onDismiss: () -> Unit,
+    onSave: (LedgerBook) -> Unit,
+) {
+    var selectedIcon by remember { mutableStateOf<String?>(null) }
+    var name by remember { mutableStateOf("") }
+    var date by remember(initialDate) { mutableLongStateOf(initialDate) }
+    var note by remember { mutableStateOf("") }
+    var includeInBills by remember { mutableStateOf(true) }
+    var showDatePicker by remember { mutableStateOf(false) }
+    val dateInteractionSource = remember { MutableInteractionSource() }
+    val fixedPrimaryDark = colorResource(R.color.theme_primary_dark)
+    val fieldBorder = Color(0xFF7A7D83)
+    val fieldColors = OutlinedTextFieldDefaults.colors(
+        focusedTextColor = Ink,
+        unfocusedTextColor = Ink,
+        cursorColor = Ink,
+        focusedBorderColor = fieldBorder,
+        unfocusedBorderColor = fieldBorder,
+        focusedLabelColor = Muted,
+        unfocusedLabelColor = Muted,
+    )
+    val normalizedName = name.trim()
+    val canSave = selectedIcon != null && normalizedName.isNotEmpty() && normalizedName !in existingNames
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth(BookkeepingDialogWidthFraction)
+                .fillMaxHeight(0.88f),
+            shape = RoundedCornerShape(28.dp),
+            color = Bg,
+            shadowElevation = 10.dp,
+        ) {
+            Column(Modifier.padding(24.dp)) {
+                Text("新增账本", fontSize = 24.sp, fontWeight = FontWeight.Medium, color = Ink)
+                Spacer(Modifier.height(18.dp))
+                Column(
+                    modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+                ) {
+                    Text("选择图标", fontWeight = FontWeight.Medium, color = Ink)
+                    Spacer(Modifier.height(8.dp))
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(4),
+                        modifier = Modifier.fillMaxWidth().height(196.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        items(ledgerIcons.size) { index ->
+                            val symbol = ledgerIcons[index]
+                            IconChoice(symbol, selectedIcon == symbol) { selectedIcon = symbol }
+                        }
+                    }
+                    Spacer(Modifier.height(14.dp))
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = { if (it.length <= 20) name = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("账本名称") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        colors = fieldColors,
+                    )
+                    Spacer(Modifier.height(14.dp))
+                    Box(
+                        Modifier.fillMaxWidth().clickable(
+                            interactionSource = dateInteractionSource,
+                            indication = null,
+                        ) { showDatePicker = true },
+                    ) {
+                        OutlinedTextField(
+                            value = day(date),
+                            onValueChange = {},
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = false,
+                            label = { Text("日期") },
+                            trailingIcon = { Text("选择") },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                disabledTextColor = Ink,
+                                disabledBorderColor = Color(0xFFB9BBC0),
+                                disabledLabelColor = Muted,
+                                disabledTrailingIconColor = Ink,
+                                disabledContainerColor = Color.Transparent,
+                            ),
+                        )
+                    }
+                    Spacer(Modifier.height(14.dp))
+                    OutlinedTextField(
+                        value = note,
+                        onValueChange = { if (it.length <= 100) note = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("备注信息") },
+                        maxLines = 3,
+                        shape = RoundedCornerShape(14.dp),
+                        colors = fieldColors,
+                    )
+                    Spacer(Modifier.height(14.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color.White, RoundedCornerShape(14.dp))
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text("合入账单", fontSize = 16.sp, fontWeight = FontWeight.Medium, color = Ink)
+                            Text("账本内账单同时显示在总账单中", fontSize = 12.sp, color = Muted)
+                        }
+                        Switch(
+                            checked = includeInBills,
+                            onCheckedChange = { includeInBills = it },
+                        )
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    TextButton(
+                        onClick = onDismiss,
+                        colors = ButtonDefaults.textButtonColors(contentColor = fixedPrimaryDark),
+                    ) { Text("取消") }
+                    TextButton(
+                        onClick = {
+                            onSave(
+                                LedgerBook(
+                                    id = UUID.randomUUID().toString(),
+                                    symbol = selectedIcon!!,
+                                    name = normalizedName,
+                                    date = date,
+                                    note = note.trim(),
+                                    includeInBills = includeInBills,
+                                ),
+                            )
+                        },
+                        enabled = canSave,
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = fixedPrimaryDark,
+                            disabledContentColor = Muted.copy(alpha = 0.38f),
+                        ),
+                    ) { Text("添加") }
+                }
+            }
+        }
+    }
+    if (showDatePicker) {
+        MoneyLogDatePickerDialog(
+            initialMillis = date,
+            onDismiss = { showDatePicker = false },
+            onDateSelected = {
+                date = it
+                showDatePicker = false
             },
         )
     }
@@ -2245,6 +2830,7 @@ private fun AddScreen(
     expenseCategories: List<LedgerCategory>,
     incomeCategories: List<LedgerCategory>,
     initialDate: Long,
+    ledgerId: String?,
     onDismiss: () -> Unit,
     onEditCategoryIcon: (String, LedgerCategory, LedgerCategory) -> Unit,
     onSave: (Entry) -> Unit,
@@ -2355,7 +2941,17 @@ private fun AddScreen(
                 invalid = false
             },
             onSave = { value ->
-                onSave(Entry(UUID.randomUUID().toString(), kind, selectedCategory.name, value, date, note.trim()))
+                onSave(
+                    Entry(
+                        id = UUID.randomUUID().toString(),
+                        kind = kind,
+                        category = selectedCategory.name,
+                        amount = value,
+                        date = date,
+                        note = note.trim(),
+                        ledgerId = ledgerId,
+                    ),
+                )
             },
         )
     }
@@ -3398,6 +3994,12 @@ private fun MoneyLogDatePickerDialog(
     }
 }
 private fun defaultIcon(value: String) = legacyDefaultIcons[value] ?: "◉"
+internal fun entriesForMainBills(entries: List<Entry>, ledgers: List<LedgerBook>): List<Entry> {
+    val ledgerVisibility = ledgers.associate { it.id to it.includeInBills }
+    return entries.filter { entry ->
+        entry.ledgerId == null || ledgerVisibility[entry.ledgerId] != false
+    }
+}
 internal fun updateEntriesCategory(
     entries: List<Entry>,
     kind: String,
