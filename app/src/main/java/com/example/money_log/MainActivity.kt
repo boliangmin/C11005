@@ -1121,7 +1121,7 @@ private fun LedgerActionDialog(
                     symbol = "",
                     title = "修改账本",
                     subtitle = "修改图标、名称、日期和备注",
-                    iconResource = R.drawable.ic_edit_bill_color,
+                    iconResource = R.drawable.ic_edit_ledger_color,
                     iconBackgroundColor = Color.Transparent,
                     preserveIconColors = true,
                     expandIconToBackground = true,
@@ -1132,7 +1132,10 @@ private fun LedgerActionDialog(
                     symbol = "",
                     title = "账单合入选择",
                     subtitle = if (ledger.includeInBills) "当前：合入总账单" else "当前：仅在本账本显示",
-                    iconResource = R.drawable.ic_bill_outline,
+                    iconResource = R.drawable.ic_merge_bills_color,
+                    iconBackgroundColor = Color.Transparent,
+                    preserveIconColors = true,
+                    expandIconToBackground = true,
                     onClick = onMergeSelection,
                 )
             }
@@ -1162,14 +1165,16 @@ private fun LedgerMergeDialog(
         title = { Text("账单合入选择") },
         text = {
             Column {
-                FilterModeOption(
+                LedgerMergeOption(
+                    iconResource = R.drawable.ic_merge_bills_color,
                     title = "合入总账单",
                     subtitle = "账本内账单会同时显示在总账单中",
                     selected = includeInBills,
                     onClick = { includeInBills = true },
                 )
                 Spacer(Modifier.height(8.dp))
-                FilterModeOption(
+                LedgerMergeOption(
+                    iconResource = R.drawable.ic_separate_bills_color,
                     title = "仅在本账本显示",
                     subtitle = "账本内账单不会显示在总账单中",
                     selected = !includeInBills,
@@ -1194,6 +1199,49 @@ private fun LedgerMergeDialog(
             ) { Text("取消") }
         },
     )
+}
+
+@Composable
+private fun LedgerMergeOption(
+    iconResource: Int,
+    title: String,
+    subtitle: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val colorTheme = LocalColorTheme.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(if (selected) colorTheme.softAccent else Bg, RoundedCornerShape(14.dp))
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier.size(42.dp).background(Color.White, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painter = painterResource(iconResource),
+                contentDescription = null,
+                modifier = Modifier.size(30.dp),
+                tint = Color.Unspecified,
+            )
+        }
+        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+            Text(title, fontSize = 16.sp, fontWeight = FontWeight.Medium, color = Ink)
+            Spacer(Modifier.height(2.dp))
+            Text(subtitle, fontSize = 12.sp, color = Muted)
+        }
+        Text(
+            text = if (selected) "✓" else "",
+            fontSize = 23.sp,
+            fontWeight = FontWeight.Bold,
+            color = colorTheme.accentDark,
+        )
+    }
 }
 
 @Composable
