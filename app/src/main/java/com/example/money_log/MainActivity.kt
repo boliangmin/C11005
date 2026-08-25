@@ -110,10 +110,10 @@ private val EditCategorySelectedGreen = Color(0xFFC8E6C9)
 private val SelectionBlue = Color(0xFF315F9F)
 private val SelectionBlueContainer = Color(0xFFEEF5FF)
 private val AnnualDashboardGradientColors = listOf(
-    Color(0xFF00B8D9),
-    Color(0xFF4361EE),
-    Color(0xFF8A4FFF),
-    Color(0xFFFF4D8D),
+    Color(0xFF00796B),
+    Color(0xFF00838F),
+    Color(0xFF1565C0),
+    Color(0xFF512DA8),
 )
 private const val GoldenRatio = 1.618f
 private const val BookkeepingDialogWidthFraction = 0.8f
