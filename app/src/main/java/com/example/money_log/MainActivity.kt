@@ -244,6 +244,13 @@ internal data class MonthlyBillStatistics(
 ) {
     val balance: Double get() = incomeTotal - expenseTotal
 }
+internal data class AnnualBillStatistics(
+    val year: Int,
+    val expenseTotal: Double,
+    val incomeTotal: Double,
+) {
+    val balance: Double get() = incomeTotal - expenseTotal
+}
 internal data class CategoryExpenseStatistics(
     val category: String,
     val amount: Double,
@@ -462,6 +469,9 @@ private fun LedgerApp(
     var selectedSection by remember { mutableStateOf(DetailsSection.BILLS) }
     var selectedLedgerId by remember { mutableStateOf<String?>(null) }
     var selectedMonthlyStatistics by remember { mutableStateOf<MonthlyBillStatistics?>(null) }
+    var selectedStatisticsYear by remember {
+        mutableIntStateOf(Calendar.getInstance()[Calendar.YEAR].coerceIn(2000, 2099))
+    }
     val selectedLedger = ledgers.firstOrNull { it.id == selectedLedgerId }
     val mainBillEntries = entriesForMainBills(entries, ledgers)
 
@@ -562,6 +572,8 @@ private fun LedgerApp(
                 )
                 page == AppPage.MONTHLY_STATISTICS -> MonthlyBillStatisticsScreen(
                     entries = mainBillEntries,
+                    selectedYear = selectedStatisticsYear,
+                    onYearSelected = { year -> selectedStatisticsYear = year },
                     onMonthSelected = { statistics ->
                         selectedMonthlyStatistics = statistics
                         page = AppPage.MONTHLY_STATISTICS_DETAIL
@@ -2193,33 +2205,213 @@ private fun StatisticsContent(
 @Composable
 private fun MonthlyBillStatisticsScreen(
     entries: List<Entry>,
+    selectedYear: Int,
+    onYearSelected: (Int) -> Unit,
     onMonthSelected: (MonthlyBillStatistics) -> Unit,
 ) {
-    val monthlyStatistics = remember(entries) { calculateMonthlyBillStatistics(entries) }
+    var showYearPicker by remember { mutableStateOf(false) }
+    val annualStatistics = remember(entries, selectedYear) {
+        calculateAnnualBillStatistics(entries = entries, year = selectedYear)
+    }
+    val monthlyStatistics = remember(entries, selectedYear) {
+        calculateMonthlyBillStatistics(entries).filter { statistics -> statistics.year == selectedYear }
+    }
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
-        if (monthlyStatistics.isEmpty()) {
-            Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("📊", fontSize = 52.sp)
-                    Spacer(Modifier.height(8.dp))
-                    Text("暂无可统计账单", fontSize = 18.sp, color = Muted)
-                    Text("添加账单后将在这里按月汇总", color = Color(0xFFAAADB3))
-                }
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            item(key = "annual-$selectedYear") {
+                AnnualBillStatisticsCard(
+                    statistics = annualStatistics,
+                    onYearClick = { showYearPicker = true },
+                )
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxWidth().weight(1f),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
+            if (monthlyStatistics.isEmpty()) {
+                item(key = "empty-$selectedYear") {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 64.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text("📊", fontSize = 52.sp)
+                        Spacer(Modifier.height(8.dp))
+                        Text("${selectedYear}年暂无可统计账单", fontSize = 18.sp, color = Muted)
+                        Text("添加账单后将在这里按月汇总", color = Color(0xFFAAADB3))
+                    }
+                }
+            } else {
                 items(
                     items = monthlyStatistics,
                     key = { statistics -> "${statistics.year}-${statistics.month}" },
                 ) { statistics ->
                     MonthlyBillStatisticsCard(
                         statistics = statistics,
+                        showYear = false,
                         onClick = { onMonthSelected(statistics) },
                     )
+                }
+            }
+        }
+    }
+    if (showYearPicker) {
+        StatisticsYearPickerDialog(
+            selectedYear = selectedYear,
+            onDismiss = { showYearPicker = false },
+            onYearSelected = { year ->
+                onYearSelected(year)
+                showYearPicker = false
+            },
+        )
+    }
+}
+
+@Composable
+private fun AnnualBillStatisticsCard(
+    statistics: AnnualBillStatistics,
+    onYearClick: () -> Unit,
+) {
+    val balanceColor = when {
+        statistics.balance > 0 -> IncomeAmountGreen
+        statistics.balance < 0 -> Danger
+        else -> Ink
+    }
+    val balanceText = if (statistics.balance < 0) {
+        "−¥${money(kotlin.math.abs(statistics.balance))}"
+    } else {
+        "¥${money(statistics.balance)}"
+    }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        shape = RoundedCornerShape(16.dp),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(10.dp))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onYearClick,
+                    )
+                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "${statistics.year}年",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Ink,
+                )
+                Spacer(Modifier.width(8.dp))
+                Icon(
+                    painter = painterResource(R.drawable.ic_keyboard_arrow_down),
+                    contentDescription = "选择年份",
+                    modifier = Modifier.size(width = 16.5.dp, height = 8.5.dp),
+                    tint = SelectionBlue,
+                )
+            }
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 14.dp),
+                color = Color(0xFFE8E9EB),
+            )
+            Row(Modifier.fillMaxWidth()) {
+                MonthlyBillStatisticsValue(
+                    label = "总支出",
+                    value = "¥${money(statistics.expenseTotal)}",
+                    valueColor = Ink,
+                    modifier = Modifier.weight(1f),
+                )
+                MonthlyBillStatisticsValue(
+                    label = "总收入",
+                    value = "¥${money(statistics.incomeTotal)}",
+                    valueColor = IncomeAmountGreen,
+                    modifier = Modifier.weight(1f),
+                )
+                MonthlyBillStatisticsValue(
+                    label = "总结余",
+                    value = balanceText,
+                    valueColor = balanceColor,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatisticsYearPickerDialog(
+    selectedYear: Int,
+    onDismiss: () -> Unit,
+    onYearSelected: (Int) -> Unit,
+) {
+    val years = remember { (2000..2099).toList() }
+    val initialIndex = remember(selectedYear) {
+        (selectedYear - years.first() - 2).coerceIn(0, years.lastIndex)
+    }
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = Color.White,
+            shape = RoundedCornerShape(24.dp),
+            shadowElevation = 12.dp,
+        ) {
+            Column(Modifier.padding(20.dp)) {
+                Text(
+                    text = "选择年份",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Ink,
+                )
+                Spacer(Modifier.height(14.dp))
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth().height(280.dp),
+                    state = listState,
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    items(years, key = { year -> year }) { year ->
+                        val selected = year == selectedYear
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (selected) SelectionBlueContainer else Color.Transparent)
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                    onClick = { onYearSelected(year) },
+                                )
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = "${year}年",
+                                modifier = Modifier.weight(1f),
+                                fontSize = 17.sp,
+                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                                color = if (selected) SelectionBlue else Ink,
+                            )
+                            if (selected) {
+                                Text(
+                                    text = "✓",
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = SelectionBlue,
+                                )
+                            }
+                        }
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("取消", color = SelectionBlue)
+                    }
                 }
             }
         }
@@ -2229,6 +2421,7 @@ private fun MonthlyBillStatisticsScreen(
 @Composable
 private fun MonthlyBillStatisticsCard(
     statistics: MonthlyBillStatistics,
+    showYear: Boolean = true,
     onClick: (() -> Unit)? = null,
 ) {
     val balanceColor = when {
@@ -2260,12 +2453,29 @@ private fun MonthlyBillStatisticsCard(
         shape = RoundedCornerShape(16.dp),
     ) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
-            Text(
-                text = "${statistics.year}年${statistics.month}月",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Medium,
-                color = Ink,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = if (showYear) {
+                        "${statistics.year}年${statistics.month}月"
+                    } else {
+                        "${statistics.month}月"
+                    },
+                    modifier = Modifier.weight(1f),
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Ink,
+                )
+                if (onClick != null) {
+                    Text(
+                        text = "›",
+                        fontSize = 26.sp,
+                        color = Muted,
+                    )
+                }
+            }
             HorizontalDivider(
                 modifier = Modifier.padding(vertical = 14.dp),
                 color = Color(0xFFE8E9EB),
@@ -4664,6 +4874,17 @@ internal fun calculateMonthlyBillStatistics(entries: List<Entry>): List<MonthlyB
             incomeTotal = incomeTotal,
         )
     }
+
+internal fun calculateAnnualBillStatistics(entries: List<Entry>, year: Int): AnnualBillStatistics {
+    val annualEntries = entries.filter { entry ->
+        Calendar.getInstance().apply { timeInMillis = entry.date }[Calendar.YEAR] == year
+    }
+    return AnnualBillStatistics(
+        year = year,
+        expenseTotal = annualEntries.filter { entry -> entry.kind == "支出" }.sumOf { entry -> entry.amount },
+        incomeTotal = annualEntries.filter { entry -> entry.kind == "收入" }.sumOf { entry -> entry.amount },
+    )
+}
 
 internal fun calculateMonthlyCategoryExpenseStatistics(
     entries: List<Entry>,
