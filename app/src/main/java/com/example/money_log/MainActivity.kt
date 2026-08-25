@@ -749,7 +749,6 @@ private fun DetailsScreen(
                 LedgerListContent(
                     modifier = Modifier.weight(1f),
                     ledgers = ledgers,
-                    entries = allEntries,
                     onOpenLedger = onOpenLedger,
                     onUpdateLedger = onUpdateLedger,
                 )
@@ -905,7 +904,6 @@ private fun DetailsScreen(
 @Composable
 private fun LedgerListContent(
     ledgers: List<LedgerBook>,
-    entries: List<Entry>,
     onOpenLedger: (LedgerBook) -> Unit,
     onUpdateLedger: (LedgerBook) -> Unit,
     modifier: Modifier = Modifier,
@@ -913,6 +911,17 @@ private fun LedgerListContent(
     var actionLedger by remember { mutableStateOf<LedgerBook?>(null) }
     var editingLedger by remember { mutableStateOf<LedgerBook?>(null) }
     var mergingLedger by remember { mutableStateOf<LedgerBook?>(null) }
+    val ledgerDayGroups = remember(ledgers) {
+        ledgers.sortedByDescending { it.date }.groupBy { ledger ->
+            Calendar.getInstance().apply { timeInMillis = ledger.date }.let { calendar ->
+                Triple(
+                    calendar[Calendar.YEAR],
+                    calendar[Calendar.MONTH] + 1,
+                    calendar[Calendar.DAY_OF_MONTH],
+                )
+            }
+        }
+    }
 
     if (ledgers.isEmpty()) {
         Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -929,13 +938,17 @@ private fun LedgerListContent(
             contentPadding = PaddingValues(top = 12.dp, bottom = 92.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            items(ledgers.sortedByDescending { it.date }, key = { it.id }) { ledger ->
-                LedgerCard(
-                    ledger = ledger,
-                    entryCount = entries.count { it.ledgerId == ledger.id },
-                    onClick = { onOpenLedger(ledger) },
-                    onLongClick = { actionLedger = ledger },
-                )
+            ledgerDayGroups.forEach { (date, dayLedgers) ->
+                item(key = "ledger-${date.first}-${date.second}-${date.third}") {
+                    EntryDayHeader(date.second, date.third)
+                }
+                items(dayLedgers, key = { it.id }) { ledger ->
+                    LedgerCard(
+                        ledger = ledger,
+                        onClick = { onOpenLedger(ledger) },
+                        onLongClick = { actionLedger = ledger },
+                    )
+                }
             }
         }
     }
@@ -981,7 +994,6 @@ private fun LedgerListContent(
 @Composable
 private fun LedgerCard(
     ledger: LedgerBook,
-    entryCount: Int,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
 ) {
@@ -1007,19 +1019,16 @@ private fun LedgerCard(
             ) {
                 Text(ledger.symbol, fontSize = 28.sp)
             }
-            Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
+            Column(Modifier.weight(1f).padding(start = 14.dp)) {
                 Text(
                     ledger.name,
                     fontSize = 17.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = FontWeight.Medium,
                     color = Ink,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Spacer(Modifier.height(3.dp))
-                Text(day(ledger.date), fontSize = 12.sp, color = Muted)
                 if (ledger.note.isNotBlank()) {
-                    Spacer(Modifier.height(2.dp))
                     Text(
                         ledger.note,
                         fontSize = 12.sp,
@@ -1028,17 +1037,8 @@ private fun LedgerCard(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    if (ledger.includeInBills) "账单合入总账单" else "账单仅在本账本显示",
-                    fontSize = 11.sp,
-                    color = if (ledger.includeInBills) AppOnPrimaryContainer else Muted,
-                )
             }
-            Column(horizontalAlignment = Alignment.End) {
-                Text("${entryCount}笔", fontSize = 13.sp, color = Muted)
-                Text("›", fontSize = 28.sp, color = Muted)
-            }
+            Text("›", fontSize = 28.sp, color = Muted)
         }
     }
 }
