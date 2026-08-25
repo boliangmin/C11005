@@ -2260,25 +2260,12 @@ private fun MonthlyBillStatisticsCard(
         shape = RoundedCornerShape(16.dp),
     ) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = "${statistics.year}年${statistics.month}月",
-                    modifier = Modifier.weight(1f),
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Ink,
-                )
-                if (onClick != null) {
-                    Text(
-                        text = "›",
-                        fontSize = 26.sp,
-                        color = Muted,
-                    )
-                }
-            }
+            Text(
+                text = "${statistics.year}年${statistics.month}月",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Medium,
+                color = Ink,
+            )
             HorizontalDivider(
                 modifier = Modifier.padding(vertical = 14.dp),
                 color = Color(0xFFE8E9EB),
@@ -2357,12 +2344,6 @@ private fun MonthlyCategoryExpenseChart(
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Medium,
                 color = Ink,
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = "按支出金额从高到低排列",
-                fontSize = 13.sp,
-                color = Muted,
             )
             Spacer(Modifier.height(16.dp))
             if (statistics.isEmpty()) {
