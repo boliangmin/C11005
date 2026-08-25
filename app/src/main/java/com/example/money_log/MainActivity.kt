@@ -79,7 +79,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -123,7 +122,6 @@ private val AnnualDashboardGradientColors = listOf(
     Color(0xFFAEBFCE),
     Color(0xFFA7D8F5),
 )
-private val MonthlyStatisticsTableHeader = Color(0xFFEAF2F7)
 private const val GoldenRatio = 1.618f
 private const val BookkeepingDialogWidthFraction = 0.8f
 private val CalculatorKeyboardHeight = 340.dp
@@ -2257,10 +2255,13 @@ private fun MonthlyBillStatisticsScreen(
                     }
                 }
             } else {
-                item(key = "monthly-table-$selectedYear") {
-                    MonthlyBillStatisticsTable(
-                        statistics = monthlyStatistics,
-                        onMonthClick = onMonthSelected,
+                items(
+                    items = monthlyStatistics,
+                    key = { statistics -> "${statistics.year}-${statistics.month}" },
+                ) { statistics ->
+                    MonthlyBillStatisticsMonthSection(
+                        statistics = statistics,
+                        onClick = { onMonthSelected(statistics) },
                     )
                 }
             }
@@ -2466,136 +2467,87 @@ private fun StatisticsYearPickerDialog(
 }
 
 @Composable
-private fun MonthlyBillStatisticsTable(
-    statistics: List<MonthlyBillStatistics>,
-    onMonthClick: (MonthlyBillStatistics) -> Unit,
+private fun MonthlyBillStatisticsMonthSection(
+    statistics: MonthlyBillStatistics,
+    onClick: () -> Unit,
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        shape = RoundedCornerShape(16.dp),
-    ) {
-        Column(Modifier.fillMaxWidth()) {
+    val balanceColor = when {
+        statistics.balance > 0 -> IncomeAmountGreen
+        statistics.balance < 0 -> Danger
+        else -> Ink
+    }
+    val balanceText = if (statistics.balance < 0) {
+        "−¥${money(kotlin.math.abs(statistics.balance))}"
+    } else {
+        "¥${money(statistics.balance)}"
+    }
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "${statistics.month}月",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                color = Muted,
+            )
+            Spacer(Modifier.width(12.dp))
+            HorizontalDivider(
+                modifier = Modifier.weight(1f),
+                color = Color(0xFFE1E3E6),
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onClick,
+                ),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+            shape = RoundedCornerShape(16.dp),
+        ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(MonthlyStatisticsTableHeader)
-                    .padding(horizontal = 10.dp, vertical = 11.dp),
+                    .padding(start = 12.dp, end = 10.dp, top = 16.dp, bottom = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                MonthlyBillStatisticsTableCell(
-                    text = "月份",
-                    weight = 0.58f,
-                    textAlign = TextAlign.Start,
-                    color = AnnualDashboardInk.copy(alpha = 0.72f),
+                MonthlyBillStatisticsValue(
+                    label = "支出",
+                    value = "¥${money(statistics.expenseTotal)}",
+                    valueColor = Ink,
+                    modifier = Modifier.weight(1f),
                 )
-                MonthlyBillStatisticsTableCell(
-                    text = "支出",
-                    weight = 0.98f,
-                    color = AnnualDashboardInk.copy(alpha = 0.72f),
+                MonthlyBillStatisticsValue(
+                    label = "收入",
+                    value = "¥${money(statistics.incomeTotal)}",
+                    valueColor = IncomeAmountGreen,
+                    modifier = Modifier.weight(1f),
                 )
-                MonthlyBillStatisticsTableCell(
-                    text = "收入",
-                    weight = 1.17f,
-                    color = AnnualDashboardInk.copy(alpha = 0.72f),
+                MonthlyBillStatisticsValue(
+                    label = "结余",
+                    value = balanceText,
+                    valueColor = balanceColor,
+                    modifier = Modifier.weight(1f),
                 )
-                MonthlyBillStatisticsTableCell(
-                    text = "结余",
-                    weight = 1.17f,
-                    color = AnnualDashboardInk.copy(alpha = 0.72f),
-                )
-                Spacer(Modifier.width(18.dp))
-            }
-            statistics.forEachIndexed { index, item ->
-                if (index > 0) {
-                    HorizontalDivider(
-                        modifier = Modifier.padding(horizontal = 10.dp),
-                        color = Color(0xFFE8E9EB),
-                    )
-                }
-                val balanceColor = when {
-                    item.balance > 0 -> IncomeAmountGreen
-                    item.balance < 0 -> Danger
-                    else -> Ink
-                }
-                val balanceText = if (item.balance < 0) {
-                    "−¥${money(kotlin.math.abs(item.balance))}"
-                } else {
-                    "¥${money(item.balance)}"
-                }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = { onMonthClick(item) },
-                        )
-                        .padding(horizontal = 10.dp, vertical = 15.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                Box(
+                    modifier = Modifier.width(18.dp),
+                    contentAlignment = Alignment.CenterEnd,
                 ) {
-                    MonthlyBillStatisticsTableCell(
-                        text = "${item.month}月",
-                        weight = 0.58f,
-                        textAlign = TextAlign.Start,
-                        color = Ink,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium,
+                    Text(
+                        text = "›",
+                        fontSize = 24.sp,
+                        color = Muted,
                     )
-                    MonthlyBillStatisticsTableCell(
-                        text = "¥${money(item.expenseTotal)}",
-                        weight = 0.98f,
-                        color = Ink,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    MonthlyBillStatisticsTableCell(
-                        text = "¥${money(item.incomeTotal)}",
-                        weight = 1.17f,
-                        color = IncomeAmountGreen,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    MonthlyBillStatisticsTableCell(
-                        text = balanceText,
-                        weight = 1.17f,
-                        color = balanceColor,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Box(
-                        modifier = Modifier.width(18.dp),
-                        contentAlignment = Alignment.CenterEnd,
-                    ) {
-                        Text(
-                            text = "›",
-                            fontSize = 22.sp,
-                            color = Muted,
-                        )
-                    }
                 }
             }
         }
     }
-}
-
-@Composable
-private fun RowScope.MonthlyBillStatisticsTableCell(
-    text: String,
-    weight: Float,
-    color: Color,
-    textAlign: TextAlign = TextAlign.End,
-    fontSize: TextUnit = 12.sp,
-    fontWeight: FontWeight = FontWeight.Normal,
-) {
-    Text(
-        text = text,
-        modifier = Modifier.weight(weight),
-        color = color,
-        fontSize = fontSize,
-        fontWeight = fontWeight,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-        textAlign = textAlign,
-    )
 }
 
 @Composable
