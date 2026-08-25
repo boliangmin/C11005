@@ -583,6 +583,13 @@ private fun LedgerApp(
                     initialDate = addInitialDate,
                     ledgerId = addEntryLedgerId,
                     onDismiss = { page = addReturnPage },
+                    onNewCategory = { kind, category ->
+                        val target = if (kind == "支出") expenses else incomes
+                        val updatedCategories = ensureUncategorizedCategory(target + category)
+                        target.clear()
+                        target.addAll(updatedCategories)
+                        store.saveCategories(kind, updatedCategories)
+                    },
                     onEditCategoryIcon = { kind, current, updated ->
                         val target = if (kind == "支出") expenses else incomes
                         val categoryIndex = target.indexOf(current)
@@ -3125,6 +3132,7 @@ private fun AddScreen(
     initialDate: Long,
     ledgerId: String?,
     onDismiss: () -> Unit,
+    onNewCategory: (String, LedgerCategory) -> Unit,
     onEditCategoryIcon: (String, LedgerCategory, LedgerCategory) -> Unit,
     onSave: (Entry) -> Unit,
 ) {
@@ -3136,6 +3144,7 @@ private fun AddScreen(
     var invalid by remember { mutableStateOf(false) }
     var categoryActionTarget by remember { mutableStateOf<CategoryEditTarget?>(null) }
     var editingIconTarget by remember { mutableStateOf<CategoryEditTarget?>(null) }
+    var addingKind by remember { mutableStateOf<String?>(null) }
     var inputPanelHeight by remember { mutableStateOf(0.dp) }
     val selectedCategory = selected
     val initialPagerPage = remember { (Int.MAX_VALUE / 2).let { it - it % 2 } }
@@ -3183,6 +3192,7 @@ private fun AddScreen(
                                 selected = it
                             },
                             onCategoryLongPressed = { categoryActionTarget = CategoryEditTarget(pageKind, it) },
+                            onAddCategory = { addingKind = pageKind },
                         )
                     }
                     Row(
@@ -3270,6 +3280,18 @@ private fun AddScreen(
             },
         )
     }
+    addingKind?.let { targetKind ->
+        val targetCategories = if (targetKind == "支出") expenseCategories else incomeCategories
+        CategoryDialog(
+            kind = targetKind,
+            existing = targetCategories.map { it.name },
+            dismiss = { addingKind = null },
+            confirm = { category ->
+                onNewCategory(targetKind, category)
+                addingKind = null
+            },
+        )
+    }
 }
 
 @Composable
@@ -3279,6 +3301,7 @@ private fun CategorySelectionSection(
     modifier: Modifier = Modifier,
     onCategorySelected: (LedgerCategory) -> Unit,
     onCategoryLongPressed: (LedgerCategory) -> Unit,
+    onAddCategory: () -> Unit,
 ) {
     Column(modifier.fillMaxWidth()) {
         Text(
@@ -3294,15 +3317,24 @@ private fun CategorySelectionSection(
             horizontalArrangement = Arrangement.spacedBy(20.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            items(categories.size) { index ->
-                val category = categories[index]
-                CategoryCard(
-                    label = category.name,
-                    symbol = category.symbol,
-                    active = false,
-                    click = { onCategorySelected(category) },
-                    longClick = { onCategoryLongPressed(category) },
-                )
+            items(categories.size + 1) { index ->
+                if (index == categories.size) {
+                    CategoryCard(
+                        label = "添加",
+                        symbol = "+",
+                        active = false,
+                        click = onAddCategory,
+                    )
+                } else {
+                    val category = categories[index]
+                    CategoryCard(
+                        label = category.name,
+                        symbol = category.symbol,
+                        active = false,
+                        click = { onCategorySelected(category) },
+                        longClick = { onCategoryLongPressed(category) },
+                    )
+                }
             }
         }
     }
