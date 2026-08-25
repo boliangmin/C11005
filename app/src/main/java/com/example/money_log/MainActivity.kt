@@ -1546,18 +1546,20 @@ private fun LedgerEditorDialog(
                                 .weight(1f, fill = false)
                                 .verticalScroll(editorScrollState),
                         ) {
-                            Text("选择图标", fontWeight = FontWeight.Medium, color = Ink)
+                            Text("分类", fontWeight = FontWeight.Medium, color = Ink)
                             Spacer(Modifier.height(8.dp))
                             LazyVerticalGrid(
                                 columns = GridCells.Fixed(4),
-                                modifier = Modifier.fillMaxWidth().heightIn(max = 254.dp),
+                                modifier = Modifier.fillMaxWidth().heightIn(max = 210.dp),
                                 state = iconGridState,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
                                 items(expenseIcons.size) { index ->
                                     val symbol = expenseIcons[index]
-                                    IconChoice(symbol, selectedIcon == symbol) { selectedIcon = symbol }
+                                    LedgerIconChoice(symbol, selectedIcon == symbol) {
+                                        selectedIcon = symbol
+                                    }
                                 }
                             }
                             Spacer(Modifier.height(14.dp))
@@ -3063,6 +3065,24 @@ private fun EntryCategoryChoice(
         Text(category.symbol, fontSize = 25.sp)
         Spacer(Modifier.height(3.dp))
         Text(category.name, fontSize = 11.sp, color = Ink, maxLines = 1)
+    }
+}
+
+@Composable
+private fun LedgerIconChoice(symbol: String, active: Boolean, onClick: () -> Unit) {
+    val interactionSource = remember { MutableInteractionSource() }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(78.dp)
+            .background(if (active) EditCategorySelectedGreen else Bg, RoundedCornerShape(12.dp))
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(symbol, fontSize = 25.sp)
+        Spacer(Modifier.height(3.dp))
+        Spacer(Modifier.height(13.dp))
     }
 }
 
