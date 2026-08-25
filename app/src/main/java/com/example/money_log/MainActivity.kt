@@ -1267,14 +1267,27 @@ private fun LedgerEditorDialog(
     onDismiss: () -> Unit,
     onSave: (LedgerBook) -> Unit,
 ) {
+    val density = LocalDensity.current
+    val inputWindowActions = remember { InputWindowActions() }
+    val editorScrollState = rememberScrollState()
     var selectedIcon by remember { mutableStateOf<String?>(null) }
     var name by remember { mutableStateOf("") }
     var date by remember(initialDate) { mutableLongStateOf(initialDate) }
     var note by remember { mutableStateOf("") }
     var includeInBills by remember { mutableStateOf(true) }
     var showDatePicker by remember { mutableStateOf(false) }
+    var nameHasFocus by remember { mutableStateOf(false) }
+    var noteHasFocus by remember { mutableStateOf(false) }
+    var retainInputPanelPlacement by remember { mutableStateOf(false) }
     val dateInteractionSource = remember { MutableInteractionSource() }
+    val dismissInputInteraction = remember { MutableInteractionSource() }
     val fixedPrimaryDark = colorResource(R.color.theme_primary_dark)
+    val imeBottom = WindowInsets.ime.getBottom(density)
+    val navigationBarBottom = WindowInsets.navigationBars.getBottom(density)
+    val isSystemKeyboardVisible = imeBottom > navigationBarBottom
+    val inputPanelPlacementActive = isSystemKeyboardVisible || retainInputPanelPlacement
+    val matchedInputPanelHeight = CalculatorKeyboardHeight
+    val nameFocusScrollPosition = with(density) { 126.dp.roundToPx() }
     val fieldBorder = Color(0xFF7A7D83)
     val fieldColors = OutlinedTextFieldDefaults.colors(
         focusedTextColor = Ink,
@@ -1287,127 +1300,202 @@ private fun LedgerEditorDialog(
     )
     val normalizedName = name.trim()
     val canSave = selectedIcon != null && normalizedName.isNotEmpty() && normalizedName !in existingNames
+    val collapseInputPanel = {
+        inputWindowActions.hideKeyboard()
+        inputWindowActions.clearFocus()
+    }
+
+    LaunchedEffect(isSystemKeyboardVisible) {
+        if (isSystemKeyboardVisible) {
+            retainInputPanelPlacement = true
+        } else {
+            delay(InputPanelTransitionDelayMillis)
+            retainInputPanelPlacement = false
+        }
+    }
+
+    LaunchedEffect(
+        nameHasFocus,
+        noteHasFocus,
+        inputPanelPlacementActive,
+        editorScrollState.maxValue,
+    ) {
+        if ((nameHasFocus || noteHasFocus) && inputPanelPlacementActive) {
+            withFrameNanos { }
+            val target = if (nameHasFocus) {
+                nameFocusScrollPosition.coerceAtMost(editorScrollState.maxValue)
+            } else {
+                editorScrollState.maxValue
+            }
+            editorScrollState.scrollTo(target)
+            withFrameNanos { }
+            editorScrollState.scrollTo(target.coerceAtMost(editorScrollState.maxValue))
+        }
+    }
 
     Dialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {
+            if (nameHasFocus || noteHasFocus || inputPanelPlacementActive) {
+                collapseInputPanel()
+            } else {
+                onDismiss()
+            }
+        },
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth(BookkeepingDialogWidthFraction)
-                .fillMaxHeight(0.88f),
-            shape = RoundedCornerShape(28.dp),
-            color = Bg,
-            shadowElevation = 10.dp,
+        BindInputWindowActions(inputWindowActions)
+        DisableDialogImeWindowPanning()
+        Box(
+            Modifier
+                .fillMaxSize()
+                .clickable(
+                    interactionSource = dismissInputInteraction,
+                    indication = null,
+                    onClick = collapseInputPanel,
+                ),
         ) {
-            Column(Modifier.padding(24.dp)) {
-                Text("新增账本", fontSize = 24.sp, fontWeight = FontWeight.Medium, color = Ink)
-                Spacer(Modifier.height(18.dp))
-                Column(
-                    modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
-                ) {
-                    Text("选择图标", fontWeight = FontWeight.Medium, color = Ink)
-                    Spacer(Modifier.height(8.dp))
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(4),
-                        modifier = Modifier.fillMaxWidth().height(196.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        items(ledgerIcons.size) { index ->
-                            val symbol = ledgerIcons[index]
-                            IconChoice(symbol, selectedIcon == symbol) { selectedIcon = symbol }
-                        }
-                    }
-                    Spacer(Modifier.height(14.dp))
-                    OutlinedTextField(
-                        value = name,
-                        onValueChange = { if (it.length <= 20) name = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("账本名称") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(14.dp),
-                        colors = fieldColors,
-                    )
-                    Spacer(Modifier.height(14.dp))
-                    Box(
-                        Modifier.fillMaxWidth().clickable(
-                            interactionSource = dateInteractionSource,
-                            indication = null,
-                        ) { showDatePicker = true },
-                    ) {
-                        OutlinedTextField(
-                            value = day(date),
-                            onValueChange = {},
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = false,
-                            label = { Text("日期") },
-                            trailingIcon = { Text("选择") },
-                            colors = OutlinedTextFieldDefaults.colors(
-                                disabledTextColor = Ink,
-                                disabledBorderColor = Color(0xFFB9BBC0),
-                                disabledLabelColor = Muted,
-                                disabledTrailingIconColor = Ink,
-                                disabledContainerColor = Color.Transparent,
-                            ),
-                        )
-                    }
-                    Spacer(Modifier.height(14.dp))
-                    OutlinedTextField(
-                        value = note,
-                        onValueChange = { if (it.length <= 100) note = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("备注信息") },
-                        maxLines = 3,
-                        shape = RoundedCornerShape(14.dp),
-                        colors = fieldColors,
-                    )
-                    Spacer(Modifier.height(14.dp))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color.White, RoundedCornerShape(14.dp))
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text("合入账单", fontSize = 16.sp, fontWeight = FontWeight.Medium, color = Ink)
-                            Text("账本内账单同时显示在总账单中", fontSize = 12.sp, color = Muted)
-                        }
-                        Switch(
-                            checked = includeInBills,
-                            onCheckedChange = { includeInBills = it },
-                        )
-                    }
-                }
-                Spacer(Modifier.height(12.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                ) {
-                    TextButton(
-                        onClick = onDismiss,
-                        colors = ButtonDefaults.textButtonColors(contentColor = fixedPrimaryDark),
-                    ) { Text("取消") }
-                    TextButton(
-                        onClick = {
-                            onSave(
-                                LedgerBook(
-                                    id = UUID.randomUUID().toString(),
-                                    symbol = selectedIcon!!,
-                                    name = normalizedName,
-                                    date = date,
-                                    note = note.trim(),
-                                    includeInBills = includeInBills,
-                                ),
-                            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(
+                        top = 12.dp,
+                        bottom = if (inputPanelPlacementActive) {
+                            matchedInputPanelHeight + CalculatorDialogGap
+                        } else {
+                            12.dp
                         },
-                        enabled = canSave,
-                        colors = ButtonDefaults.textButtonColors(
-                            contentColor = fixedPrimaryDark,
-                            disabledContentColor = Muted.copy(alpha = 0.38f),
-                        ),
-                    ) { Text("添加") }
+                    ),
+                contentAlignment = if (inputPanelPlacementActive) {
+                    Alignment.BottomCenter
+                } else {
+                    Alignment.Center
+                },
+            ) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(BookkeepingDialogWidthFraction),
+                    shape = RoundedCornerShape(28.dp),
+                    color = Bg,
+                    shadowElevation = 10.dp,
+                ) {
+                    Column(Modifier.padding(24.dp)) {
+                        Text("新增账本", fontSize = 24.sp, fontWeight = FontWeight.Medium, color = Ink)
+                        Spacer(Modifier.height(18.dp))
+                        Column(
+                            modifier = Modifier
+                                .weight(1f, fill = false)
+                                .verticalScroll(editorScrollState),
+                        ) {
+                            Text("选择图标", fontWeight = FontWeight.Medium, color = Ink)
+                            Spacer(Modifier.height(8.dp))
+                            LazyVerticalGrid(
+                                columns = GridCells.Fixed(4),
+                                modifier = Modifier.fillMaxWidth().height(120.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                items(ledgerIcons.size) { index ->
+                                    val symbol = ledgerIcons[index]
+                                    IconChoice(symbol, selectedIcon == symbol) { selectedIcon = symbol }
+                                }
+                            }
+                            Spacer(Modifier.height(14.dp))
+                            OutlinedTextField(
+                                value = name,
+                                onValueChange = { if (it.length <= 20) name = it },
+                                modifier = Modifier.fillMaxWidth().onFocusChanged {
+                                    nameHasFocus = it.isFocused
+                                },
+                                label = { Text("账本名称") },
+                                singleLine = true,
+                                shape = RoundedCornerShape(14.dp),
+                                colors = fieldColors,
+                            )
+                            Spacer(Modifier.height(14.dp))
+                            Box(
+                                Modifier.fillMaxWidth().clickable(
+                                    interactionSource = dateInteractionSource,
+                                    indication = null,
+                                ) {
+                                    collapseInputPanel()
+                                    showDatePicker = true
+                                },
+                            ) {
+                                OutlinedTextField(
+                                    value = day(date),
+                                    onValueChange = {},
+                                    modifier = Modifier.fillMaxWidth(),
+                                    enabled = false,
+                                    label = { Text("日期") },
+                                    trailingIcon = { Text("选择") },
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        disabledTextColor = Ink,
+                                        disabledBorderColor = Color(0xFFB9BBC0),
+                                        disabledLabelColor = Muted,
+                                        disabledTrailingIconColor = Ink,
+                                        disabledContainerColor = Color.Transparent,
+                                    ),
+                                )
+                            }
+                            Spacer(Modifier.height(14.dp))
+                            OutlinedTextField(
+                                value = note,
+                                onValueChange = { if (it.length <= 100) note = it },
+                                modifier = Modifier.fillMaxWidth().onFocusChanged {
+                                    noteHasFocus = it.isFocused
+                                },
+                                label = { Text("备注信息") },
+                                maxLines = 3,
+                                shape = RoundedCornerShape(14.dp),
+                                colors = fieldColors,
+                            )
+                            Spacer(Modifier.height(14.dp))
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color.White, RoundedCornerShape(14.dp))
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text("合入账单", fontSize = 16.sp, fontWeight = FontWeight.Medium, color = Ink)
+                                    Text("账本内账单同时显示在总账单中", fontSize = 12.sp, color = Muted)
+                                }
+                                Switch(
+                                    checked = includeInBills,
+                                    onCheckedChange = { includeInBills = it },
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End,
+                        ) {
+                            TextButton(
+                                onClick = onDismiss,
+                                colors = ButtonDefaults.textButtonColors(contentColor = fixedPrimaryDark),
+                            ) { Text("取消") }
+                            TextButton(
+                                onClick = {
+                                    onSave(
+                                        LedgerBook(
+                                            id = UUID.randomUUID().toString(),
+                                            symbol = selectedIcon!!,
+                                            name = normalizedName,
+                                            date = date,
+                                            note = note.trim(),
+                                            includeInBills = includeInBills,
+                                        ),
+                                    )
+                                },
+                                enabled = canSave,
+                                colors = ButtonDefaults.textButtonColors(
+                                    contentColor = fixedPrimaryDark,
+                                    disabledContentColor = Muted.copy(alpha = 0.38f),
+                                ),
+                            ) { Text("添加") }
+                        }
+                    }
                 }
             }
         }
