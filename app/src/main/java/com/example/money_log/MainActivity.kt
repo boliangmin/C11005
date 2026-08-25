@@ -314,11 +314,6 @@ internal fun ensureUncategorizedCategory(categories: List<LedgerCategory>): List
     return categories.filterNot { it.name == UncategorizedName } + uncategorized
 }
 
-private fun ledgerIconCategories(
-    expenseCategories: List<LedgerCategory>,
-    incomeCategories: List<LedgerCategory>,
-): List<LedgerCategory> = (expenseCategories + incomeCategories).distinctBy { it.symbol }
-
 private class Store(context: Context) {
     private val p = context.getSharedPreferences("ledger", Context.MODE_PRIVATE)
 
@@ -665,7 +660,6 @@ private fun LedgerApp(
                 LedgerEditorDialog(
                     existingNames = ledgers.map { it.name },
                     initialDate = addLedgerInitialDate,
-                    iconCategories = ledgerIconCategories(expenses, incomes),
                     onDismiss = { page = AppPage.DETAILS },
                     onSave = { ledger ->
                         ledgers.add(ledger)
@@ -816,7 +810,6 @@ private fun DetailsScreen(
                     modifier = Modifier.weight(1f),
                     ledgers = ledgers,
                     entries = allEntries,
-                    iconCategories = ledgerIconCategories(expenseCategories, incomeCategories),
                     onOpenLedger = onOpenLedger,
                     onUpdateLedger = onUpdateLedger,
                 )
@@ -973,7 +966,6 @@ private fun DetailsScreen(
 private fun LedgerListContent(
     ledgers: List<LedgerBook>,
     entries: List<Entry>,
-    iconCategories: List<LedgerCategory>,
     onOpenLedger: (LedgerBook) -> Unit,
     onUpdateLedger: (LedgerBook) -> Unit,
     modifier: Modifier = Modifier,
@@ -1025,7 +1017,6 @@ private fun LedgerListContent(
         LedgerEditorDialog(
             existingNames = ledgers.filterNot { it.id == ledger.id }.map { it.name },
             initialDate = ledger.date,
-            iconCategories = iconCategories,
             initial = ledger,
             onDismiss = { editingLedger = null },
             onSave = { updatedLedger ->
@@ -1420,7 +1411,6 @@ private fun LedgerDetailScreen(
 private fun LedgerEditorDialog(
     existingNames: List<String>,
     initialDate: Long,
-    iconCategories: List<LedgerCategory>,
     initial: LedgerBook? = null,
     onDismiss: () -> Unit,
     onSave: (LedgerBook) -> Unit,
@@ -1431,9 +1421,7 @@ private fun LedgerEditorDialog(
     val iconGridState = rememberLazyGridState()
     var selectedIcon by remember(initial?.id) {
         mutableStateOf(
-            initial?.symbol?.takeIf { symbol ->
-                iconCategories.any { category -> category.symbol == symbol }
-            },
+            initial?.symbol?.takeIf(expenseIcons::contains),
         )
     }
     var name by remember(initial?.id) { mutableStateOf(initial?.name.orEmpty()) }
@@ -1451,7 +1439,6 @@ private fun LedgerEditorDialog(
     val isSystemKeyboardVisible = imeBottom > navigationBarBottom
     val inputPanelPlacementActive = isSystemKeyboardVisible || retainInputPanelPlacement
     val matchedInputPanelHeight = CalculatorKeyboardHeight
-    val nameFocusScrollPosition = with(density) { 126.dp.roundToPx() }
     val fieldBorder = Color(0xFF7A7D83)
     val fieldColors = OutlinedTextFieldDefaults.colors(
         focusedTextColor = Ink,
@@ -1473,7 +1460,7 @@ private fun LedgerEditorDialog(
     }
 
     LaunchedEffect(initial?.id) {
-        val selectedIndex = iconCategories.indexOfFirst { category -> category.symbol == initial?.symbol }
+        val selectedIndex = initial?.symbol?.let(expenseIcons::indexOf) ?: -1
         if (selectedIndex >= 0) {
             iconGridState.scrollToItem(selectedIndex)
         }
@@ -1496,14 +1483,9 @@ private fun LedgerEditorDialog(
     ) {
         if ((nameHasFocus || noteHasFocus) && inputPanelPlacementActive) {
             withFrameNanos { }
-            val target = if (nameHasFocus) {
-                nameFocusScrollPosition.coerceAtMost(editorScrollState.maxValue)
-            } else {
-                editorScrollState.maxValue
-            }
-            editorScrollState.scrollTo(target)
+            editorScrollState.scrollTo(editorScrollState.maxValue)
             withFrameNanos { }
-            editorScrollState.scrollTo(target.coerceAtMost(editorScrollState.maxValue))
+            editorScrollState.scrollTo(editorScrollState.maxValue)
         }
     }
 
@@ -1564,22 +1546,18 @@ private fun LedgerEditorDialog(
                                 .weight(1f, fill = false)
                                 .verticalScroll(editorScrollState),
                         ) {
-                            Text("分类", fontWeight = FontWeight.Medium, color = Ink)
+                            Text("选择图标", fontWeight = FontWeight.Medium, color = Ink)
                             Spacer(Modifier.height(8.dp))
                             LazyVerticalGrid(
                                 columns = GridCells.Fixed(4),
-                                modifier = Modifier.fillMaxWidth().heightIn(max = 210.dp),
+                                modifier = Modifier.fillMaxWidth().heightIn(max = 254.dp),
                                 state = iconGridState,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
-                                items(iconCategories.size) { index ->
-                                    val category = iconCategories[index]
-                                    EntryCategoryChoice(
-                                        category = category,
-                                        active = selectedIcon == category.symbol,
-                                        onClick = { selectedIcon = category.symbol },
-                                    )
+                                items(expenseIcons.size) { index ->
+                                    val symbol = expenseIcons[index]
+                                    IconChoice(symbol, selectedIcon == symbol) { selectedIcon = symbol }
                                 }
                             }
                             Spacer(Modifier.height(14.dp))
