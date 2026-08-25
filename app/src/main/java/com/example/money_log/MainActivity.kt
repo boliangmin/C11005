@@ -202,7 +202,15 @@ internal enum class TitleBarStyle(
 internal fun titleBarStyleFromStorage(storageKey: String?): TitleBarStyle =
     TitleBarStyle.entries.firstOrNull { it.storageKey == storageKey } ?: TitleBarStyle.DESIGN_ONE
 
-private enum class AppPage { DETAILS, ADD_ENTRY, ADD_LEDGER, LEDGER_DETAILS, TITLE_BAR_STYLE, CATEGORIES }
+private enum class AppPage {
+    DETAILS,
+    ADD_ENTRY,
+    ADD_LEDGER,
+    LEDGER_DETAILS,
+    MONTHLY_STATISTICS,
+    TITLE_BAR_STYLE,
+    CATEGORIES,
+}
 private enum class DetailsSection { BILLS, LEDGER, STATISTICS, MORE }
 private const val UncategorizedName = "未分类"
 private const val UncategorizedIcon = "⭕"
@@ -227,6 +235,14 @@ data class LedgerBook(
 data class LedgerCategory(val name: String, val symbol: String)
 internal data class EntryMonthGroup(val year: Int, val month: Int, val entries: List<Entry>)
 internal data class EntryDayGroup(val year: Int, val month: Int, val day: Int, val entries: List<Entry>)
+internal data class MonthlyBillStatistics(
+    val year: Int,
+    val month: Int,
+    val expenseTotal: Double,
+    val incomeTotal: Double,
+) {
+    val balance: Double get() = incomeTotal - expenseTotal
+}
 internal enum class EntryFilterMode { ALL, MONTH }
 internal data class EntryFilter(
     val mode: EntryFilterMode,
@@ -461,6 +477,7 @@ private fun LedgerApp(
             AppPage.ADD_ENTRY -> addReturnPage
             AppPage.ADD_LEDGER -> AppPage.DETAILS
             AppPage.LEDGER_DETAILS -> AppPage.DETAILS
+            AppPage.MONTHLY_STATISTICS -> AppPage.DETAILS
             AppPage.CATEGORIES -> AppPage.DETAILS
             AppPage.TITLE_BAR_STYLE -> AppPage.DETAILS
             AppPage.DETAILS -> AppPage.DETAILS
@@ -526,6 +543,7 @@ private fun LedgerApp(
                     },
                     onManageCategories = { page = AppPage.CATEGORIES },
                     onTitleBarStyle = { page = AppPage.TITLE_BAR_STYLE },
+                    onMonthlyStatistics = { page = AppPage.MONTHLY_STATISTICS },
                     addButtonXFraction = addButtonXFraction,
                     addButtonYFraction = addButtonYFraction,
                     onAddButtonPositionChange = { xFraction, yFraction ->
@@ -534,6 +552,9 @@ private fun LedgerApp(
                     },
                     onUpdateEntry = updateStoredEntry,
                     onDeleteEntry = deleteStoredEntry,
+                )
+                page == AppPage.MONTHLY_STATISTICS -> MonthlyBillStatisticsScreen(
+                    entries = mainBillEntries,
                 )
                 page == AppPage.TITLE_BAR_STYLE -> TitleBarStyleScreen(
                     selectedStyle = selectedTitleBarStyle,
@@ -638,6 +659,7 @@ private fun DetailsScreen(
     onUpdateLedger: (LedgerBook) -> Unit,
     onManageCategories: () -> Unit,
     onTitleBarStyle: () -> Unit,
+    onMonthlyStatistics: () -> Unit,
     addButtonXFraction: Float,
     addButtonYFraction: Float,
     onAddButtonPositionChange: (Float, Float) -> Unit,
@@ -748,7 +770,12 @@ private fun DetailsScreen(
                     )
                 }
             }
-            if (selectedSection == DetailsSection.MORE) {
+            if (selectedSection == DetailsSection.STATISTICS) {
+                StatisticsContent(
+                    modifier = Modifier.weight(1f),
+                    onMonthlyStatistics = onMonthlyStatistics,
+                )
+            } else if (selectedSection == DetailsSection.MORE) {
                 MoreContent(
                     modifier = Modifier.weight(1f),
                     onManageCategories = onManageCategories,
@@ -761,8 +788,6 @@ private fun DetailsScreen(
                     onOpenLedger = onOpenLedger,
                     onUpdateLedger = onUpdateLedger,
                 )
-            } else if (selectedSection != DetailsSection.BILLS) {
-                Spacer(Modifier.weight(1f))
             } else if (entries.isEmpty()) {
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -2131,6 +2156,131 @@ private fun FilterNumberPicker(
                 contentPadding = PaddingValues(0.dp),
             ) { Text("›", fontSize = 22.sp) }
         }
+    }
+}
+
+@Composable
+private fun StatisticsContent(
+    modifier: Modifier = Modifier,
+    onMonthlyStatistics: () -> Unit,
+) {
+    Column(modifier.fillMaxWidth().padding(16.dp)) {
+        MoreMenuItem(
+            title = "月度账单统计",
+            iconResource = R.drawable.ic_monthly_statistics_color,
+            onClick = onMonthlyStatistics,
+        )
+    }
+}
+
+@Composable
+private fun MonthlyBillStatisticsScreen(entries: List<Entry>) {
+    val monthlyStatistics = remember(entries) { calculateMonthlyBillStatistics(entries) }
+    Column(Modifier.fillMaxSize().statusBarsPadding()) {
+        Text(
+            text = "月度账单统计",
+            modifier = Modifier.padding(start = 20.dp, top = 20.dp, end = 20.dp),
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Medium,
+            color = Ink,
+        )
+        if (monthlyStatistics.isEmpty()) {
+            Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("📊", fontSize = 52.sp)
+                    Spacer(Modifier.height(8.dp))
+                    Text("暂无可统计账单", fontSize = 18.sp, color = Muted)
+                    Text("添加账单后将在这里按月汇总", color = Color(0xFFAAADB3))
+                }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                items(
+                    items = monthlyStatistics,
+                    key = { statistics -> "${statistics.year}-${statistics.month}" },
+                ) { statistics ->
+                    MonthlyBillStatisticsCard(statistics)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MonthlyBillStatisticsCard(statistics: MonthlyBillStatistics) {
+    val balanceColor = when {
+        statistics.balance > 0 -> IncomeAmountGreen
+        statistics.balance < 0 -> Danger
+        else -> Ink
+    }
+    val balanceText = if (statistics.balance < 0) {
+        "−¥${money(kotlin.math.abs(statistics.balance))}"
+    } else {
+        "¥${money(statistics.balance)}"
+    }
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        shape = RoundedCornerShape(16.dp),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Text(
+                text = "${statistics.year}年${statistics.month}月",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Medium,
+                color = Ink,
+            )
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 14.dp),
+                color = Color(0xFFE8E9EB),
+            )
+            Row(Modifier.fillMaxWidth()) {
+                MonthlyBillStatisticsValue(
+                    label = "支出",
+                    value = "¥${money(statistics.expenseTotal)}",
+                    valueColor = Ink,
+                    modifier = Modifier.weight(1f),
+                )
+                MonthlyBillStatisticsValue(
+                    label = "收入",
+                    value = "¥${money(statistics.incomeTotal)}",
+                    valueColor = IncomeAmountGreen,
+                    modifier = Modifier.weight(1f),
+                )
+                MonthlyBillStatisticsValue(
+                    label = "结余",
+                    value = balanceText,
+                    valueColor = balanceColor,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MonthlyBillStatisticsValue(
+    label: String,
+    value: String,
+    valueColor: Color,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(label, fontSize = 13.sp, color = Muted)
+        Spacer(Modifier.height(5.dp))
+        Text(
+            text = value,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = valueColor,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 
@@ -4351,6 +4501,22 @@ internal fun groupEntriesByMonth(entries: List<Entry>): List<EntryMonthGroup> =
         .map { (yearMonth, monthEntries) ->
             EntryMonthGroup(year = yearMonth.first, month = yearMonth.second, entries = monthEntries)
         }
+
+internal fun calculateMonthlyBillStatistics(entries: List<Entry>): List<MonthlyBillStatistics> =
+    groupEntriesByMonth(entries).map { monthGroup ->
+        val expenseTotal = monthGroup.entries
+            .filter { it.kind == "支出" }
+            .sumOf { it.amount }
+        val incomeTotal = monthGroup.entries
+            .filter { it.kind == "收入" }
+            .sumOf { it.amount }
+        MonthlyBillStatistics(
+            year = monthGroup.year,
+            month = monthGroup.month,
+            expenseTotal = expenseTotal,
+            incomeTotal = incomeTotal,
+        )
+    }
 
 internal fun groupEntriesByDay(entries: List<Entry>): List<EntryDayGroup> =
     entries.sortedByDescending { it.date }
