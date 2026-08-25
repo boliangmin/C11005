@@ -2306,37 +2306,37 @@ private fun AnnualBillStatisticsCard(
         ) {
             Row(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(10.dp))
                     .background(Color.White.copy(alpha = 0.60f))
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         onClick = onYearClick,
                     )
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
                     text = "${statistics.year}年",
-                    fontSize = 20.sp,
+                    fontSize = 18.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = AnnualDashboardInk,
                 )
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(7.dp))
                 Icon(
                     painter = painterResource(R.drawable.ic_keyboard_arrow_down),
                     contentDescription = "选择年份",
-                    modifier = Modifier.size(width = 16.5.dp, height = 8.5.dp),
+                    modifier = Modifier.size(width = 15.dp, height = 8.dp),
                     tint = AnnualDashboardInk,
                 )
             }
             HorizontalDivider(
-                modifier = Modifier.padding(vertical = 14.dp),
+                modifier = Modifier.padding(vertical = 12.dp),
                 color = AnnualDashboardInk.copy(alpha = 0.38f),
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
             ) {
                 AnnualBillStatisticsValue(
                     label = "总支出",
@@ -2366,20 +2366,20 @@ private fun AnnualBillStatisticsValue(
 ) {
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(12.dp))
             .background(Color.White.copy(alpha = 0.52f))
-            .padding(horizontal = 6.dp, vertical = 12.dp),
+            .padding(horizontal = 5.dp, vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
             text = label,
-            fontSize = 13.sp,
+            fontSize = 12.sp,
             color = AnnualDashboardInk.copy(alpha = 0.72f),
         )
-        Spacer(Modifier.height(5.dp))
+        Spacer(Modifier.height(4.dp))
         Text(
             text = value,
-            fontSize = 15.sp,
+            fontSize = 14.sp,
             fontWeight = FontWeight.SemiBold,
             color = AnnualDashboardInk,
             maxLines = 1,
@@ -2526,7 +2526,7 @@ private fun MonthlyBillStatisticsMonthSection(
                 MonthlyBillStatisticsValue(
                     label = "收入",
                     value = "¥${money(statistics.incomeTotal)}",
-                    valueColor = IncomeAmountGreen,
+                    valueColor = Ink,
                     modifier = Modifier.weight(1f),
                 )
                 MonthlyBillStatisticsValue(
