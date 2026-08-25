@@ -477,6 +477,7 @@ private fun LedgerApp(
                     entries = entries.filter { it.ledgerId == selectedLedger.id },
                     expenseCategories = expenses,
                     incomeCategories = incomes,
+                    titleBarStyle = selectedTitleBarStyle,
                     onBack = { page = AppPage.DETAILS },
                     onAdd = {
                         addReturnPage = AppPage.LEDGER_DETAILS
@@ -1196,6 +1197,7 @@ private fun LedgerDetailScreen(
     entries: List<Entry>,
     expenseCategories: List<LedgerCategory>,
     incomeCategories: List<LedgerCategory>,
+    titleBarStyle: TitleBarStyle,
     onBack: () -> Unit,
     onAdd: () -> Unit,
     addButtonXFraction: Float,
@@ -1208,11 +1210,53 @@ private fun LedgerDetailScreen(
     var editingEntry by remember { mutableStateOf<Entry?>(null) }
     var deleteEntryRequest by remember { mutableStateOf<Entry?>(null) }
     var revealedEntryId by remember { mutableStateOf<String?>(null) }
-    val dayGroups = groupEntriesByDay(entries)
+    var showBillOptions by remember { mutableStateOf(false) }
+    var showEntryFilter by remember { mutableStateOf(false) }
+    var selectedSection by remember(ledger.id) { mutableStateOf(DetailsSection.BILLS) }
+    val ledgerSections = remember { listOf(DetailsSection.BILLS, DetailsSection.STATISTICS) }
+    val initialFilter = remember(ledger.id) {
+        val currentTime = System.currentTimeMillis()
+        val latestDate = entries.maxOfOrNull { it.date } ?: currentTime
+        val latestCalendar = Calendar.getInstance().apply { timeInMillis = latestDate }
+        EntryFilter(
+            mode = EntryFilterMode.ALL,
+            year = latestCalendar[Calendar.YEAR],
+            month = latestCalendar[Calendar.MONTH] + 1,
+        )
+    }
+    var entryFilter by remember(ledger.id) { mutableStateOf(initialFilter) }
+    val visibleEntries = filterEntries(entries, entryFilter)
+    val dayGroups = groupEntriesByDay(visibleEntries)
+    val listState = rememberLazyListState()
     val density = LocalDensity.current
+    val autoHeaderHeight = 85.dp
+    val autoHeaderHeightPx = with(density) { autoHeaderHeight.toPx() }
+    var autoHeaderOffsetPx by remember(titleBarStyle, ledger.id) { mutableFloatStateOf(0f) }
+    val autoHeaderScrollConnection = remember(autoHeaderHeightPx) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                val previousOffset = autoHeaderOffsetPx
+                autoHeaderOffsetPx = (previousOffset + available.y).coerceIn(-autoHeaderHeightPx, 0f)
+                return Offset(x = 0f, y = autoHeaderOffsetPx - previousOffset)
+            }
+        }
+    }
     val fixedPrimaryDark = colorResource(R.color.app_primary_dark)
 
-    BackHandler(onBack = onBack)
+    BackHandler {
+        if (selectedSection == DetailsSection.BILLS) {
+            onBack()
+        } else {
+            selectedSection = DetailsSection.BILLS
+        }
+    }
+
+    LaunchedEffect(entryFilter, titleBarStyle, selectedSection, ledger.id) {
+        if (selectedSection == DetailsSection.BILLS) {
+            listState.scrollToItem(0)
+        }
+        autoHeaderOffsetPx = 0f
+    }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val addButtonSize = 52.dp
@@ -1233,59 +1277,51 @@ private fun LedgerDetailScreen(
         val currentAddButtonX by rememberUpdatedState(addButtonX)
         val currentAddButtonY by rememberUpdatedState(addButtonY)
 
-        Column(Modifier.fillMaxSize().statusBarsPadding()) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                TextButton(
-                    onClick = onBack,
-                    modifier = Modifier.size(48.dp),
-                    contentPadding = PaddingValues(0.dp),
+        Column(
+            Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .then(
+                    if (titleBarStyle == TitleBarStyle.DESIGN_TWO) {
+                        Modifier.nestedScroll(autoHeaderScrollConnection)
+                    } else {
+                        Modifier
+                    },
+                ),
+        ) {
+            when (titleBarStyle) {
+                TitleBarStyle.DESIGN_ONE -> DetailsFeatureBar(
+                    selectedSection = selectedSection,
+                    onSectionSelected = { section ->
+                        selectedSection = section
+                        revealedEntryId = null
+                    },
+                    onBillLongClick = { showBillOptions = true },
+                    sections = ledgerSections,
+                )
+                TitleBarStyle.DESIGN_TWO -> Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(with(density) { (autoHeaderHeightPx + autoHeaderOffsetPx).toDp() })
+                        .clipToBounds(),
                 ) {
-                    Text("‹", fontSize = 36.sp, color = Ink, lineHeight = 36.sp)
-                }
-                Box(
-                    modifier = Modifier.size(46.dp).background(Color.White, CircleShape),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(ledger.symbol, fontSize = 28.sp)
-                }
-                Column(Modifier.weight(1f).padding(start = 10.dp)) {
-                    Text(
-                        ledger.name,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Ink,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                    DetailsAutoCollapsingFeatureBar(
+                        modifier = Modifier.offset {
+                            IntOffset(x = 0, y = autoHeaderOffsetPx.roundToInt())
+                        },
+                        selectedSection = selectedSection,
+                        onSectionSelected = { section ->
+                            selectedSection = section
+                            revealedEntryId = null
+                        },
+                        onBillLongClick = { showBillOptions = true },
+                        sections = ledgerSections,
                     )
-                    Text("账本账单", fontSize = 12.sp, color = Muted)
                 }
             }
-            Card(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-                shape = RoundedCornerShape(16.dp),
-            ) {
-                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text(day(ledger.date), fontSize = 13.sp, color = Muted)
-                        Spacer(Modifier.weight(1f))
-                        Text(
-                            if (ledger.includeInBills) "已合入总账单" else "独立账本",
-                            fontSize = 12.sp,
-                            color = if (ledger.includeInBills) AppOnPrimaryContainer else Muted,
-                        )
-                    }
-                    if (ledger.note.isNotBlank()) {
-                        Spacer(Modifier.height(6.dp))
-                        Text(ledger.note, fontSize = 13.sp, color = NoteSlate)
-                    }
-                }
-            }
-            if (entries.isEmpty()) {
+            if (selectedSection == DetailsSection.STATISTICS) {
+                Spacer(Modifier.weight(1f))
+            } else if (entries.isEmpty()) {
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("🧾", fontSize = 52.sp)
@@ -1294,9 +1330,19 @@ private fun LedgerDetailScreen(
                         Text("点击右下角“＋”添加第一笔记录", color = Color(0xFFAAADB3))
                     }
                 }
+            } else if (visibleEntries.isEmpty()) {
+                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("🗓️", fontSize = 48.sp)
+                        Spacer(Modifier.height(8.dp))
+                        Text("当前筛选暂无账单", fontSize = 18.sp, color = Muted)
+                        Text("长按顶部“账单”调整筛选", color = Color(0xFFAAADB3))
+                    }
+                }
             } else {
                 LazyColumn(
                     modifier = Modifier.weight(1f).padding(horizontal = 16.dp),
+                    state = listState,
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                     contentPadding = PaddingValues(top = 12.dp, bottom = 92.dp),
                 ) {
@@ -1324,9 +1370,10 @@ private fun LedgerDetailScreen(
                 }
             }
         }
-        FloatingActionButton(
-            onClick = onAdd,
-            modifier = Modifier
+        if (selectedSection == DetailsSection.BILLS) {
+            FloatingActionButton(
+                onClick = onAdd,
+                modifier = Modifier
                 .offset { IntOffset(addButtonX.roundToInt(), addButtonY.roundToInt()) }
                 .size(addButtonSize)
                 .pointerInput(minimumX, maximumX, minimumY, maximumY) {
@@ -1350,15 +1397,16 @@ private fun LedgerDetailScreen(
                         },
                     )
                 },
-            shape = RoundedCornerShape(15.dp),
-            containerColor = fixedPrimaryDark,
-            contentColor = Color.White,
-            elevation = FloatingActionButtonDefaults.elevation(
-                defaultElevation = 5.dp,
-                pressedElevation = 7.dp,
-            ),
-        ) {
-            Text("+", fontSize = 34.sp, fontWeight = FontWeight.Normal)
+                shape = RoundedCornerShape(15.dp),
+                containerColor = fixedPrimaryDark,
+                contentColor = Color.White,
+                elevation = FloatingActionButtonDefaults.elevation(
+                    defaultElevation = 5.dp,
+                    pressedElevation = 7.dp,
+                ),
+            ) {
+                Text("+", fontSize = 34.sp, fontWeight = FontWeight.Normal)
+            }
         }
     }
 
@@ -1394,6 +1442,27 @@ private fun LedgerDetailScreen(
             confirm = {
                 onDeleteEntry(entry)
                 deleteEntryRequest = null
+                revealedEntryId = null
+            },
+        )
+    }
+    if (showBillOptions) {
+        BillOptionsDialog(
+            entryFilter = entryFilter,
+            dismiss = { showBillOptions = false },
+            onFilterView = {
+                showBillOptions = false
+                showEntryFilter = true
+            },
+        )
+    }
+    if (showEntryFilter) {
+        EntryFilterDialog(
+            initialFilter = entryFilter,
+            dismiss = { showEntryFilter = false },
+            onApply = { updatedFilter ->
+                entryFilter = updatedFilter
+                showEntryFilter = false
                 revealedEntryId = null
             },
         )
@@ -1672,11 +1741,26 @@ private fun EntryDayHeader(month: Int, day: Int) {
     }
 }
 
+private fun detailsSectionIcon(section: DetailsSection) = when (section) {
+    DetailsSection.BILLS -> R.drawable.ic_bill_outline
+    DetailsSection.LEDGER -> R.drawable.ic_ledger_outline
+    DetailsSection.STATISTICS -> R.drawable.ic_statistics_outline
+    DetailsSection.MORE -> R.drawable.ic_more_outline
+}
+
+private fun detailsSectionLabel(section: DetailsSection) = when (section) {
+    DetailsSection.BILLS -> "账单"
+    DetailsSection.LEDGER -> "账本"
+    DetailsSection.STATISTICS -> "统计"
+    DetailsSection.MORE -> "更多"
+}
+
 @Composable
 private fun DetailsFeatureBar(
     selectedSection: DetailsSection,
     onSectionSelected: (DetailsSection) -> Unit,
     onBillLongClick: () -> Unit,
+    sections: List<DetailsSection> = DetailsSection.entries,
 ) {
     var expanded by remember { mutableStateOf(true) }
     val dragThreshold = with(LocalDensity.current) { 24.dp.toPx() }
@@ -1712,35 +1796,16 @@ private fun DetailsFeatureBar(
                         .padding(horizontal = 8.dp, vertical = 10.dp),
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    DetailsFeatureItem(
-                        Modifier.weight(1f),
-                        R.drawable.ic_bill_outline,
-                        "账单",
-                        selected = selectedSection == DetailsSection.BILLS,
-                        onClick = { onSectionSelected(DetailsSection.BILLS) },
-                        onLongClick = onBillLongClick,
-                    )
-                    DetailsFeatureItem(
-                        Modifier.weight(1f),
-                        R.drawable.ic_ledger_outline,
-                        "账本",
-                        selected = selectedSection == DetailsSection.LEDGER,
-                        onClick = { onSectionSelected(DetailsSection.LEDGER) },
-                    )
-                    DetailsFeatureItem(
-                        Modifier.weight(1f),
-                        R.drawable.ic_statistics_outline,
-                        "统计",
-                        selected = selectedSection == DetailsSection.STATISTICS,
-                        onClick = { onSectionSelected(DetailsSection.STATISTICS) },
-                    )
-                    DetailsFeatureItem(
-                        Modifier.weight(1f),
-                        R.drawable.ic_more_outline,
-                        "更多",
-                        selected = selectedSection == DetailsSection.MORE,
-                        onClick = { onSectionSelected(DetailsSection.MORE) },
-                    )
+                    sections.forEach { section ->
+                        DetailsFeatureItem(
+                            Modifier.weight(1f),
+                            detailsSectionIcon(section),
+                            detailsSectionLabel(section),
+                            selected = selectedSection == section,
+                            onClick = { onSectionSelected(section) },
+                            onLongClick = if (section == DetailsSection.BILLS) onBillLongClick else null,
+                        )
+                    }
                 }
             }
             Box(
@@ -1783,6 +1848,7 @@ private fun DetailsAutoCollapsingFeatureBar(
     selectedSection: DetailsSection,
     onSectionSelected: (DetailsSection) -> Unit,
     onBillLongClick: () -> Unit,
+    sections: List<DetailsSection> = DetailsSection.entries,
 ) {
     Box(modifier = modifier.fillMaxWidth().height(85.dp)) {
         Card(
@@ -1799,35 +1865,16 @@ private fun DetailsAutoCollapsingFeatureBar(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                DetailsFeatureItem(
-                    Modifier.weight(1f),
-                    R.drawable.ic_bill_outline,
-                    "账单",
-                    selected = selectedSection == DetailsSection.BILLS,
-                    onClick = { onSectionSelected(DetailsSection.BILLS) },
-                    onLongClick = onBillLongClick,
-                )
-                DetailsFeatureItem(
-                    Modifier.weight(1f),
-                    R.drawable.ic_ledger_outline,
-                    "账本",
-                    selected = selectedSection == DetailsSection.LEDGER,
-                    onClick = { onSectionSelected(DetailsSection.LEDGER) },
-                )
-                DetailsFeatureItem(
-                    Modifier.weight(1f),
-                    R.drawable.ic_statistics_outline,
-                    "统计",
-                    selected = selectedSection == DetailsSection.STATISTICS,
-                    onClick = { onSectionSelected(DetailsSection.STATISTICS) },
-                )
-                DetailsFeatureItem(
-                    Modifier.weight(1f),
-                    R.drawable.ic_more_outline,
-                    "更多",
-                    selected = selectedSection == DetailsSection.MORE,
-                    onClick = { onSectionSelected(DetailsSection.MORE) },
-                )
+                sections.forEach { section ->
+                    DetailsFeatureItem(
+                        Modifier.weight(1f),
+                        detailsSectionIcon(section),
+                        detailsSectionLabel(section),
+                        selected = selectedSection == section,
+                        onClick = { onSectionSelected(section) },
+                        onLongClick = if (section == DetailsSection.BILLS) onBillLongClick else null,
+                    )
+                }
             }
         }
     }
