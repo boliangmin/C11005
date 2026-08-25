@@ -1152,13 +1152,13 @@ private fun LedgerMergeOption(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(if (selected) SelectionBlueContainer else Bg, RoundedCornerShape(14.dp))
+            .background(if (selected) SelectionBlueContainer else Color.White, RoundedCornerShape(14.dp))
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            modifier = Modifier.size(42.dp).background(Color.White, CircleShape),
+            modifier = Modifier.size(42.dp),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
@@ -2138,7 +2138,7 @@ private fun TitleBarStyleOption(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            Modifier.size(48.dp).background(Color.White, CircleShape),
+            Modifier.size(48.dp),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
