@@ -83,6 +83,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
+import com.example.money_log.ui.theme.AppOnPrimary
+import com.example.money_log.ui.theme.AppOnPrimaryContainer
+import com.example.money_log.ui.theme.AppPrimary
+import com.example.money_log.ui.theme.AppPrimaryContainer
 import com.example.money_log.ui.theme.Money_LogTheme
 import org.json.JSONArray
 import org.json.JSONObject
@@ -175,60 +179,6 @@ private fun rememberCalculatorAmountFieldState(amount: String): TextFieldState {
     return fieldState
 }
 
-internal enum class ColorTheme(
-    val storageKey: String,
-    val title: String,
-    val accent: Color,
-    val softAccent: Color,
-    val subtleAccent: Color,
-    val accentDark: Color,
-    val onAccent: Color = Ink,
-) {
-    CLASSIC(
-        storageKey = "classic",
-        title = "经典黄",
-        accent = Color(0xFFF5CE3E),
-        softAccent = Color(0xFFFFF4C8),
-        subtleAccent = Color(0xFFFFF1B8),
-        accentDark = Color(0xFF8A6A20),
-    ),
-    FRESH_GREEN(
-        storageKey = "fresh_green",
-        title = "清新绿",
-        accent = Color(0xFF57B881),
-        softAccent = Color(0xFFE4F4E9),
-        subtleAccent = Color(0xFFEBF8F0),
-        accentDark = Color(0xFF2F7653),
-    ),
-    SKY_BLUE(
-        storageKey = "sky_blue",
-        title = "天空蓝",
-        accent = Color(0xFF5B9DF9),
-        softAccent = Color(0xFFE7F0FF),
-        subtleAccent = Color(0xFFEEF5FF),
-        accentDark = Color(0xFF315F9F),
-    ),
-    SOFT_PURPLE(
-        storageKey = "soft_purple",
-        title = "柔和紫",
-        accent = Color(0xFF9B7DE2),
-        softAccent = Color(0xFFF0EAFB),
-        subtleAccent = Color(0xFFF5F1FC),
-        accentDark = Color(0xFF61469D),
-    ),
-    CORAL_ORANGE(
-        storageKey = "coral_orange",
-        title = "珊瑚橙",
-        accent = Color(0xFFF28B70),
-        softAccent = Color(0xFFFFECE7),
-        subtleAccent = Color(0xFFFFF2EE),
-        accentDark = Color(0xFF9D4F3D),
-    ),
-}
-
-internal fun colorThemeFromStorage(storageKey: String?): ColorTheme =
-    ColorTheme.entries.firstOrNull { it.storageKey == storageKey } ?: ColorTheme.CLASSIC
-
 internal enum class TitleBarStyle(
     val storageKey: String,
     val title: String,
@@ -248,8 +198,6 @@ internal enum class TitleBarStyle(
 
 internal fun titleBarStyleFromStorage(storageKey: String?): TitleBarStyle =
     TitleBarStyle.entries.firstOrNull { it.storageKey == storageKey } ?: TitleBarStyle.DESIGN_ONE
-
-private val LocalColorTheme = staticCompositionLocalOf { ColorTheme.CLASSIC }
 
 private enum class AppPage { DETAILS, ADD_ENTRY, ADD_LEDGER, LEDGER_DETAILS, TITLE_BAR_STYLE, CATEGORIES }
 private enum class DetailsSection { BILLS, LEDGER, STATISTICS, MORE }
@@ -428,7 +376,6 @@ private class Store(context: Context) {
         }
         p.edit().putString("ledgers", values.toString()).apply()
     }
-    fun colorTheme() = colorThemeFromStorage(p.getString("colorTheme", null))
     fun titleBarStyle() = titleBarStyleFromStorage(p.getString("titleBarStyle", null))
     fun saveTitleBarStyle(value: TitleBarStyle) = p.edit().putString("titleBarStyle", value.storageKey).apply()
 }
@@ -447,7 +394,6 @@ class MainActivity : ComponentActivity() {
 private fun LedgerRoot() {
     val context = LocalContext.current
     val store = remember { Store(context.applicationContext) }
-    val colorTheme = remember { store.colorTheme() }
     var titleBarStyle by remember { mutableStateOf(store.titleBarStyle()) }
     val appTextSelectionColors = remember {
         TextSelectionColors(
@@ -455,16 +401,8 @@ private fun LedgerRoot() {
             backgroundColor = Ink.copy(alpha = 0.14f),
         )
     }
-    Money_LogTheme(
-        darkTheme = false,
-        dynamicColor = false,
-        primaryColor = colorTheme.accent,
-        onPrimaryColor = colorTheme.onAccent,
-        primaryContainerColor = colorTheme.softAccent,
-        onPrimaryContainerColor = colorTheme.accentDark,
-    ) {
+    Money_LogTheme {
         CompositionLocalProvider(
-            LocalColorTheme provides colorTheme,
             LocalRippleConfiguration provides null,
             LocalTextSelectionColors provides appTextSelectionColors,
         ) {
@@ -739,7 +677,7 @@ private fun DetailsScreen(
         }
         autoHeaderOffsetPx = 0f
     }
-    val fixedPrimaryDark = colorResource(R.color.theme_primary_dark)
+    val fixedPrimaryDark = colorResource(R.color.app_primary_dark)
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val addButtonSize = 52.dp
         val edgePadding = 20.dp
@@ -1046,7 +984,6 @@ private fun LedgerCard(
     onLongClick: () -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val colorTheme = LocalColorTheme.current
     Card(
         modifier = Modifier.fillMaxWidth().combinedClickable(
             interactionSource = interactionSource,
@@ -1084,7 +1021,7 @@ private fun LedgerCard(
                     Text(
                         ledger.note,
                         fontSize = 12.sp,
-                        color = colorTheme.accentDark,
+                        color = AppOnPrimaryContainer,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -1093,7 +1030,7 @@ private fun LedgerCard(
                 Text(
                     if (ledger.includeInBills) "账单合入总账单" else "账单仅在本账本显示",
                     fontSize = 11.sp,
-                    color = if (ledger.includeInBills) colorTheme.accentDark else Muted,
+                    color = if (ledger.includeInBills) AppOnPrimaryContainer else Muted,
                 )
             }
             Column(horizontalAlignment = Alignment.End) {
@@ -1111,7 +1048,7 @@ private fun LedgerActionDialog(
     onEdit: () -> Unit,
     onMergeSelection: () -> Unit,
 ) {
-    val fixedPrimaryDark = colorResource(R.color.theme_primary_dark)
+    val fixedPrimaryDark = colorResource(R.color.app_primary_dark)
     AlertDialog(
         onDismissRequest = dismiss,
         title = { Text(ledger.name) },
@@ -1156,7 +1093,7 @@ private fun LedgerMergeDialog(
     dismiss: () -> Unit,
     confirm: (LedgerBook) -> Unit,
 ) {
-    val fixedPrimaryDark = colorResource(R.color.theme_primary_dark)
+    val fixedPrimaryDark = colorResource(R.color.app_primary_dark)
     var includeInBills by remember(ledger.id, ledger.includeInBills) {
         mutableStateOf(ledger.includeInBills)
     }
@@ -1210,11 +1147,10 @@ private fun LedgerMergeOption(
     onClick: () -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val colorTheme = LocalColorTheme.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(if (selected) colorTheme.softAccent else Bg, RoundedCornerShape(14.dp))
+            .background(if (selected) AppPrimaryContainer else Bg, RoundedCornerShape(14.dp))
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -1239,7 +1175,7 @@ private fun LedgerMergeOption(
             text = if (selected) "✓" else "",
             fontSize = 23.sp,
             fontWeight = FontWeight.Bold,
-            color = colorTheme.accentDark,
+            color = AppOnPrimaryContainer,
         )
     }
 }
@@ -1264,8 +1200,7 @@ private fun LedgerDetailScreen(
     var revealedEntryId by remember { mutableStateOf<String?>(null) }
     val dayGroups = groupEntriesByDay(entries)
     val density = LocalDensity.current
-    val fixedPrimaryDark = colorResource(R.color.theme_primary_dark)
-    val colorTheme = LocalColorTheme.current
+    val fixedPrimaryDark = colorResource(R.color.app_primary_dark)
 
     BackHandler(onBack = onBack)
 
@@ -1331,12 +1266,12 @@ private fun LedgerDetailScreen(
                         Text(
                             if (ledger.includeInBills) "已合入总账单" else "独立账本",
                             fontSize = 12.sp,
-                            color = if (ledger.includeInBills) colorTheme.accentDark else Muted,
+                            color = if (ledger.includeInBills) AppOnPrimaryContainer else Muted,
                         )
                     }
                     if (ledger.note.isNotBlank()) {
                         Spacer(Modifier.height(6.dp))
-                        Text(ledger.note, fontSize = 13.sp, color = colorTheme.accentDark)
+                        Text(ledger.note, fontSize = 13.sp, color = AppOnPrimaryContainer)
                     }
                 }
             }
@@ -1481,7 +1416,7 @@ private fun LedgerEditorDialog(
     var retainInputPanelPlacement by remember { mutableStateOf(false) }
     val dateInteractionSource = remember { MutableInteractionSource() }
     val dismissInputInteraction = remember { MutableInteractionSource() }
-    val fixedPrimaryDark = colorResource(R.color.theme_primary_dark)
+    val fixedPrimaryDark = colorResource(R.color.app_primary_dark)
     val imeBottom = WindowInsets.ime.getBottom(density)
     val navigationBarBottom = WindowInsets.navigationBars.getBottom(density)
     val isSystemKeyboardVisible = imeBottom > navigationBarBottom
@@ -1898,7 +1833,7 @@ private fun DetailsFeatureItem(
     onClick: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
 ) {
-    val fixedPrimaryDark = colorResource(R.color.theme_primary_dark)
+    val fixedPrimaryDark = colorResource(R.color.app_primary_dark)
     val interactionSource = remember { MutableInteractionSource() }
     val gestureModifier = when {
         onLongClick != null -> Modifier.combinedClickable(
@@ -1976,7 +1911,6 @@ private fun EntryFilterDialog(
     val currentCalendar = remember { Calendar.getInstance() }
     val currentYear = currentCalendar[Calendar.YEAR]
     val currentMonth = currentCalendar[Calendar.MONTH] + 1
-    val colorTheme = LocalColorTheme.current
     var mode by remember(initialFilter) { mutableStateOf(initialFilter.mode) }
     var year by remember(initialFilter) { mutableIntStateOf(initialFilter.year) }
     var month by remember(initialFilter) { mutableIntStateOf(initialFilter.month) }
@@ -1997,7 +1931,7 @@ private fun EntryFilterDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(
-                            if (mode == EntryFilterMode.MONTH) colorTheme.softAccent else Bg,
+                            if (mode == EntryFilterMode.MONTH) AppPrimaryContainer else Bg,
                             RoundedCornerShape(14.dp),
                         ),
                     verticalAlignment = Alignment.CenterVertically,
@@ -2025,7 +1959,7 @@ private fun EntryFilterDialog(
                             .height(72.dp)
                             .background(
                                 if (mode == EntryFilterMode.MONTH) {
-                                    colorTheme.accent.copy(alpha = 0.24f)
+                                    AppPrimary.copy(alpha = 0.24f)
                                 } else {
                                     Color(0xFFE1E2E5)
                                 },
@@ -2075,11 +2009,10 @@ private fun FilterModeOption(
     onClick: () -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val colorTheme = LocalColorTheme.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(if (selected) colorTheme.softAccent else Bg, RoundedCornerShape(14.dp))
+            .background(if (selected) AppPrimaryContainer else Bg, RoundedCornerShape(14.dp))
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -2366,7 +2299,7 @@ private fun CategoryActionDialog(
     onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    val fixedPrimaryDark = colorResource(R.color.theme_primary_dark)
+    val fixedPrimaryDark = colorResource(R.color.app_primary_dark)
     AlertDialog(
         onDismissRequest = dismiss,
         title = { Text("${category.symbol}  ${category.name}") },
@@ -2419,7 +2352,6 @@ private fun CategoryActionItem(
     onClick: () -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val colorTheme = LocalColorTheme.current
     val contentColor = Ink
     Row(
         modifier = Modifier
@@ -2431,7 +2363,7 @@ private fun CategoryActionItem(
     ) {
         Box(
             Modifier.size(42.dp).background(
-                iconBackgroundColor ?: colorTheme.softAccent,
+                iconBackgroundColor ?: AppPrimaryContainer,
                 CircleShape,
             ),
             contentAlignment = Alignment.Center,
@@ -2587,7 +2519,6 @@ private fun EntryCard(
 ) {
     val income = entry.kind == "收入"
     val interactionSource = remember { MutableInteractionSource() }
-    val colorTheme = LocalColorTheme.current
     val maximumReveal = with(LocalDensity.current) { 72.dp.toPx() }
     var horizontalOffset by remember(entry.id) { mutableFloatStateOf(0f) }
 
@@ -2657,7 +2588,7 @@ private fun EntryCard(
                 Column(Modifier.weight(1f).padding(start = 14.dp)) {
                     Text(entry.category, fontSize = 17.sp, fontWeight = FontWeight.Medium)
                     if (entry.note.isNotBlank()) {
-                        Text(entry.note, fontSize = 12.sp, color = colorTheme.accentDark, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(entry.note, fontSize = 12.sp, color = AppOnPrimaryContainer, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
                 Text(
@@ -2677,7 +2608,7 @@ private fun EntryActionDialog(
     dismiss: () -> Unit,
     onEdit: () -> Unit,
 ) {
-    val fixedPrimaryDark = colorResource(R.color.theme_primary_dark)
+    val fixedPrimaryDark = colorResource(R.color.app_primary_dark)
     AlertDialog(
         onDismissRequest = dismiss,
         title = { Text(entry.category) },
@@ -2715,7 +2646,7 @@ private fun EntryEditDialog(
     val inputWindowActions = remember { InputWindowActions() }
     val amountFocusRequester = remember { FocusRequester() }
     val editScrollState = rememberScrollState()
-    val fixedPrimaryDark = colorResource(R.color.theme_primary_dark)
+    val fixedPrimaryDark = colorResource(R.color.app_primary_dark)
     val currentCategory = categories.firstOrNull { it.name == entry.category }
     var selected by remember(entry.id, entry.category) { mutableStateOf(currentCategory) }
     var amount by remember(entry.id) { mutableStateOf(entry.amount.toString()) }
@@ -3157,8 +3088,6 @@ private fun AddScreen(
         state = pagerState,
         snapAnimationSpec = tween(durationMillis = 650),
     )
-    val colorTheme = LocalColorTheme.current
-
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
@@ -3210,7 +3139,7 @@ private fun AddScreen(
                                 Modifier
                                     .size(7.dp)
                                     .background(
-                                        if (pagerState.currentPage % 2 == pageIndex) colorTheme.accentDark
+                                        if (pagerState.currentPage % 2 == pageIndex) AppOnPrimaryContainer
                                         else Color(0xFFD0D1D3),
                                         CircleShape,
                                     ),
@@ -3344,7 +3273,7 @@ private fun EntryInputDialog(
     val inputWindowActions = remember { InputWindowActions() }
     val amountFocusRequester = remember { FocusRequester() }
     val dateInteractionSource = remember { MutableInteractionSource() }
-    val fixedPrimaryDark = colorResource(R.color.theme_primary_dark)
+    val fixedPrimaryDark = colorResource(R.color.app_primary_dark)
     var showDatePicker by remember { mutableStateOf(false) }
     var showCalculatorKeyboard by remember { mutableStateOf(false) }
     var amountHasFocus by remember { mutableStateOf(false) }
@@ -3650,7 +3579,7 @@ private fun CategoryIconActionDialog(
     dismiss: () -> Unit,
     onEditIcon: () -> Unit,
 ) {
-    val fixedPrimaryDark = colorResource(R.color.theme_primary_dark)
+    val fixedPrimaryDark = colorResource(R.color.app_primary_dark)
     AlertDialog(
         onDismissRequest = dismiss,
         title = { Text("${category.symbol}  ${category.name}") },
@@ -3687,7 +3616,6 @@ private fun CategoryCard(
     longClick: (() -> Unit)? = null,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val colorTheme = LocalColorTheme.current
     Card(
         modifier
             .aspectRatio(1f)
@@ -3697,7 +3625,7 @@ private fun CategoryCard(
                 onClick = click,
                 onLongClick = longClick,
             ),
-        colors = CardDefaults.cardColors(containerColor = if (active) colorTheme.accent else Color.White),
+        colors = CardDefaults.cardColors(containerColor = if (active) AppPrimary else Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         shape = RoundedCornerShape(15.dp),
     ) {
@@ -3710,7 +3638,7 @@ private fun CategoryCard(
             Spacer(Modifier.height(1.dp))
             Text(
                 label,
-                color = if (active) colorTheme.onAccent else Ink,
+                color = if (active) AppOnPrimary else Ink,
                 fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
                 fontSize = 13.sp,
                 maxLines = 1,
@@ -3728,7 +3656,7 @@ private fun CategoryDialog(
     dismiss: () -> Unit,
     confirm: (LedgerCategory) -> Unit,
 ) {
-    val fixedPrimaryDark = colorResource(R.color.theme_primary_dark)
+    val fixedPrimaryDark = colorResource(R.color.app_primary_dark)
     var input by remember(initial) { mutableStateOf(initial?.name.orEmpty()) }
     val availableIcons = if (kind == "支出") expenseIcons else incomeIcons
     val icons = remember(kind, initial?.symbol) {
@@ -3992,7 +3920,7 @@ private fun CalculatorKeyboardKey(
     modifier: Modifier,
     onClick: () -> Unit,
 ) {
-    val fixedPrimaryDark = colorResource(R.color.theme_primary_dark)
+    val fixedPrimaryDark = colorResource(R.color.app_primary_dark)
     val operator = label in setOf("+", "−", "×", "÷")
     val action = label == "C" || label == "⌫"
     val background = when {
@@ -4135,7 +4063,7 @@ private fun MoneyLogDatePickerDialog(
     onDismiss: () -> Unit,
     onDateSelected: (Long) -> Unit,
 ) {
-    val primary = colorResource(R.color.theme_primary_dark)
+    val primary = colorResource(R.color.app_primary_dark)
     val currentTime = remember { System.currentTimeMillis() }
     val safeInitialDate = remember(initialMillis, currentTime) {
         if (isDateAfterToday(initialMillis, currentTime)) currentTime else initialMillis

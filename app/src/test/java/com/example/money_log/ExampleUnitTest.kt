@@ -280,24 +280,6 @@ class ExampleUnitTest {
     }
 
     @Test
-    fun colorThemeFromStorage_restoresSavedThemeAndFallsBackToClassic() {
-        assertEquals(ColorTheme.SKY_BLUE, colorThemeFromStorage("sky_blue"))
-        assertEquals(ColorTheme.CLASSIC, colorThemeFromStorage(null))
-        assertEquals(ColorTheme.CLASSIC, colorThemeFromStorage("unknown"))
-    }
-
-    @Test
-    fun colorThemes_haveUniqueStableStorageKeys() {
-        val storageKeys = ColorTheme.entries.map { it.storageKey }
-
-        assertEquals(storageKeys.size, storageKeys.toSet().size)
-        assertEquals(
-            setOf("classic", "fresh_green", "sky_blue", "soft_purple", "coral_orange"),
-            storageKeys.toSet(),
-        )
-    }
-
-    @Test
     fun titleBarStyleFromStorage_restoresSavedStyleAndFallsBackToDesignOne() {
         assertEquals(TitleBarStyle.DESIGN_TWO, titleBarStyleFromStorage("design_two"))
         assertEquals(TitleBarStyle.DESIGN_ONE, titleBarStyleFromStorage(null))
