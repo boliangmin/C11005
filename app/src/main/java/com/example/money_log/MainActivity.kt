@@ -30,6 +30,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
@@ -580,6 +581,13 @@ private fun LedgerApp(
                         selectedLedgerId = ledger.id
                         page = AppPage.LEDGER_DETAILS
                     },
+                    onUpdateLedger = { updatedLedger ->
+                        val ledgerIndex = ledgers.indexOfFirst { it.id == updatedLedger.id }
+                        if (ledgerIndex >= 0) {
+                            ledgers[ledgerIndex] = updatedLedger
+                            store.saveLedgers(ledgers)
+                        }
+                    },
                     onManageCategories = { page = AppPage.CATEGORIES },
                     onTitleBarStyle = { page = AppPage.TITLE_BAR_STYLE },
                     addButtonXFraction = addButtonXFraction,
@@ -684,6 +692,7 @@ private fun DetailsScreen(
     onAddEntry: () -> Unit,
     onAddLedger: () -> Unit,
     onOpenLedger: (LedgerBook) -> Unit,
+    onUpdateLedger: (LedgerBook) -> Unit,
     onManageCategories: () -> Unit,
     onTitleBarStyle: () -> Unit,
     addButtonXFraction: Float,
@@ -808,6 +817,7 @@ private fun DetailsScreen(
                     ledgers = ledgers,
                     entries = allEntries,
                     onOpenLedger = onOpenLedger,
+                    onUpdateLedger = onUpdateLedger,
                 )
             } else if (selectedSection != DetailsSection.BILLS) {
                 Spacer(Modifier.weight(1f))
@@ -963,8 +973,13 @@ private fun LedgerListContent(
     ledgers: List<LedgerBook>,
     entries: List<Entry>,
     onOpenLedger: (LedgerBook) -> Unit,
+    onUpdateLedger: (LedgerBook) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var actionLedger by remember { mutableStateOf<LedgerBook?>(null) }
+    var editingLedger by remember { mutableStateOf<LedgerBook?>(null) }
+    var mergingLedger by remember { mutableStateOf<LedgerBook?>(null) }
+
     if (ledgers.isEmpty()) {
         Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -985,25 +1000,65 @@ private fun LedgerListContent(
                     ledger = ledger,
                     entryCount = entries.count { it.ledgerId == ledger.id },
                     onClick = { onOpenLedger(ledger) },
+                    onLongClick = { actionLedger = ledger },
                 )
             }
         }
     }
+    actionLedger?.let { ledger ->
+        LedgerActionDialog(
+            ledger = ledger,
+            dismiss = { actionLedger = null },
+            onEdit = {
+                actionLedger = null
+                editingLedger = ledger
+            },
+            onMergeSelection = {
+                actionLedger = null
+                mergingLedger = ledger
+            },
+        )
+    }
+    editingLedger?.let { ledger ->
+        LedgerEditorDialog(
+            existingNames = ledgers.filterNot { it.id == ledger.id }.map { it.name },
+            initialDate = ledger.date,
+            initial = ledger,
+            onDismiss = { editingLedger = null },
+            onSave = { updatedLedger ->
+                onUpdateLedger(updatedLedger)
+                editingLedger = null
+            },
+        )
+    }
+    mergingLedger?.let { ledger ->
+        LedgerMergeDialog(
+            ledger = ledger,
+            dismiss = { mergingLedger = null },
+            confirm = { updatedLedger ->
+                onUpdateLedger(updatedLedger)
+                mergingLedger = null
+            },
+        )
+    }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun LedgerCard(
     ledger: LedgerBook,
     entryCount: Int,
     onClick: () -> Unit,
+    onLongClick: () -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val colorTheme = LocalColorTheme.current
     Card(
-        modifier = Modifier.fillMaxWidth().clickable(
+        modifier = Modifier.fillMaxWidth().combinedClickable(
             interactionSource = interactionSource,
             indication = null,
             onClick = onClick,
+            onLongClick = onLongClick,
         ),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
@@ -1053,6 +1108,98 @@ private fun LedgerCard(
             }
         }
     }
+}
+
+@Composable
+private fun LedgerActionDialog(
+    ledger: LedgerBook,
+    dismiss: () -> Unit,
+    onEdit: () -> Unit,
+    onMergeSelection: () -> Unit,
+) {
+    val fixedPrimaryDark = colorResource(R.color.theme_primary_dark)
+    AlertDialog(
+        onDismissRequest = dismiss,
+        title = { Text("${ledger.symbol}  ${ledger.name}") },
+        text = {
+            Column {
+                CategoryActionItem(
+                    symbol = "",
+                    title = "修改账本",
+                    subtitle = "修改图标、名称、日期和备注",
+                    iconResource = R.drawable.ic_edit_bill_color,
+                    iconBackgroundColor = Color.Transparent,
+                    preserveIconColors = true,
+                    expandIconToBackground = true,
+                    onClick = onEdit,
+                )
+                Spacer(Modifier.height(10.dp))
+                CategoryActionItem(
+                    symbol = "",
+                    title = "账单合入选择",
+                    subtitle = if (ledger.includeInBills) "当前：合入总账单" else "当前：仅在本账本显示",
+                    iconResource = R.drawable.ic_bill_outline,
+                    onClick = onMergeSelection,
+                )
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(
+                onClick = dismiss,
+                colors = ButtonDefaults.textButtonColors(contentColor = fixedPrimaryDark),
+            ) { Text("取消") }
+        },
+    )
+}
+
+@Composable
+private fun LedgerMergeDialog(
+    ledger: LedgerBook,
+    dismiss: () -> Unit,
+    confirm: (LedgerBook) -> Unit,
+) {
+    val fixedPrimaryDark = colorResource(R.color.theme_primary_dark)
+    var includeInBills by remember(ledger.id, ledger.includeInBills) {
+        mutableStateOf(ledger.includeInBills)
+    }
+    AlertDialog(
+        onDismissRequest = dismiss,
+        title = { Text("账单合入选择") },
+        text = {
+            Column {
+                FilterModeOption(
+                    title = "合入总账单",
+                    subtitle = "账本内账单会同时显示在总账单中",
+                    selected = includeInBills,
+                    onClick = { includeInBills = true },
+                )
+                Spacer(Modifier.height(8.dp))
+                FilterModeOption(
+                    title = "仅在本账本显示",
+                    subtitle = "账本内账单不会显示在总账单中",
+                    selected = !includeInBills,
+                    onClick = { includeInBills = false },
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { confirm(ledger.copy(includeInBills = includeInBills)) },
+                enabled = includeInBills != ledger.includeInBills,
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = fixedPrimaryDark,
+                    disabledContentColor = Muted.copy(alpha = 0.38f),
+                ),
+            ) { Text("保存") }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = dismiss,
+                colors = ButtonDefaults.textButtonColors(contentColor = fixedPrimaryDark),
+            ) { Text("取消") }
+        },
+    )
 }
 
 @Composable
@@ -1264,17 +1411,18 @@ private fun LedgerDetailScreen(
 private fun LedgerEditorDialog(
     existingNames: List<String>,
     initialDate: Long,
+    initial: LedgerBook? = null,
     onDismiss: () -> Unit,
     onSave: (LedgerBook) -> Unit,
 ) {
     val density = LocalDensity.current
     val inputWindowActions = remember { InputWindowActions() }
     val editorScrollState = rememberScrollState()
-    var selectedIcon by remember { mutableStateOf<String?>(null) }
-    var name by remember { mutableStateOf("") }
-    var date by remember(initialDate) { mutableLongStateOf(initialDate) }
-    var note by remember { mutableStateOf("") }
-    var includeInBills by remember { mutableStateOf(true) }
+    val iconGridState = rememberLazyGridState()
+    var selectedIcon by remember(initial?.id) { mutableStateOf(initial?.symbol) }
+    var name by remember(initial?.id) { mutableStateOf(initial?.name.orEmpty()) }
+    var date by remember(initial?.id, initialDate) { mutableLongStateOf(initial?.date ?: initialDate) }
+    var note by remember(initial?.id) { mutableStateOf(initial?.note.orEmpty()) }
     var showDatePicker by remember { mutableStateOf(false) }
     var nameHasFocus by remember { mutableStateOf(false) }
     var noteHasFocus by remember { mutableStateOf(false) }
@@ -1299,10 +1447,20 @@ private fun LedgerEditorDialog(
         unfocusedLabelColor = Muted,
     )
     val normalizedName = name.trim()
-    val canSave = selectedIcon != null && normalizedName.isNotEmpty() && normalizedName !in existingNames
+    val changed = initial == null || selectedIcon != initial.symbol || normalizedName != initial.name ||
+        date != initial.date || note.trim() != initial.note
+    val canSave = selectedIcon != null && normalizedName.isNotEmpty() &&
+        normalizedName !in existingNames && changed
     val collapseInputPanel = {
         inputWindowActions.hideKeyboard()
         inputWindowActions.clearFocus()
+    }
+
+    LaunchedEffect(initial?.id) {
+        val selectedIndex = initial?.symbol?.let(ledgerIcons::indexOf) ?: -1
+        if (selectedIndex >= 0) {
+            iconGridState.scrollToItem(selectedIndex)
+        }
     }
 
     LaunchedEffect(isSystemKeyboardVisible) {
@@ -1378,7 +1536,12 @@ private fun LedgerEditorDialog(
                     shadowElevation = 10.dp,
                 ) {
                     Column(Modifier.padding(24.dp)) {
-                        Text("新增账本", fontSize = 24.sp, fontWeight = FontWeight.Medium, color = Ink)
+                        Text(
+                            if (initial == null) "新增账本" else "修改账本",
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Ink,
+                        )
                         Spacer(Modifier.height(18.dp))
                         Column(
                             modifier = Modifier
@@ -1390,6 +1553,7 @@ private fun LedgerEditorDialog(
                             LazyVerticalGrid(
                                 columns = GridCells.Fixed(4),
                                 modifier = Modifier.fillMaxWidth().height(120.dp),
+                                state = iconGridState,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
@@ -1448,23 +1612,6 @@ private fun LedgerEditorDialog(
                                 shape = RoundedCornerShape(14.dp),
                                 colors = fieldColors,
                             )
-                            Spacer(Modifier.height(14.dp))
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(Color.White, RoundedCornerShape(14.dp))
-                                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Column(Modifier.weight(1f)) {
-                                    Text("合入账单", fontSize = 16.sp, fontWeight = FontWeight.Medium, color = Ink)
-                                    Text("账本内账单同时显示在总账单中", fontSize = 12.sp, color = Muted)
-                                }
-                                Switch(
-                                    checked = includeInBills,
-                                    onCheckedChange = { includeInBills = it },
-                                )
-                            }
                         }
                         Spacer(Modifier.height(12.dp))
                         Row(
@@ -1478,14 +1625,22 @@ private fun LedgerEditorDialog(
                             TextButton(
                                 onClick = {
                                     onSave(
-                                        LedgerBook(
-                                            id = UUID.randomUUID().toString(),
-                                            symbol = selectedIcon!!,
-                                            name = normalizedName,
-                                            date = date,
-                                            note = note.trim(),
-                                            includeInBills = includeInBills,
-                                        ),
+                                        if (initial == null) {
+                                            LedgerBook(
+                                                id = UUID.randomUUID().toString(),
+                                                symbol = selectedIcon!!,
+                                                name = normalizedName,
+                                                date = date,
+                                                note = note.trim(),
+                                            )
+                                        } else {
+                                            initial.copy(
+                                                symbol = selectedIcon!!,
+                                                name = normalizedName,
+                                                date = date,
+                                                note = note.trim(),
+                                            )
+                                        },
                                     )
                                 },
                                 enabled = canSave,
@@ -1493,7 +1648,7 @@ private fun LedgerEditorDialog(
                                     contentColor = fixedPrimaryDark,
                                     disabledContentColor = Muted.copy(alpha = 0.38f),
                                 ),
-                            ) { Text("添加") }
+                            ) { Text(if (initial == null) "添加" else "保存") }
                         }
                     }
                 }
