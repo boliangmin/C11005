@@ -255,6 +255,7 @@ private enum class AppPage { DETAILS, ADD_ENTRY, ADD_LEDGER, LEDGER_DETAILS, TIT
 private enum class DetailsSection { BILLS, LEDGER, STATISTICS, MORE }
 private const val UncategorizedName = "未分类"
 private const val UncategorizedIcon = "⭕"
+private const val HiddenLedgerIconLabel = "\u00A0"
 
 data class Entry(
     val id: String,
@@ -1557,9 +1558,11 @@ private fun LedgerEditorDialog(
                             ) {
                                 items(expenseIcons.size) { index ->
                                     val symbol = expenseIcons[index]
-                                    LedgerIconChoice(symbol, selectedIcon == symbol) {
-                                        selectedIcon = symbol
-                                    }
+                                    EntryCategoryChoice(
+                                        category = LedgerCategory(HiddenLedgerIconLabel, symbol),
+                                        active = selectedIcon == symbol,
+                                        onClick = { selectedIcon = symbol },
+                                    )
                                 }
                             }
                             Spacer(Modifier.height(14.dp))
@@ -3065,21 +3068,6 @@ private fun EntryCategoryChoice(
         Text(category.symbol, fontSize = 25.sp)
         Spacer(Modifier.height(3.dp))
         Text(category.name, fontSize = 11.sp, color = Ink, maxLines = 1)
-    }
-}
-
-@Composable
-private fun LedgerIconChoice(symbol: String, active: Boolean, onClick: () -> Unit) {
-    val interactionSource = remember { MutableInteractionSource() }
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(64.dp)
-            .background(if (active) EditCategorySelectedGreen else Bg, RoundedCornerShape(12.dp))
-            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(symbol, fontSize = 25.sp)
     }
 }
 
