@@ -300,12 +300,6 @@ private val incomeIcons = listOf(
     "🏦", "💳", "📊", "🧾", "⭐", "🤝", "🛍️", "⭕",
 )
 
-private val ledgerIcons = listOf(
-    "📒", "📕", "📗", "📘", "📙", "📓", "📔", "📚",
-    "🏠", "🚗", "✈️", "🎓", "💼", "💰", "💳", "🧾",
-    "🛍️", "🎁", "❤️", "👨‍👩‍👧", "🐾", "🏃", "🎮", "⭐",
-)
-
 private val legacyDefaultIcons = mapOf(
     "餐饮" to "🍜",
     "住房" to "🏠",
@@ -319,6 +313,11 @@ internal fun ensureUncategorizedCategory(categories: List<LedgerCategory>): List
         ?: LedgerCategory(UncategorizedName, UncategorizedIcon)
     return categories.filterNot { it.name == UncategorizedName } + uncategorized
 }
+
+private fun ledgerIconCategories(
+    expenseCategories: List<LedgerCategory>,
+    incomeCategories: List<LedgerCategory>,
+): List<LedgerCategory> = (expenseCategories + incomeCategories).distinctBy { it.symbol }
 
 private class Store(context: Context) {
     private val p = context.getSharedPreferences("ledger", Context.MODE_PRIVATE)
@@ -412,7 +411,7 @@ private class Store(context: Context) {
             val value = values.getJSONObject(index)
             LedgerBook(
                 id = value.getString("id"),
-                symbol = value.optString("symbol", ledgerIcons.first()),
+                symbol = value.optString("symbol", UncategorizedIcon),
                 name = value.getString("name"),
                 date = value.getLong("date"),
                 note = value.optString("note", ""),
@@ -666,6 +665,7 @@ private fun LedgerApp(
                 LedgerEditorDialog(
                     existingNames = ledgers.map { it.name },
                     initialDate = addLedgerInitialDate,
+                    iconCategories = ledgerIconCategories(expenses, incomes),
                     onDismiss = { page = AppPage.DETAILS },
                     onSave = { ledger ->
                         ledgers.add(ledger)
@@ -816,6 +816,7 @@ private fun DetailsScreen(
                     modifier = Modifier.weight(1f),
                     ledgers = ledgers,
                     entries = allEntries,
+                    iconCategories = ledgerIconCategories(expenseCategories, incomeCategories),
                     onOpenLedger = onOpenLedger,
                     onUpdateLedger = onUpdateLedger,
                 )
@@ -972,6 +973,7 @@ private fun DetailsScreen(
 private fun LedgerListContent(
     ledgers: List<LedgerBook>,
     entries: List<Entry>,
+    iconCategories: List<LedgerCategory>,
     onOpenLedger: (LedgerBook) -> Unit,
     onUpdateLedger: (LedgerBook) -> Unit,
     modifier: Modifier = Modifier,
@@ -1023,6 +1025,7 @@ private fun LedgerListContent(
         LedgerEditorDialog(
             existingNames = ledgers.filterNot { it.id == ledger.id }.map { it.name },
             initialDate = ledger.date,
+            iconCategories = iconCategories,
             initial = ledger,
             onDismiss = { editingLedger = null },
             onSave = { updatedLedger ->
@@ -1069,10 +1072,10 @@ private fun LedgerCard(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
-                modifier = Modifier.size(52.dp).background(colorTheme.softAccent, CircleShape),
+                modifier = Modifier.size(46.dp).background(Color.White, CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(ledger.symbol, fontSize = 30.sp)
+                Text(ledger.symbol, fontSize = 28.sp)
             }
             Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
                 Text(
@@ -1099,7 +1102,7 @@ private fun LedgerCard(
                 Text(
                     if (ledger.includeInBills) "账单合入总账单" else "账单仅在本账本显示",
                     fontSize = 11.sp,
-                    color = if (ledger.includeInBills) IncomeAmountGreen else Muted,
+                    color = if (ledger.includeInBills) colorTheme.accentDark else Muted,
                 )
             }
             Column(horizontalAlignment = Alignment.End) {
@@ -1120,7 +1123,7 @@ private fun LedgerActionDialog(
     val fixedPrimaryDark = colorResource(R.color.theme_primary_dark)
     AlertDialog(
         onDismissRequest = dismiss,
-        title = { Text("${ledger.symbol}  ${ledger.name}") },
+        title = { Text(ledger.name) },
         text = {
             Column {
                 CategoryActionItem(
@@ -1223,6 +1226,7 @@ private fun LedgerDetailScreen(
     val dayGroups = groupEntriesByDay(entries)
     val density = LocalDensity.current
     val fixedPrimaryDark = colorResource(R.color.theme_primary_dark)
+    val colorTheme = LocalColorTheme.current
 
     BackHandler(onBack = onBack)
 
@@ -1257,7 +1261,12 @@ private fun LedgerDetailScreen(
                 ) {
                     Text("‹", fontSize = 36.sp, color = Ink, lineHeight = 36.sp)
                 }
-                Text(ledger.symbol, fontSize = 29.sp)
+                Box(
+                    modifier = Modifier.size(46.dp).background(Color.White, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(ledger.symbol, fontSize = 28.sp)
+                }
                 Column(Modifier.weight(1f).padding(start = 10.dp)) {
                     Text(
                         ledger.name,
@@ -1283,12 +1292,12 @@ private fun LedgerDetailScreen(
                         Text(
                             if (ledger.includeInBills) "已合入总账单" else "独立账本",
                             fontSize = 12.sp,
-                            color = if (ledger.includeInBills) IncomeAmountGreen else Muted,
+                            color = if (ledger.includeInBills) colorTheme.accentDark else Muted,
                         )
                     }
                     if (ledger.note.isNotBlank()) {
                         Spacer(Modifier.height(6.dp))
-                        Text(ledger.note, fontSize = 13.sp, color = Ink)
+                        Text(ledger.note, fontSize = 13.sp, color = colorTheme.accentDark)
                     }
                 }
             }
@@ -1411,6 +1420,7 @@ private fun LedgerDetailScreen(
 private fun LedgerEditorDialog(
     existingNames: List<String>,
     initialDate: Long,
+    iconCategories: List<LedgerCategory>,
     initial: LedgerBook? = null,
     onDismiss: () -> Unit,
     onSave: (LedgerBook) -> Unit,
@@ -1419,7 +1429,13 @@ private fun LedgerEditorDialog(
     val inputWindowActions = remember { InputWindowActions() }
     val editorScrollState = rememberScrollState()
     val iconGridState = rememberLazyGridState()
-    var selectedIcon by remember(initial?.id) { mutableStateOf(initial?.symbol) }
+    var selectedIcon by remember(initial?.id) {
+        mutableStateOf(
+            initial?.symbol?.takeIf { symbol ->
+                iconCategories.any { category -> category.symbol == symbol }
+            },
+        )
+    }
     var name by remember(initial?.id) { mutableStateOf(initial?.name.orEmpty()) }
     var date by remember(initial?.id, initialDate) { mutableLongStateOf(initial?.date ?: initialDate) }
     var note by remember(initial?.id) { mutableStateOf(initial?.note.orEmpty()) }
@@ -1457,7 +1473,7 @@ private fun LedgerEditorDialog(
     }
 
     LaunchedEffect(initial?.id) {
-        val selectedIndex = initial?.symbol?.let(ledgerIcons::indexOf) ?: -1
+        val selectedIndex = iconCategories.indexOfFirst { category -> category.symbol == initial?.symbol }
         if (selectedIndex >= 0) {
             iconGridState.scrollToItem(selectedIndex)
         }
@@ -1548,18 +1564,22 @@ private fun LedgerEditorDialog(
                                 .weight(1f, fill = false)
                                 .verticalScroll(editorScrollState),
                         ) {
-                            Text("选择图标", fontWeight = FontWeight.Medium, color = Ink)
+                            Text("分类", fontWeight = FontWeight.Medium, color = Ink)
                             Spacer(Modifier.height(8.dp))
                             LazyVerticalGrid(
                                 columns = GridCells.Fixed(4),
-                                modifier = Modifier.fillMaxWidth().height(120.dp),
+                                modifier = Modifier.fillMaxWidth().heightIn(max = 210.dp),
                                 state = iconGridState,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
-                                items(ledgerIcons.size) { index ->
-                                    val symbol = ledgerIcons[index]
-                                    IconChoice(symbol, selectedIcon == symbol) { selectedIcon = symbol }
+                                items(iconCategories.size) { index ->
+                                    val category = iconCategories[index]
+                                    EntryCategoryChoice(
+                                        category = category,
+                                        active = selectedIcon == category.symbol,
+                                        onClick = { selectedIcon = category.symbol },
+                                    )
                                 }
                             }
                             Spacer(Modifier.height(14.dp))
