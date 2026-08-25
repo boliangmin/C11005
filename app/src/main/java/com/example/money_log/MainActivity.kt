@@ -105,6 +105,8 @@ private val DeleteSwipeBackground = Color(0xFFE57373)
 private val DeleteActionRed = Color(0xFFE53935)
 private val NeutralIconBorder = Color(0xFFE5E5E5)
 private val EditCategorySelectedGreen = Color(0xFFC8E6C9)
+private val SelectionBlue = Color(0xFF315F9F)
+private val SelectionBlueContainer = Color(0xFFEEF5FF)
 private const val GoldenRatio = 1.618f
 private const val BookkeepingDialogWidthFraction = 0.8f
 private val CalculatorKeyboardHeight = 340.dp
@@ -1150,7 +1152,7 @@ private fun LedgerMergeOption(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(if (selected) AppPrimaryContainer else Bg, RoundedCornerShape(14.dp))
+            .background(if (selected) SelectionBlueContainer else Bg, RoundedCornerShape(14.dp))
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -1171,12 +1173,19 @@ private fun LedgerMergeOption(
             Spacer(Modifier.height(2.dp))
             Text(subtitle, fontSize = 12.sp, color = Muted)
         }
-        Text(
-            text = if (selected) "✓" else "",
-            fontSize = 23.sp,
-            fontWeight = FontWeight.Bold,
-            color = AppOnPrimaryContainer,
-        )
+        Box(
+            modifier = Modifier.size(28.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (selected) {
+                Text(
+                    text = "✓",
+                    fontSize = 23.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = SelectionBlue,
+                )
+            }
+        }
     }
 }
 
@@ -2120,11 +2129,10 @@ private fun TitleBarStyleOption(
     onClick: () -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val selectionColor = Color(0xFF315F9F)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(if (selected) Color(0xFFEEF5FF) else Color.White, RoundedCornerShape(16.dp))
+            .background(if (selected) SelectionBlueContainer else Color.White, RoundedCornerShape(16.dp))
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -2155,7 +2163,7 @@ private fun TitleBarStyleOption(
             text = if (selected) "✓" else "",
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
-            color = selectionColor,
+            color = SelectionBlue,
         )
     }
 }
