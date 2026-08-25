@@ -99,6 +99,7 @@ import kotlin.math.roundToInt
 private val Bg = Color(0xFFF7F7F7)
 private val Ink = Color(0xFF2D3037)
 private val IncomeAmountGreen = Color(0xFF57B881)
+private val NoteSkyBlue = Color(0xFF0EA5E9)
 private val Muted = Color(0xFF777A81)
 private val Danger = Color(0xFFC43D3D)
 private val DeleteSwipeBackground = Color(0xFFE57373)
@@ -1032,7 +1033,7 @@ private fun LedgerCard(
                     Text(
                         ledger.note,
                         fontSize = 12.sp,
-                        color = AppOnPrimaryContainer,
+                        color = NoteSkyBlue,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -1280,7 +1281,7 @@ private fun LedgerDetailScreen(
                     }
                     if (ledger.note.isNotBlank()) {
                         Spacer(Modifier.height(6.dp))
-                        Text(ledger.note, fontSize = 13.sp, color = AppOnPrimaryContainer)
+                        Text(ledger.note, fontSize = 13.sp, color = NoteSkyBlue)
                     }
                 }
             }
@@ -2596,7 +2597,7 @@ private fun EntryCard(
                 Column(Modifier.weight(1f).padding(start = 14.dp)) {
                     Text(entry.category, fontSize = 17.sp, fontWeight = FontWeight.Medium)
                     if (entry.note.isNotBlank()) {
-                        Text(entry.note, fontSize = 12.sp, color = AppOnPrimaryContainer, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(entry.note, fontSize = 12.sp, color = NoteSkyBlue, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
                 Text(
