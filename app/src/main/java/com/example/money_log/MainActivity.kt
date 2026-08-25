@@ -60,6 +60,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -108,6 +109,12 @@ private val NeutralIconBorder = Color(0xFFE5E5E5)
 private val EditCategorySelectedGreen = Color(0xFFC8E6C9)
 private val SelectionBlue = Color(0xFF315F9F)
 private val SelectionBlueContainer = Color(0xFFEEF5FF)
+private val AnnualDashboardGradientColors = listOf(
+    Color(0xFF00B8D9),
+    Color(0xFF4361EE),
+    Color(0xFF8A4FFF),
+    Color(0xFFFF4D8D),
+)
 private const val GoldenRatio = 1.618f
 private const val BookkeepingDialogWidthFraction = 0.8f
 private val CalculatorKeyboardHeight = 340.dp
@@ -2271,73 +2278,108 @@ private fun AnnualBillStatisticsCard(
     statistics: AnnualBillStatistics,
     onYearClick: () -> Unit,
 ) {
-    val balanceColor = when {
-        statistics.balance > 0 -> IncomeAmountGreen
-        statistics.balance < 0 -> Danger
-        else -> Ink
-    }
     val balanceText = if (statistics.balance < 0) {
         "−¥${money(kotlin.math.abs(statistics.balance))}"
     } else {
         "¥${money(statistics.balance)}"
     }
+    val dashboardGradient = remember {
+        Brush.linearGradient(colors = AnnualDashboardGradientColors)
+    }
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        shape = RoundedCornerShape(20.dp),
     ) {
-        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .background(dashboardGradient)
+                .padding(16.dp),
+        ) {
             Row(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(10.dp))
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.White.copy(alpha = 0.16f))
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         onClick = onYearClick,
                     )
-                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
                     text = "${statistics.year}年",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = Ink,
+                    color = Color.White,
                 )
                 Spacer(Modifier.width(8.dp))
                 Icon(
                     painter = painterResource(R.drawable.ic_keyboard_arrow_down),
                     contentDescription = "选择年份",
                     modifier = Modifier.size(width = 16.5.dp, height = 8.5.dp),
-                    tint = SelectionBlue,
+                    tint = Color.White,
                 )
             }
             HorizontalDivider(
                 modifier = Modifier.padding(vertical = 14.dp),
-                color = Color(0xFFE8E9EB),
+                color = Color.White.copy(alpha = 0.26f),
             )
-            Row(Modifier.fillMaxWidth()) {
-                MonthlyBillStatisticsValue(
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                AnnualBillStatisticsValue(
                     label = "总支出",
                     value = "¥${money(statistics.expenseTotal)}",
-                    valueColor = Ink,
                     modifier = Modifier.weight(1f),
                 )
-                MonthlyBillStatisticsValue(
+                AnnualBillStatisticsValue(
                     label = "总收入",
                     value = "¥${money(statistics.incomeTotal)}",
-                    valueColor = IncomeAmountGreen,
                     modifier = Modifier.weight(1f),
                 )
-                MonthlyBillStatisticsValue(
+                AnnualBillStatisticsValue(
                     label = "总结余",
                     value = balanceText,
-                    valueColor = balanceColor,
                     modifier = Modifier.weight(1f),
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun AnnualBillStatisticsValue(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color.White.copy(alpha = 0.16f))
+            .padding(horizontal = 6.dp, vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = label,
+            fontSize = 13.sp,
+            color = Color.White.copy(alpha = 0.78f),
+        )
+        Spacer(Modifier.height(5.dp))
+        Text(
+            text = value,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = Color.White,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 
