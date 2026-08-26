@@ -151,8 +151,8 @@ private val MonthlyExpenseCategoryBarColors = listOf(
     Color(0xFF8D6E63),
     Color(0xFF90BE6D),
 )
-private val MonthlyExpenseBarColor = Color(0xFF556F87)
-private val MonthlyIncomeBarColor = Color(0xFF9DB1C2)
+private val MonthlyExpenseBarColor = Color(0xFF82A8C4)
+private val MonthlyIncomeBarColor = Color(0xFFB7BEC6)
 private const val GoldenRatio = 1.618f
 private const val BookkeepingDialogWidthFraction = 0.8f
 private val CalculatorKeyboardHeight = 340.dp
