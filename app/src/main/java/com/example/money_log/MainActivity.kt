@@ -148,8 +148,6 @@ private val MonthlyExpensePieLegendHorizontalGap = 8.dp
 private val MonthlyExpensePieLegendCategoryWidth = 64.dp
 private val MonthlyExpensePieLegendPercentageWidth = 40.dp
 private val MonthlyExpensePieLegendSwatchGap = 4.dp
-private const val MonthlyExpensePieDividerMinSweepAngle = 2f
-private val MonthlyExpensePieDividerWidth = 0.8.dp
 
 private fun hueDistance(first: Float, second: Float): Float {
     val distance = abs(first - second)
@@ -2843,7 +2841,6 @@ private fun MonthlyExpensePieCanvas(
 ) {
     Canvas(modifier) {
         var consumedAngle = 0f
-        val sweepAngles = mutableListOf<Float>()
         statistics.forEachIndexed { index, item ->
             val sweepAngle = if (index == statistics.lastIndex) {
                 360f - consumedAngle
@@ -2857,31 +2854,6 @@ private fun MonthlyExpensePieCanvas(
                 useCenter = true,
             )
             consumedAngle += sweepAngle
-            sweepAngles += sweepAngle
-        }
-        if (statistics.size > 1) {
-            val radius = size.minDimension / 2f
-            var boundaryAngle = -90f
-            sweepAngles.indices.forEach { index ->
-                val previousIndex = if (index == 0) sweepAngles.lastIndex else index - 1
-                if (
-                    minOf(sweepAngles[previousIndex], sweepAngles[index]) >=
-                    MonthlyExpensePieDividerMinSweepAngle
-                ) {
-                    val radians = Math.toRadians(boundaryAngle.toDouble())
-                    val edge = Offset(
-                        x = center.x + Math.cos(radians).toFloat() * radius,
-                        y = center.y + Math.sin(radians).toFloat() * radius,
-                    )
-                    drawLine(
-                        color = Color.White.copy(alpha = 0.9f),
-                        start = center,
-                        end = edge,
-                        strokeWidth = MonthlyExpensePieDividerWidth.toPx(),
-                    )
-                }
-                boundaryAngle += sweepAngles[index]
-            }
         }
     }
 }
