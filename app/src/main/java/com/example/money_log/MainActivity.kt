@@ -2302,7 +2302,7 @@ private fun AnnualBillStatisticsCard(
             Modifier
                 .fillMaxWidth()
                 .background(dashboardGradient)
-                .padding(16.dp),
+                .padding(horizontal = 16.dp, vertical = 14.dp),
         ) {
             Row(
                 modifier = Modifier
@@ -2311,7 +2311,7 @@ private fun AnnualBillStatisticsCard(
                         indication = null,
                         onClick = onYearClick,
                     )
-                    .padding(end = 9.dp, top = 5.dp, bottom = 5.dp),
+                    .padding(end = 9.dp, top = 3.dp, bottom = 3.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
@@ -2329,22 +2329,34 @@ private fun AnnualBillStatisticsCard(
                 )
             }
             HorizontalDivider(
-                modifier = Modifier.padding(vertical = 12.dp),
+                modifier = Modifier.padding(vertical = 9.dp),
                 color = AnnualDashboardInk.copy(alpha = 0.38f),
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(7.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 AnnualBillStatisticsValue(
                     label = "总支出",
                     value = "¥${money(statistics.expenseTotal)}",
                     modifier = Modifier.weight(1f),
                 )
+                Box(
+                    Modifier
+                        .width(1.dp)
+                        .height(40.dp)
+                        .background(AnnualDashboardInk.copy(alpha = 0.18f)),
+                )
                 AnnualBillStatisticsValue(
                     label = "总收入",
                     value = "¥${money(statistics.incomeTotal)}",
                     modifier = Modifier.weight(1f),
+                )
+                Box(
+                    Modifier
+                        .width(1.dp)
+                        .height(40.dp)
+                        .background(AnnualDashboardInk.copy(alpha = 0.18f)),
                 )
                 AnnualBillStatisticsValue(
                     label = "总结余",
@@ -2364,9 +2376,7 @@ private fun AnnualBillStatisticsValue(
 ) {
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(Color.White.copy(alpha = 0.30f))
-            .padding(horizontal = 5.dp, vertical = 10.dp),
+            .padding(horizontal = 5.dp, vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
@@ -2479,31 +2489,46 @@ private fun MonthlyBillStatisticsMonthSection(
     } else {
         "¥${money(statistics.balance)}"
     }
-    Column(Modifier.fillMaxWidth()) {
-        Text(
-            text = "${statistics.month}月",
-            modifier = Modifier.padding(horizontal = 2.dp),
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Medium,
-            color = Muted.copy(alpha = 0.72f),
-        )
-        Spacer(Modifier.height(14.dp))
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onClick,
-                ),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-            shape = RoundedCornerShape(16.dp),
-        ) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            ),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        shape = RoundedCornerShape(16.dp),
+    ) {
+        Column(Modifier.fillMaxWidth()) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 12.dp, end = 10.dp, top = 16.dp, bottom = 16.dp),
+                    .padding(start = 16.dp, end = 14.dp, top = 10.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "${statistics.month}月",
+                    modifier = Modifier.weight(1f),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Muted.copy(alpha = 0.72f),
+                )
+                Text(
+                    text = "›",
+                    fontSize = 22.sp,
+                    color = Muted.copy(alpha = 0.72f),
+                )
+            }
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                color = Color(0xFFE8E9EB),
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 8.dp, end = 8.dp, top = 12.dp, bottom = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 MonthlyBillStatisticsValue(
@@ -2524,16 +2549,6 @@ private fun MonthlyBillStatisticsMonthSection(
                     valueColor = balanceColor,
                     modifier = Modifier.weight(1f),
                 )
-                Box(
-                    modifier = Modifier.width(18.dp),
-                    contentAlignment = Alignment.CenterEnd,
-                ) {
-                    Text(
-                        text = "›",
-                        fontSize = 24.sp,
-                        color = Muted,
-                    )
-                }
             }
         }
     }
