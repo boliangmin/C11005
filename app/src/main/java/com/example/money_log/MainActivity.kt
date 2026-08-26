@@ -2903,7 +2903,11 @@ private fun MonthlyExpensePieLegend(
                     )
                 }
                 Text(
-                    text = String.format(Locale.US, "%.1f%%", percentage),
+                    text = if (percentage >= 99.95) {
+                        "100%"
+                    } else {
+                        String.format(Locale.US, "%.1f%%", percentage)
+                    },
                     modifier = Modifier.width(MonthlyExpensePieLegendPercentageWidth),
                     fontSize = 11.sp,
                     lineHeight = 12.sp,
