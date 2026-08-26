@@ -2627,7 +2627,7 @@ private fun MonthlyIncomeExpenseBar(
         Text(label, fontSize = 13.sp, color = Muted)
         Spacer(Modifier.width(8.dp))
         Text(
-            text = "¥${money(amount)}",
+            text = money(amount),
             modifier = Modifier.weight(1f),
             fontSize = 14.sp,
             fontWeight = FontWeight.SemiBold,
@@ -2786,7 +2786,7 @@ private fun MonthlyExpensePieChart(
                                     textAlign = TextAlign.End,
                                 )
                                 Text(
-                                    text = "¥${money(item.amount)}",
+                                    text = money(item.amount),
                                     modifier = Modifier.width(68.dp),
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.SemiBold,
@@ -2860,7 +2860,7 @@ private fun MonthlyCategoryExpenseChart(
                             overflow = TextOverflow.Ellipsis,
                         )
                         Text(
-                            text = "¥${money(item.amount)}",
+                            text = money(item.amount),
                             fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = Ink,
@@ -3433,7 +3433,7 @@ private fun EntryCard(
                     }
                 }
                 Text(
-                    "${if (income) "+" else "−"}¥${money(entry.amount)}",
+                    "${if (income) "+" else "−"}${money(entry.amount)}",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = if (income) IncomeAmountGreen else Ink,
@@ -3847,7 +3847,7 @@ private fun DeleteEntryDialog(entry: Entry, dismiss: () -> Unit, confirm: () -> 
         title = { Text("确认删除账单？") },
         text = {
             Text(
-                "将永久删除${day(entry.date)}的${entry.category}账单，金额为¥${money(entry.amount)}。删除后无法恢复。",
+                "将永久删除${day(entry.date)}的${entry.category}账单，金额为${money(entry.amount)}。删除后无法恢复。",
                 color = Muted,
             )
         },
