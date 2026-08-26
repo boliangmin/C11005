@@ -95,6 +95,7 @@ import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlinx.coroutines.delay
+import kotlin.math.abs
 import kotlin.math.round
 import kotlin.math.roundToInt
 
@@ -123,20 +124,50 @@ private val AnnualDashboardGradientColors = listOf(
     Color(0xFFAEBFCE),
     Color(0xFFA7D8F5),
 )
-private val MonthlyExpensePieColors = listOf(
-    Color(0xFFFF8A00),
-    Color(0xFF7C4DFF),
-    Color(0xFFFFB000),
-    Color(0xFFEF4444),
-    Color(0xFFFF6B35),
-    Color(0xFFA855F7),
-    Color(0xFFF9C74F),
-    Color(0xFF9C27B0),
-    Color(0xFFF97316),
-    Color(0xFFD94841),
-    Color(0xFFD99A00),
-    Color(0xFFC084FC),
+private data class PieColorCandidate(val color: Color, val hue: Float)
+
+private val MonthlyExpensePieColorCandidates = listOf(
+    PieColorCandidate(Color(0xFFFF8A00), 30f),
+    PieColorCandidate(Color(0xFF3F7DE0), 215f),
+    PieColorCandidate(Color(0xFF8AC926), 90f),
+    PieColorCandidate(Color(0xFF7C4DFF), 270f),
+    PieColorCandidate(Color(0xFF22B573), 145f),
+    PieColorCandidate(Color(0xFFE83E8C), 330f),
+    PieColorCandidate(Color(0xFFF4C430), 50f),
+    PieColorCandidate(Color(0xFF4B50C9), 240f),
+    PieColorCandidate(Color(0xFF00A6A6), 175f),
+    PieColorCandidate(Color(0xFFEF4444), 0f),
+    PieColorCandidate(Color(0xFF00B8D9), 195f),
+    PieColorCandidate(Color(0xFFFF5D8F), 345f),
 )
+private val MonthlyExpensePieFallbackColor = MonthlyExpensePieColorCandidates.first().color
+
+private fun hueDistance(first: Float, second: Float): Float {
+    val distance = abs(first - second)
+    return minOf(distance, 360f - distance)
+}
+
+private fun highContrastPieColors(count: Int): List<Color> {
+    if (count <= 0) return emptyList()
+    val uniqueColorCount = minOf(count, MonthlyExpensePieColorCandidates.size)
+    val selected = mutableListOf(MonthlyExpensePieColorCandidates.first())
+    val remaining = MonthlyExpensePieColorCandidates.drop(1).toMutableList()
+    while (selected.size < uniqueColorCount) {
+        val previous = selected.last()
+        val closesCircle = selected.size == uniqueColorCount - 1
+        val next = remaining.maxByOrNull { candidate ->
+            val previousDistance = hueDistance(previous.hue, candidate.hue)
+            if (closesCircle) {
+                minOf(previousDistance, hueDistance(candidate.hue, selected.first().hue))
+            } else {
+                previousDistance
+            }
+        } ?: break
+        selected += next
+        remaining -= next
+    }
+    return List(count) { index -> selected[index % selected.size].color }
+}
 private val MonthlyExpenseCategoryBarColors = listOf(
     Color(0xFFD81B60),
     Color(0xFF00A896),
@@ -151,8 +182,10 @@ private val MonthlyExpenseCategoryBarColors = listOf(
     Color(0xFF8D6E63),
     Color(0xFF90BE6D),
 )
-private val MonthlyExpenseBarColor = Color(0xFF82A8C4)
-private val MonthlyIncomeBarColor = Color(0xFFB7BEC6)
+// private val MonthlyExpenseBarColor = Color(0xFF82A8C4)    //blmcc
+// private val MonthlyIncomeBarColor = Color(0xFFB7BEC6)
+private val MonthlyExpenseBarColor = Color(0xFFB7BEC6)
+private val MonthlyIncomeBarColor = Color(0xFF82A8C4)
 private const val GoldenRatio = 1.618f
 private const val BookkeepingDialogWidthFraction = 0.8f
 private val CalculatorKeyboardHeight = 340.dp
@@ -2683,8 +2716,9 @@ private fun MonthlyBillStatisticsDetailScreen(
         expenseCategories.associate { category -> category.name to category.symbol }
     }
     val pieCategoryColors = remember(categoryStatistics) {
+        val colors = highContrastPieColors(categoryStatistics.size)
         categoryStatistics.mapIndexed { index, item ->
-            item.category to MonthlyExpensePieColors[index % MonthlyExpensePieColors.size]
+            item.category to colors[index]
         }.toMap()
     }
     val barCategoryColors = remember(categoryStatistics) {
@@ -2760,7 +2794,7 @@ private fun MonthlyExpensePieChart(
                             }
                             drawArc(
                                 color = categoryColors[item.category]
-                                    ?: MonthlyExpensePieColors.first(),
+                                    ?: MonthlyExpensePieFallbackColor,
                                 startAngle = -90f + consumedAngle,
                                 sweepAngle = sweepAngle,
                                 useCenter = true,
@@ -2786,7 +2820,7 @@ private fun MonthlyExpensePieChart(
                                             .clip(RoundedCornerShape(2.dp))
                                             .background(
                                                 categoryColors[item.category]
-                                                    ?: MonthlyExpensePieColors.first(),
+                                                    ?: MonthlyExpensePieFallbackColor,
                                             ),
                                     )
                                     Spacer(Modifier.width(5.dp))
