@@ -144,22 +144,26 @@ private val MonthlyExpensePieFallbackColor = MonthlyExpensePieColorCandidates.fi
 private const val MonthlyExpensePieMaxSlices = 8
 private val MonthlyExpensePieSize = 132.dp
 private val MonthlyExpensePieLegendRowHeight = 14.dp
-private val MonthlyExpensePieLegendMaxRowSpacing = 5.dp
 private val MonthlyExpensePieLegendHorizontalGap = 8.dp
 private val MonthlyExpensePieLegendCategoryWidth = 64.dp
 private val MonthlyExpensePieLegendPercentageWidth = 40.dp
 private val MonthlyExpensePieLegendSwatchGap = 4.dp
+private const val MonthlyExpensePieDividerMinSweepAngle = 2f
+private val MonthlyExpensePieDividerWidth = 0.8.dp
 
 private fun hueDistance(first: Float, second: Float): Float {
     val distance = abs(first - second)
     return minOf(distance, 360f - distance)
 }
 
-private fun highContrastPieColors(count: Int): List<Color> {
+private fun highContrastPieColors(count: Int, startIndex: Int): List<Color> {
     if (count <= 0) return emptyList()
     val uniqueColorCount = minOf(count, MonthlyExpensePieColorCandidates.size)
-    val selected = mutableListOf(MonthlyExpensePieColorCandidates.first())
-    val remaining = MonthlyExpensePieColorCandidates.drop(1).toMutableList()
+    val normalizedStartIndex = Math.floorMod(startIndex, MonthlyExpensePieColorCandidates.size)
+    val selected = mutableListOf(MonthlyExpensePieColorCandidates[normalizedStartIndex])
+    val remaining = MonthlyExpensePieColorCandidates
+        .filterIndexed { index, _ -> index != normalizedStartIndex }
+        .toMutableList()
     while (selected.size < uniqueColorCount) {
         val previous = selected.last()
         val closesCircle = selected.size == uniqueColorCount - 1
@@ -2739,8 +2743,11 @@ private fun MonthlyBillStatisticsDetailScreen(
     val pieStatistics = remember(categoryStatistics) {
         summarizeMonthlyExpensePieStatistics(categoryStatistics)
     }
-    val pieCategoryColors = remember(pieStatistics) {
-        val colors = highContrastPieColors(pieStatistics.size)
+    val pieColorStartIndex = remember(pieStatistics) {
+        kotlin.random.Random.nextInt(MonthlyExpensePieColorCandidates.size)
+    }
+    val pieCategoryColors = remember(pieStatistics, pieColorStartIndex) {
+        val colors = highContrastPieColors(pieStatistics.size, pieColorStartIndex)
         pieStatistics.mapIndexed { index, item ->
             item.category to colors[index]
         }.toMap()
@@ -2836,7 +2843,7 @@ private fun MonthlyExpensePieCanvas(
 ) {
     Canvas(modifier) {
         var consumedAngle = 0f
-        val boundaryAngles = mutableListOf(-90f)
+        val sweepAngles = mutableListOf<Float>()
         statistics.forEachIndexed { index, item ->
             val sweepAngle = if (index == statistics.lastIndex) {
                 360f - consumedAngle
@@ -2850,22 +2857,30 @@ private fun MonthlyExpensePieCanvas(
                 useCenter = true,
             )
             consumedAngle += sweepAngle
-            if (index != statistics.lastIndex) boundaryAngles += -90f + consumedAngle
+            sweepAngles += sweepAngle
         }
         if (statistics.size > 1) {
             val radius = size.minDimension / 2f
-            boundaryAngles.forEach { angle ->
-                val radians = Math.toRadians(angle.toDouble())
-                val edge = Offset(
-                    x = center.x + Math.cos(radians).toFloat() * radius,
-                    y = center.y + Math.sin(radians).toFloat() * radius,
-                )
-                drawLine(
-                    color = Color.White.copy(alpha = 0.9f),
-                    start = center,
-                    end = edge,
-                    strokeWidth = 1.2.dp.toPx(),
-                )
+            var boundaryAngle = -90f
+            sweepAngles.indices.forEach { index ->
+                val previousIndex = if (index == 0) sweepAngles.lastIndex else index - 1
+                if (
+                    minOf(sweepAngles[previousIndex], sweepAngles[index]) >=
+                    MonthlyExpensePieDividerMinSweepAngle
+                ) {
+                    val radians = Math.toRadians(boundaryAngle.toDouble())
+                    val edge = Offset(
+                        x = center.x + Math.cos(radians).toFloat() * radius,
+                        y = center.y + Math.sin(radians).toFloat() * radius,
+                    )
+                    drawLine(
+                        color = Color.White.copy(alpha = 0.9f),
+                        start = center,
+                        end = edge,
+                        strokeWidth = MonthlyExpensePieDividerWidth.toPx(),
+                    )
+                }
+                boundaryAngle += sweepAngles[index]
             }
         }
     }
@@ -2878,17 +2893,15 @@ private fun MonthlyExpensePieLegend(
     categoryColors: Map<String, Color>,
     modifier: Modifier = Modifier,
 ) {
-    val rowSpacing = if (statistics.size <= 1) {
-        0.dp
-    } else {
-        ((MonthlyExpensePieSize - MonthlyExpensePieLegendRowHeight * statistics.size) /
-            (statistics.size - 1)).coerceIn(0.dp, MonthlyExpensePieLegendMaxRowSpacing)
-    }
     Column(
         modifier = modifier.height(MonthlyExpensePieSize),
-        verticalArrangement = Arrangement.Center,
+        verticalArrangement = if (statistics.size <= 1) {
+            Arrangement.Center
+        } else {
+            Arrangement.SpaceBetween
+        },
     ) {
-        statistics.forEachIndexed { index, item ->
+        statistics.forEach { item ->
             val percentage = item.amount / totalAmount * 100.0
             Row(
                 modifier = Modifier.fillMaxWidth().height(MonthlyExpensePieLegendRowHeight),
@@ -2937,9 +2950,6 @@ private fun MonthlyExpensePieLegend(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-            }
-            if (index != statistics.lastIndex) {
-                Spacer(Modifier.height(rowSpacing))
             }
         }
     }
