@@ -16,6 +16,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -121,6 +122,20 @@ private val AnnualDashboardGradientColors = listOf(
     Color(0xFFB8BEC8),
     Color(0xFFAEBFCE),
     Color(0xFFA7D8F5),
+)
+private val MonthlyExpenseChartColors = listOf(
+    Color(0xFF527EAA),
+    Color(0xFF5B9A9C),
+    Color(0xFF7FA58B),
+    Color(0xFFD0A35D),
+    Color(0xFFC97B70),
+    Color(0xFF8B82AF),
+    Color(0xFF6F899E),
+    Color(0xFFB5829A),
+    Color(0xFF5595B7),
+    Color(0xFF95A661),
+    Color(0xFFC3895D),
+    Color(0xFF777FA9),
 )
 private const val GoldenRatio = 1.618f
 private const val BookkeepingDialogWidthFraction = 0.8f
@@ -2555,83 +2570,83 @@ private fun MonthlyBillStatisticsMonthSection(
 }
 
 @Composable
-private fun MonthlyBillStatisticsCard(
-    statistics: MonthlyBillStatistics,
-    onClick: (() -> Unit)? = null,
-) {
-    val balanceColor = when {
-        statistics.balance > 0 -> IncomeAmountGreen
-        statistics.balance < 0 -> Danger
-        else -> Ink
-    }
-    val balanceText = if (statistics.balance < 0) {
-        "−¥${money(kotlin.math.abs(statistics.balance))}"
-    } else {
-        "¥${money(statistics.balance)}"
-    }
+private fun MonthlyIncomeExpenseBarsCard(statistics: MonthlyBillStatistics) {
+    val maximumAmount = maxOf(statistics.expenseTotal, statistics.incomeTotal)
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .then(
-                if (onClick == null) {
-                    Modifier
-                } else {
-                    Modifier.clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = onClick,
-                    )
-                },
-            ),
+        modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         shape = RoundedCornerShape(16.dp),
     ) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = "${statistics.year}年${statistics.month}月",
-                    modifier = Modifier.weight(1f),
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Ink,
-                )
-                if (onClick != null) {
-                    Text(
-                        text = "›",
-                        fontSize = 26.sp,
-                        color = Muted,
-                    )
-                }
-            }
-            HorizontalDivider(
-                modifier = Modifier.padding(vertical = 14.dp),
-                color = Color(0xFFE8E9EB),
+            Text(
+                text = "${statistics.year}年${statistics.month}月",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Medium,
+                color = Ink,
             )
-            Row(Modifier.fillMaxWidth()) {
-                MonthlyBillStatisticsValue(
-                    label = "支出",
-                    value = "¥${money(statistics.expenseTotal)}",
-                    valueColor = Ink,
-                    modifier = Modifier.weight(1f),
-                )
-                MonthlyBillStatisticsValue(
-                    label = "收入",
-                    value = "¥${money(statistics.incomeTotal)}",
-                    valueColor = IncomeAmountGreen,
-                    modifier = Modifier.weight(1f),
-                )
-                MonthlyBillStatisticsValue(
-                    label = "结余",
-                    value = balanceText,
-                    valueColor = balanceColor,
-                    modifier = Modifier.weight(1f),
-                )
-            }
+            Spacer(Modifier.height(16.dp))
+            MonthlyIncomeExpenseBar(
+                label = "支出",
+                amount = statistics.expenseTotal,
+                widthFraction = if (maximumAmount > 0.0) {
+                    (statistics.expenseTotal / maximumAmount).toFloat()
+                } else {
+                    0f
+                },
+                color = MonthlyExpenseChartColors.first(),
+            )
+            Spacer(Modifier.height(14.dp))
+            MonthlyIncomeExpenseBar(
+                label = "收入",
+                amount = statistics.incomeTotal,
+                widthFraction = if (maximumAmount > 0.0) {
+                    (statistics.incomeTotal / maximumAmount).toFloat()
+                } else {
+                    0f
+                },
+                color = IncomeAmountGreen,
+            )
         }
+    }
+}
+
+@Composable
+private fun MonthlyIncomeExpenseBar(
+    label: String,
+    amount: Double,
+    widthFraction: Float,
+    color: Color,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, fontSize = 13.sp, color = Muted)
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = "¥${money(amount)}",
+            modifier = Modifier.weight(1f),
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = Ink,
+            textAlign = TextAlign.End,
+        )
+    }
+    Spacer(Modifier.height(7.dp))
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(12.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .background(Color(0xFFE9EDF3)),
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth(widthFraction.coerceIn(0f, 1f))
+                .fillMaxHeight()
+                .background(color),
+        )
     }
 }
 
@@ -2651,19 +2666,150 @@ private fun MonthlyBillStatisticsDetailScreen(
     val categorySymbols = remember(expenseCategories) {
         expenseCategories.associate { category -> category.name to category.symbol }
     }
+    val categoryColors = remember(categoryStatistics) {
+        categoryStatistics.mapIndexed { index, item ->
+            item.category to MonthlyExpenseChartColors[index % MonthlyExpenseChartColors.size]
+        }.toMap()
+    }
     LazyColumn(
         modifier = Modifier.fillMaxSize().statusBarsPadding(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            MonthlyBillStatisticsCard(statistics = statistics)
+            MonthlyIncomeExpenseBarsCard(statistics = statistics)
+        }
+        item {
+            MonthlyExpensePieChart(
+                statistics = categoryStatistics,
+                categorySymbols = categorySymbols,
+                categoryColors = categoryColors,
+            )
         }
         item {
             MonthlyCategoryExpenseChart(
                 statistics = categoryStatistics,
                 categorySymbols = categorySymbols,
+                categoryColors = categoryColors,
             )
+        }
+    }
+}
+
+@Composable
+private fun MonthlyExpensePieChart(
+    statistics: List<CategoryExpenseStatistics>,
+    categorySymbols: Map<String, String>,
+    categoryColors: Map<String, Color>,
+) {
+    val totalAmount = statistics.sumOf { item -> item.amount }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        shape = RoundedCornerShape(16.dp),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Text(
+                text = "支出占比",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Medium,
+                color = Ink,
+            )
+            Spacer(Modifier.height(16.dp))
+            if (statistics.isEmpty() || totalAmount <= 0.0) {
+                Text(
+                    text = "当月暂无支出记录",
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 28.dp),
+                    color = Muted,
+                    textAlign = TextAlign.Center,
+                )
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    Canvas(Modifier.size(118.dp)) {
+                        var consumedAngle = 0f
+                        statistics.forEachIndexed { index, item ->
+                            val sweepAngle = if (index == statistics.lastIndex) {
+                                360f - consumedAngle
+                            } else {
+                                (item.amount / totalAmount * 360.0).toFloat()
+                            }
+                            drawArc(
+                                color = categoryColors[item.category]
+                                    ?: MonthlyExpenseChartColors.first(),
+                                startAngle = -90f + consumedAngle,
+                                sweepAngle = sweepAngle,
+                                useCenter = true,
+                            )
+                            consumedAngle += sweepAngle
+                        }
+                    }
+                    Spacer(Modifier.width(14.dp))
+                    Column(Modifier.weight(1f)) {
+                        statistics.forEachIndexed { index, item ->
+                            val percentage = item.amount / totalAmount * 100.0
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.Top,
+                            ) {
+                                Box(
+                                    Modifier
+                                        .padding(top = 4.dp)
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            categoryColors[item.category]
+                                                ?: MonthlyExpenseChartColors.first(),
+                                        ),
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Text(
+                                            text = categorySymbols[item.category]
+                                                ?: defaultIcon(item.category),
+                                            fontSize = 13.sp,
+                                        )
+                                        Spacer(Modifier.width(4.dp))
+                                        Text(
+                                            text = item.category,
+                                            modifier = Modifier.weight(1f),
+                                            fontSize = 12.sp,
+                                            color = Ink,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    }
+                                    Spacer(Modifier.height(2.dp))
+                                    Row(Modifier.fillMaxWidth()) {
+                                        Text(
+                                            text = String.format(Locale.US, "%.1f%%", percentage),
+                                            modifier = Modifier.weight(1f),
+                                            fontSize = 11.sp,
+                                            color = Muted,
+                                        )
+                                        Text(
+                                            text = "¥${money(item.amount)}",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = Ink,
+                                        )
+                                    }
+                                }
+                            }
+                            if (index != statistics.lastIndex) {
+                                Spacer(Modifier.height(10.dp))
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -2672,6 +2818,7 @@ private fun MonthlyBillStatisticsDetailScreen(
 private fun MonthlyCategoryExpenseChart(
     statistics: List<CategoryExpenseStatistics>,
     categorySymbols: Map<String, String>,
+    categoryColors: Map<String, Color>,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -2697,6 +2844,8 @@ private fun MonthlyCategoryExpenseChart(
             } else {
                 val maximumAmount = statistics.maxOf { item -> item.amount }
                 statistics.forEachIndexed { index, item ->
+                    val itemColor = categoryColors[item.category]
+                        ?: MonthlyExpenseChartColors.first()
                     val widthFraction = if (maximumAmount > 0.0) {
                         (item.amount / maximumAmount).toFloat().coerceIn(0f, 1f)
                     } else {
@@ -2738,7 +2887,7 @@ private fun MonthlyCategoryExpenseChart(
                             Modifier
                                 .fillMaxWidth(widthFraction)
                                 .fillMaxHeight()
-                                .background(SelectionBlue),
+                                .background(itemColor),
                         )
                     }
                     if (index != statistics.lastIndex) {
