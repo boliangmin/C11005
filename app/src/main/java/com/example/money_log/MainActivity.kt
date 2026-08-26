@@ -2338,7 +2338,7 @@ private fun AnnualBillStatisticsCard(
             ) {
                 AnnualBillStatisticsValue(
                     label = "总支出",
-                    value = "¥${money(statistics.expenseTotal)}",
+                    value = money(statistics.expenseTotal),
                     modifier = Modifier.weight(1f),
                 )
                 Box(
@@ -2349,7 +2349,7 @@ private fun AnnualBillStatisticsCard(
                 )
                 AnnualBillStatisticsValue(
                     label = "总收入",
-                    value = "¥${money(statistics.incomeTotal)}",
+                    value = money(statistics.incomeTotal),
                     modifier = Modifier.weight(1f),
                 )
                 Box(
@@ -2485,9 +2485,9 @@ private fun MonthlyBillStatisticsMonthSection(
         else -> Ink
     }
     val balanceText = if (statistics.balance < 0) {
-        "−¥${money(kotlin.math.abs(statistics.balance))}"
+        "−${money(kotlin.math.abs(statistics.balance))}"
     } else {
-        "¥${money(statistics.balance)}"
+        money(statistics.balance)
     }
     Card(
         modifier = Modifier
@@ -2533,13 +2533,13 @@ private fun MonthlyBillStatisticsMonthSection(
             ) {
                 MonthlyBillStatisticsValue(
                     label = "支出",
-                    value = "¥${money(statistics.expenseTotal)}",
+                    value = money(statistics.expenseTotal),
                     valueColor = Ink,
                     modifier = Modifier.weight(1f),
                 )
                 MonthlyBillStatisticsValue(
                     label = "收入",
-                    value = "¥${money(statistics.incomeTotal)}",
+                    value = money(statistics.incomeTotal),
                     valueColor = Ink,
                     modifier = Modifier.weight(1f),
                 )
