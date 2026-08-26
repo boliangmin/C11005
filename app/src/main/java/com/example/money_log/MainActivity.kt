@@ -2306,28 +2306,28 @@ private fun AnnualBillStatisticsCard(
         ) {
             Row(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(Color.White.copy(alpha = 0.60f))
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(Color.White.copy(alpha = 0.28f))
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         onClick = onYearClick,
                     )
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                    .padding(horizontal = 9.dp, vertical = 5.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
                     text = "${statistics.year}年",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
                     color = AnnualDashboardInk,
                 )
-                Spacer(Modifier.width(7.dp))
+                Spacer(Modifier.width(6.dp))
                 Icon(
                     painter = painterResource(R.drawable.ic_keyboard_arrow_down),
                     contentDescription = "选择年份",
-                    modifier = Modifier.size(width = 15.dp, height = 8.dp),
-                    tint = AnnualDashboardInk,
+                    modifier = Modifier.size(width = 13.dp, height = 7.dp),
+                    tint = AnnualDashboardInk.copy(alpha = 0.72f),
                 )
             }
             HorizontalDivider(
