@@ -124,19 +124,20 @@ private val AnnualDashboardGradientColors = listOf(
     Color(0xFFA7D8F5),
 )
 private val MonthlyExpenseChartColors = listOf(
-    Color(0xFF527EAA),
-    Color(0xFF5B9A9C),
-    Color(0xFF7FA58B),
-    Color(0xFFD0A35D),
-    Color(0xFFC97B70),
-    Color(0xFF8B82AF),
-    Color(0xFF6F899E),
-    Color(0xFFB5829A),
-    Color(0xFF5595B7),
-    Color(0xFF95A661),
-    Color(0xFFC3895D),
-    Color(0xFF777FA9),
+    Color(0xFF3B82F6),
+    Color(0xFF14B8A6),
+    Color(0xFF22C55E),
+    Color(0xFFF59E0B),
+    Color(0xFFEF4444),
+    Color(0xFF8B5CF6),
+    Color(0xFF06B6D4),
+    Color(0xFFEC4899),
+    Color(0xFF84CC16),
+    Color(0xFFF97316),
+    Color(0xFF6366F1),
+    Color(0xFFEAB308),
 )
+private val MonthlyIncomeBarColor = Color(0xFF22C55E)
 private const val GoldenRatio = 1.618f
 private const val BookkeepingDialogWidthFraction = 0.8f
 private val CalculatorKeyboardHeight = 340.dp
@@ -2605,7 +2606,7 @@ private fun MonthlyIncomeExpenseBarsCard(statistics: MonthlyBillStatistics) {
                 } else {
                     0f
                 },
-                color = IncomeAmountGreen,
+                color = MonthlyIncomeBarColor,
             )
         }
     }
@@ -2682,7 +2683,6 @@ private fun MonthlyBillStatisticsDetailScreen(
         item {
             MonthlyExpensePieChart(
                 statistics = categoryStatistics,
-                categorySymbols = categorySymbols,
                 categoryColors = categoryColors,
             )
         }
@@ -2699,7 +2699,6 @@ private fun MonthlyBillStatisticsDetailScreen(
 @Composable
 private fun MonthlyExpensePieChart(
     statistics: List<CategoryExpenseStatistics>,
-    categorySymbols: Map<String, String>,
     categoryColors: Map<String, Color>,
 ) {
     val totalAmount = statistics.sumOf { item -> item.amount }
@@ -2729,7 +2728,7 @@ private fun MonthlyExpensePieChart(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.Top,
                 ) {
-                    Canvas(Modifier.size(118.dp)) {
+                    Canvas(Modifier.size(112.dp)) {
                         var consumedAngle = 0f
                         statistics.forEachIndexed { index, item ->
                             val sweepAngle = if (index == statistics.lastIndex) {
@@ -2747,64 +2746,55 @@ private fun MonthlyExpensePieChart(
                             consumedAngle += sweepAngle
                         }
                     }
-                    Spacer(Modifier.width(14.dp))
+                    Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
                         statistics.forEachIndexed { index, item ->
                             val percentage = item.amount / totalAmount * 100.0
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.Top,
+                                verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                Box(
-                                    Modifier
-                                        .padding(top = 4.dp)
-                                        .size(8.dp)
-                                        .clip(CircleShape)
-                                        .background(
-                                            categoryColors[item.category]
-                                                ?: MonthlyExpenseChartColors.first(),
-                                        ),
-                                )
-                                Spacer(Modifier.width(6.dp))
-                                Column(Modifier.weight(1f)) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                    ) {
-                                        Text(
-                                            text = categorySymbols[item.category]
-                                                ?: defaultIcon(item.category),
-                                            fontSize = 13.sp,
-                                        )
-                                        Spacer(Modifier.width(4.dp))
-                                        Text(
-                                            text = item.category,
-                                            modifier = Modifier.weight(1f),
-                                            fontSize = 12.sp,
-                                            color = Ink,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                        )
-                                    }
-                                    Spacer(Modifier.height(2.dp))
-                                    Row(Modifier.fillMaxWidth()) {
-                                        Text(
-                                            text = String.format(Locale.US, "%.1f%%", percentage),
-                                            modifier = Modifier.weight(1f),
-                                            fontSize = 11.sp,
-                                            color = Muted,
-                                        )
-                                        Text(
-                                            text = "¥${money(item.amount)}",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = Ink,
-                                        )
-                                    }
+                                Row(
+                                    modifier = Modifier.weight(1f),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Box(
+                                        Modifier
+                                            .size(width = 12.dp, height = 9.dp)
+                                            .clip(RoundedCornerShape(2.dp))
+                                            .background(
+                                                categoryColors[item.category]
+                                                    ?: MonthlyExpenseChartColors.first(),
+                                            ),
+                                    )
+                                    Spacer(Modifier.width(5.dp))
+                                    Text(
+                                        text = item.category,
+                                        modifier = Modifier.weight(1f),
+                                        fontSize = 11.sp,
+                                        color = Ink,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
                                 }
+                                Text(
+                                    text = String.format(Locale.US, "%.1f%%", percentage),
+                                    modifier = Modifier.width(42.dp),
+                                    fontSize = 11.sp,
+                                    color = Muted,
+                                    textAlign = TextAlign.End,
+                                )
+                                Text(
+                                    text = "¥${money(item.amount)}",
+                                    modifier = Modifier.width(68.dp),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Ink,
+                                    textAlign = TextAlign.End,
+                                )
                             }
                             if (index != statistics.lastIndex) {
-                                Spacer(Modifier.height(10.dp))
+                                Spacer(Modifier.height(8.dp))
                             }
                         }
                     }
