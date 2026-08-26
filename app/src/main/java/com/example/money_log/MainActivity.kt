@@ -186,7 +186,7 @@ private fun summarizeMonthlyExpensePieStatistics(
     val visibleStatistics = statistics.take(MonthlyExpensePieMaxSlices - 1)
     val remainingStatistics = statistics.drop(MonthlyExpensePieMaxSlices - 1)
     return visibleStatistics + CategoryExpenseStatistics(
-        category = "其他（${remainingStatistics.size}项）",
+        category = "其他${remainingStatistics.size}项",
         amount = remainingStatistics.sumOf { item -> item.amount },
     )
 }
