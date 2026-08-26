@@ -123,7 +123,7 @@ private val AnnualDashboardGradientColors = listOf(
     Color(0xFFAEBFCE),
     Color(0xFFA7D8F5),
 )
-private val MonthlyExpenseChartColors = listOf(
+private val MonthlyExpensePieColors = listOf(
     Color(0xFFFF8A00),
     Color(0xFF7C4DFF),
     Color(0xFFFFB000),
@@ -137,8 +137,22 @@ private val MonthlyExpenseChartColors = listOf(
     Color(0xFFD99A00),
     Color(0xFFC084FC),
 )
-private val MonthlyExpenseBarColor = Color(0xFF6F859B)
-private val MonthlyIncomeBarColor = Color(0xFF91A6B8)
+private val MonthlyExpenseCategoryBarColors = listOf(
+    Color(0xFFD81B60),
+    Color(0xFF00A896),
+    Color(0xFFE76F51),
+    Color(0xFF6A4C93),
+    Color(0xFF43AA8B),
+    Color(0xFFFF5D8F),
+    Color(0xFFC77D00),
+    Color(0xFF2A9D8F),
+    Color(0xFFB5179E),
+    Color(0xFFF9844A),
+    Color(0xFF8D6E63),
+    Color(0xFF90BE6D),
+)
+private val MonthlyExpenseBarColor = Color(0xFF556F87)
+private val MonthlyIncomeBarColor = Color(0xFF9DB1C2)
 private const val GoldenRatio = 1.618f
 private const val BookkeepingDialogWidthFraction = 0.8f
 private val CalculatorKeyboardHeight = 340.dp
@@ -2668,9 +2682,16 @@ private fun MonthlyBillStatisticsDetailScreen(
     val categorySymbols = remember(expenseCategories) {
         expenseCategories.associate { category -> category.name to category.symbol }
     }
-    val categoryColors = remember(categoryStatistics) {
+    val pieCategoryColors = remember(categoryStatistics) {
         categoryStatistics.mapIndexed { index, item ->
-            item.category to MonthlyExpenseChartColors[index % MonthlyExpenseChartColors.size]
+            item.category to MonthlyExpensePieColors[index % MonthlyExpensePieColors.size]
+        }.toMap()
+    }
+    val barCategoryColors = remember(categoryStatistics) {
+        categoryStatistics.mapIndexed { index, item ->
+            item.category to MonthlyExpenseCategoryBarColors[
+                index % MonthlyExpenseCategoryBarColors.size
+            ]
         }.toMap()
     }
     LazyColumn(
@@ -2684,14 +2705,14 @@ private fun MonthlyBillStatisticsDetailScreen(
         item {
             MonthlyExpensePieChart(
                 statistics = categoryStatistics,
-                categoryColors = categoryColors,
+                categoryColors = pieCategoryColors,
             )
         }
         item {
             MonthlyCategoryExpenseChart(
                 statistics = categoryStatistics,
                 categorySymbols = categorySymbols,
-                categoryColors = categoryColors,
+                categoryColors = barCategoryColors,
             )
         }
     }
@@ -2739,7 +2760,7 @@ private fun MonthlyExpensePieChart(
                             }
                             drawArc(
                                 color = categoryColors[item.category]
-                                    ?: MonthlyExpenseChartColors.first(),
+                                    ?: MonthlyExpensePieColors.first(),
                                 startAngle = -90f + consumedAngle,
                                 sweepAngle = sweepAngle,
                                 useCenter = true,
@@ -2765,7 +2786,7 @@ private fun MonthlyExpensePieChart(
                                             .clip(RoundedCornerShape(2.dp))
                                             .background(
                                                 categoryColors[item.category]
-                                                    ?: MonthlyExpenseChartColors.first(),
+                                                    ?: MonthlyExpensePieColors.first(),
                                             ),
                                     )
                                     Spacer(Modifier.width(5.dp))
@@ -2836,7 +2857,7 @@ private fun MonthlyCategoryExpenseChart(
                 val maximumAmount = statistics.maxOf { item -> item.amount }
                 statistics.forEachIndexed { index, item ->
                     val itemColor = categoryColors[item.category]
-                        ?: MonthlyExpenseChartColors.first()
+                        ?: MonthlyExpenseCategoryBarColors.first()
                     val widthFraction = if (maximumAmount > 0.0) {
                         (item.amount / maximumAmount).toFloat().coerceIn(0f, 1f)
                     } else {
