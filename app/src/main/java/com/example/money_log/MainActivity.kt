@@ -2285,9 +2285,9 @@ private fun AnnualBillStatisticsCard(
     onYearClick: () -> Unit,
 ) {
     val balanceText = if (statistics.balance < 0) {
-        "−¥${money(kotlin.math.abs(statistics.balance))}"
+        "−${money(kotlin.math.abs(statistics.balance))}"
     } else {
-        "¥${money(statistics.balance)}"
+        money(statistics.balance)
     }
     val dashboardGradient = remember {
         Brush.horizontalGradient(colors = AnnualDashboardGradientColors)
@@ -2345,7 +2345,7 @@ private fun AnnualBillStatisticsCard(
                     Modifier
                         .width(1.dp)
                         .height(40.dp)
-                        .background(AnnualDashboardInk.copy(alpha = 0.18f)),
+                        .background(AnnualDashboardInk.copy(alpha = 0.10f)),
                 )
                 AnnualBillStatisticsValue(
                     label = "总收入",
@@ -2356,7 +2356,7 @@ private fun AnnualBillStatisticsCard(
                     Modifier
                         .width(1.dp)
                         .height(40.dp)
-                        .background(AnnualDashboardInk.copy(alpha = 0.18f)),
+                        .background(AnnualDashboardInk.copy(alpha = 0.10f)),
                 )
                 AnnualBillStatisticsValue(
                     label = "总结余",
