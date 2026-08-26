@@ -124,19 +124,20 @@ private val AnnualDashboardGradientColors = listOf(
     Color(0xFFA7D8F5),
 )
 private val MonthlyExpenseChartColors = listOf(
-    Color(0xFF3B82F6),
-    Color(0xFF14B8A6),
-    Color(0xFF22C55E),
-    Color(0xFFF59E0B),
-    Color(0xFFEF4444),
-    Color(0xFF8B5CF6),
-    Color(0xFF06B6D4),
-    Color(0xFFEC4899),
-    Color(0xFF84CC16),
-    Color(0xFFF97316),
-    Color(0xFF6366F1),
-    Color(0xFFEAB308),
+    Color(0xFFFF8A00),
+    Color(0xFFE83E8C),
+    Color(0xFF16C784),
+    Color(0xFF7C4DFF),
+    Color(0xFFFFB000),
+    Color(0xFF00BFA6),
+    Color(0xFFF0445E),
+    Color(0xFF8AC926),
+    Color(0xFFFF6B35),
+    Color(0xFFB14AED),
+    Color(0xFFF9C74F),
+    Color(0xFFFF6F91),
 )
+private val MonthlyExpenseBarColor = Color(0xFFFF3D71)
 private val MonthlyIncomeBarColor = Color(0xFF22C55E)
 private const val GoldenRatio = 1.618f
 private const val BookkeepingDialogWidthFraction = 0.8f
@@ -2595,7 +2596,7 @@ private fun MonthlyIncomeExpenseBarsCard(statistics: MonthlyBillStatistics) {
                 } else {
                     0f
                 },
-                color = MonthlyExpenseChartColors.first(),
+                color = MonthlyExpenseBarColor,
             )
             Spacer(Modifier.height(14.dp))
             MonthlyIncomeExpenseBar(
