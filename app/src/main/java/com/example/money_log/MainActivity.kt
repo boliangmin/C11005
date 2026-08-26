@@ -2306,14 +2306,12 @@ private fun AnnualBillStatisticsCard(
         ) {
             Row(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(9.dp))
-                    .background(Color.White.copy(alpha = 0.28f))
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         onClick = onYearClick,
                     )
-                    .padding(horizontal = 9.dp, vertical = 5.dp),
+                    .padding(end = 9.dp, top = 5.dp, bottom = 5.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
@@ -2367,7 +2365,7 @@ private fun AnnualBillStatisticsValue(
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
-            .background(Color.White.copy(alpha = 0.52f))
+            .background(Color.White.copy(alpha = 0.30f))
             .padding(horizontal = 5.dp, vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -2482,23 +2480,14 @@ private fun MonthlyBillStatisticsMonthSection(
         "¥${money(statistics.balance)}"
     }
     Column(Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "${statistics.month}月",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                color = Muted,
-            )
-            Spacer(Modifier.width(12.dp))
-            HorizontalDivider(
-                modifier = Modifier.weight(1f),
-                color = Color(0xFFE1E3E6),
-            )
-        }
-        Spacer(Modifier.height(10.dp))
+        Text(
+            text = "${statistics.month}月",
+            modifier = Modifier.padding(horizontal = 2.dp),
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = Muted,
+        )
+        Spacer(Modifier.height(14.dp))
         Card(
             modifier = Modifier
                 .fillMaxWidth()
