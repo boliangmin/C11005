@@ -142,9 +142,13 @@ private val MonthlyExpensePieColorCandidates = listOf(
 )
 private val MonthlyExpensePieFallbackColor = MonthlyExpensePieColorCandidates.first().color
 private const val MonthlyExpensePieMaxSlices = 8
-private val MonthlyExpensePieSize = 112.dp
+private val MonthlyExpensePieSize = 132.dp
 private val MonthlyExpensePieLegendRowHeight = 14.dp
 private val MonthlyExpensePieLegendMaxRowSpacing = 5.dp
+private val MonthlyExpensePieLegendHorizontalGap = 8.dp
+private val MonthlyExpensePieLegendCategoryWidth = 64.dp
+private val MonthlyExpensePieLegendPercentageWidth = 40.dp
+private val MonthlyExpensePieLegendSwatchGap = 4.dp
 
 private fun hueDistance(first: Float, second: Float): Float {
     val distance = abs(first - second)
@@ -2810,7 +2814,7 @@ private fun MonthlyExpensePieChart(
                         categoryColors = categoryColors,
                         modifier = Modifier.size(MonthlyExpensePieSize),
                     )
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(MonthlyExpensePieLegendHorizontalGap))
                     MonthlyExpensePieLegend(
                         statistics = statistics,
                         totalAmount = totalAmount,
@@ -2880,7 +2884,10 @@ private fun MonthlyExpensePieLegend(
         ((MonthlyExpensePieSize - MonthlyExpensePieLegendRowHeight * statistics.size) /
             (statistics.size - 1)).coerceIn(0.dp, MonthlyExpensePieLegendMaxRowSpacing)
     }
-    Column(modifier.height(MonthlyExpensePieSize)) {
+    Column(
+        modifier = modifier.height(MonthlyExpensePieSize),
+        verticalArrangement = Arrangement.Center,
+    ) {
         statistics.forEachIndexed { index, item ->
             val percentage = item.amount / totalAmount * 100.0
             Row(
@@ -2888,7 +2895,7 @@ private fun MonthlyExpensePieLegend(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Row(
-                    modifier = Modifier.width(72.dp),
+                    modifier = Modifier.width(MonthlyExpensePieLegendCategoryWidth),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Box(
@@ -2899,7 +2906,7 @@ private fun MonthlyExpensePieLegend(
                                 categoryColors[item.category] ?: MonthlyExpensePieFallbackColor,
                             ),
                     )
-                    Spacer(Modifier.width(5.dp))
+                    Spacer(Modifier.width(MonthlyExpensePieLegendSwatchGap))
                     Text(
                         text = item.category,
                         modifier = Modifier.fillMaxWidth(),
@@ -2912,7 +2919,7 @@ private fun MonthlyExpensePieLegend(
                 }
                 Text(
                     text = String.format(Locale.US, "%.1f%%", percentage),
-                    modifier = Modifier.width(46.dp),
+                    modifier = Modifier.width(MonthlyExpensePieLegendPercentageWidth),
                     fontSize = 11.sp,
                     lineHeight = 12.sp,
                     color = Muted,
