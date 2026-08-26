@@ -125,20 +125,20 @@ private val AnnualDashboardGradientColors = listOf(
 )
 private val MonthlyExpenseChartColors = listOf(
     Color(0xFFFF8A00),
-    Color(0xFFE83E8C),
-    Color(0xFF16C784),
     Color(0xFF7C4DFF),
     Color(0xFFFFB000),
-    Color(0xFF00BFA6),
-    Color(0xFFF0445E),
-    Color(0xFF8AC926),
+    Color(0xFFEF4444),
     Color(0xFFFF6B35),
-    Color(0xFFB14AED),
+    Color(0xFFA855F7),
     Color(0xFFF9C74F),
-    Color(0xFFFF6F91),
+    Color(0xFF9C27B0),
+    Color(0xFFF97316),
+    Color(0xFFD94841),
+    Color(0xFFD99A00),
+    Color(0xFFC084FC),
 )
-private val MonthlyExpenseBarColor = Color(0xFFFF3D71)
-private val MonthlyIncomeBarColor = Color(0xFF22C55E)
+private val MonthlyExpenseBarColor = Color(0xFF6F859B)
+private val MonthlyIncomeBarColor = Color(0xFF91A6B8)
 private const val GoldenRatio = 1.618f
 private const val BookkeepingDialogWidthFraction = 0.8f
 private val CalculatorKeyboardHeight = 340.dp
@@ -2756,7 +2756,7 @@ private fun MonthlyExpensePieChart(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Row(
-                                    modifier = Modifier.weight(1f),
+                                    modifier = Modifier.width(72.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
                                     Box(
@@ -2771,7 +2771,7 @@ private fun MonthlyExpensePieChart(
                                     Spacer(Modifier.width(5.dp))
                                     Text(
                                         text = item.category,
-                                        modifier = Modifier.weight(1f),
+                                        modifier = Modifier.fillMaxWidth(),
                                         fontSize = 11.sp,
                                         color = Ink,
                                         maxLines = 1,
@@ -2780,14 +2780,14 @@ private fun MonthlyExpensePieChart(
                                 }
                                 Text(
                                     text = String.format(Locale.US, "%.1f%%", percentage),
-                                    modifier = Modifier.width(42.dp),
+                                    modifier = Modifier.width(46.dp),
                                     fontSize = 11.sp,
                                     color = Muted,
-                                    textAlign = TextAlign.End,
+                                    textAlign = TextAlign.Center,
                                 )
                                 Text(
                                     text = money(item.amount),
-                                    modifier = Modifier.width(68.dp),
+                                    modifier = Modifier.weight(1f),
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     color = Ink,
