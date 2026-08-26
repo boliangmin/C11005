@@ -141,6 +141,10 @@ private val MonthlyExpensePieColorCandidates = listOf(
     PieColorCandidate(Color(0xFFFF5D8F), 345f),
 )
 private val MonthlyExpensePieFallbackColor = MonthlyExpensePieColorCandidates.first().color
+private const val MonthlyExpensePieMaxSlices = 8
+private val MonthlyExpensePieSize = 112.dp
+private val MonthlyExpensePieLegendRowHeight = 14.dp
+private val MonthlyExpensePieLegendMaxRowSpacing = 5.dp
 
 private fun hueDistance(first: Float, second: Float): Float {
     val distance = abs(first - second)
@@ -168,6 +172,19 @@ private fun highContrastPieColors(count: Int): List<Color> {
     }
     return List(count) { index -> selected[index % selected.size].color }
 }
+
+private fun summarizeMonthlyExpensePieStatistics(
+    statistics: List<CategoryExpenseStatistics>,
+): List<CategoryExpenseStatistics> {
+    if (statistics.size <= MonthlyExpensePieMaxSlices) return statistics
+    val visibleStatistics = statistics.take(MonthlyExpensePieMaxSlices - 1)
+    val remainingStatistics = statistics.drop(MonthlyExpensePieMaxSlices - 1)
+    return visibleStatistics + CategoryExpenseStatistics(
+        category = "其他（${remainingStatistics.size}项）",
+        amount = remainingStatistics.sumOf { item -> item.amount },
+    )
+}
+
 private val MonthlyExpenseCategoryBarColors = listOf(
     Color(0xFFD81B60),
     Color(0xFF00A896),
@@ -2715,9 +2732,12 @@ private fun MonthlyBillStatisticsDetailScreen(
     val categorySymbols = remember(expenseCategories) {
         expenseCategories.associate { category -> category.name to category.symbol }
     }
-    val pieCategoryColors = remember(categoryStatistics) {
-        val colors = highContrastPieColors(categoryStatistics.size)
-        categoryStatistics.mapIndexed { index, item ->
+    val pieStatistics = remember(categoryStatistics) {
+        summarizeMonthlyExpensePieStatistics(categoryStatistics)
+    }
+    val pieCategoryColors = remember(pieStatistics) {
+        val colors = highContrastPieColors(pieStatistics.size)
+        pieStatistics.mapIndexed { index, item ->
             item.category to colors[index]
         }.toMap()
     }
@@ -2738,7 +2758,7 @@ private fun MonthlyBillStatisticsDetailScreen(
         }
         item {
             MonthlyExpensePieChart(
-                statistics = categoryStatistics,
+                statistics = pieStatistics,
                 categoryColors = pieCategoryColors,
             )
         }
@@ -2784,77 +2804,135 @@ private fun MonthlyExpensePieChart(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.Top,
                 ) {
-                    Canvas(Modifier.size(112.dp)) {
-                        var consumedAngle = 0f
-                        statistics.forEachIndexed { index, item ->
-                            val sweepAngle = if (index == statistics.lastIndex) {
-                                360f - consumedAngle
-                            } else {
-                                (item.amount / totalAmount * 360.0).toFloat()
-                            }
-                            drawArc(
-                                color = categoryColors[item.category]
-                                    ?: MonthlyExpensePieFallbackColor,
-                                startAngle = -90f + consumedAngle,
-                                sweepAngle = sweepAngle,
-                                useCenter = true,
-                            )
-                            consumedAngle += sweepAngle
-                        }
-                    }
+                    MonthlyExpensePieCanvas(
+                        statistics = statistics,
+                        totalAmount = totalAmount,
+                        categoryColors = categoryColors,
+                        modifier = Modifier.size(MonthlyExpensePieSize),
+                    )
                     Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        statistics.forEachIndexed { index, item ->
-                            val percentage = item.amount / totalAmount * 100.0
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Row(
-                                    modifier = Modifier.width(72.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Box(
-                                        Modifier
-                                            .size(width = 12.dp, height = 9.dp)
-                                            .clip(RoundedCornerShape(2.dp))
-                                            .background(
-                                                categoryColors[item.category]
-                                                    ?: MonthlyExpensePieFallbackColor,
-                                            ),
-                                    )
-                                    Spacer(Modifier.width(5.dp))
-                                    Text(
-                                        text = item.category,
-                                        modifier = Modifier.fillMaxWidth(),
-                                        fontSize = 11.sp,
-                                        color = Ink,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                }
-                                Text(
-                                    text = String.format(Locale.US, "%.1f%%", percentage),
-                                    modifier = Modifier.width(46.dp),
-                                    fontSize = 11.sp,
-                                    color = Muted,
-                                    textAlign = TextAlign.Center,
-                                )
-                                Text(
-                                    text = money(item.amount),
-                                    modifier = Modifier.weight(1f),
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = Ink,
-                                    textAlign = TextAlign.End,
-                                )
-                            }
-                            if (index != statistics.lastIndex) {
-                                Spacer(Modifier.height(8.dp))
-                            }
-                        }
-                    }
+                    MonthlyExpensePieLegend(
+                        statistics = statistics,
+                        totalAmount = totalAmount,
+                        categoryColors = categoryColors,
+                        modifier = Modifier.weight(1f),
+                    )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MonthlyExpensePieCanvas(
+    statistics: List<CategoryExpenseStatistics>,
+    totalAmount: Double,
+    categoryColors: Map<String, Color>,
+    modifier: Modifier,
+) {
+    Canvas(modifier) {
+        var consumedAngle = 0f
+        val boundaryAngles = mutableListOf(-90f)
+        statistics.forEachIndexed { index, item ->
+            val sweepAngle = if (index == statistics.lastIndex) {
+                360f - consumedAngle
+            } else {
+                (item.amount / totalAmount * 360.0).toFloat()
+            }
+            drawArc(
+                color = categoryColors[item.category] ?: MonthlyExpensePieFallbackColor,
+                startAngle = -90f + consumedAngle,
+                sweepAngle = sweepAngle,
+                useCenter = true,
+            )
+            consumedAngle += sweepAngle
+            if (index != statistics.lastIndex) boundaryAngles += -90f + consumedAngle
+        }
+        if (statistics.size > 1) {
+            val radius = size.minDimension / 2f
+            boundaryAngles.forEach { angle ->
+                val radians = Math.toRadians(angle.toDouble())
+                val edge = Offset(
+                    x = center.x + Math.cos(radians).toFloat() * radius,
+                    y = center.y + Math.sin(radians).toFloat() * radius,
+                )
+                drawLine(
+                    color = Color.White.copy(alpha = 0.9f),
+                    start = center,
+                    end = edge,
+                    strokeWidth = 1.2.dp.toPx(),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MonthlyExpensePieLegend(
+    statistics: List<CategoryExpenseStatistics>,
+    totalAmount: Double,
+    categoryColors: Map<String, Color>,
+    modifier: Modifier = Modifier,
+) {
+    val rowSpacing = if (statistics.size <= 1) {
+        0.dp
+    } else {
+        ((MonthlyExpensePieSize - MonthlyExpensePieLegendRowHeight * statistics.size) /
+            (statistics.size - 1)).coerceIn(0.dp, MonthlyExpensePieLegendMaxRowSpacing)
+    }
+    Column(modifier.height(MonthlyExpensePieSize)) {
+        statistics.forEachIndexed { index, item ->
+            val percentage = item.amount / totalAmount * 100.0
+            Row(
+                modifier = Modifier.fillMaxWidth().height(MonthlyExpensePieLegendRowHeight),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(
+                    modifier = Modifier.width(72.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        Modifier
+                            .size(width = 12.dp, height = 9.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(
+                                categoryColors[item.category] ?: MonthlyExpensePieFallbackColor,
+                            ),
+                    )
+                    Spacer(Modifier.width(5.dp))
+                    Text(
+                        text = item.category,
+                        modifier = Modifier.fillMaxWidth(),
+                        fontSize = 11.sp,
+                        lineHeight = 12.sp,
+                        color = Ink,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Text(
+                    text = String.format(Locale.US, "%.1f%%", percentage),
+                    modifier = Modifier.width(46.dp),
+                    fontSize = 11.sp,
+                    lineHeight = 12.sp,
+                    color = Muted,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                )
+                Text(
+                    text = money(item.amount),
+                    modifier = Modifier.weight(1f),
+                    fontSize = 11.sp,
+                    lineHeight = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Ink,
+                    textAlign = TextAlign.End,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (index != statistics.lastIndex) {
+                Spacer(Modifier.height(rowSpacing))
             }
         }
     }
