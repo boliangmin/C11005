@@ -2483,9 +2483,9 @@ private fun MonthlyBillStatisticsMonthSection(
         Text(
             text = "${statistics.month}月",
             modifier = Modifier.padding(horizontal = 2.dp),
-            fontSize = 15.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = Muted,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            color = Muted.copy(alpha = 0.72f),
         )
         Spacer(Modifier.height(14.dp))
         Card(
