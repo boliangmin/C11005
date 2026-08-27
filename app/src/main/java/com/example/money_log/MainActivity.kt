@@ -22,6 +22,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -66,6 +68,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -817,6 +820,8 @@ private fun DetailsScreen(
     val dayGroups = groupEntriesByDay(visibleEntries)
     val listState = rememberLazyListState()
     val density = LocalDensity.current
+    val sectionSwipeThresholdPx = with(density) { 56.dp.toPx() }
+    val currentOnSectionSelected by rememberUpdatedState(onSectionSelected)
     val autoHeaderHeight = 85.dp
     val autoHeaderHeightPx = with(density) { autoHeaderHeight.toPx() }
     var autoHeaderOffsetPx by remember(titleBarStyle) { mutableFloatStateOf(0f) }
@@ -864,6 +869,35 @@ private fun DetailsScreen(
             Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
+                .pointerInput(selectedSection, sectionSwipeThresholdPx) {
+                    val nextSection = DetailsSection.entries.getOrNull(selectedSection.ordinal + 1)
+                        ?: return@pointerInput
+                    awaitEachGesture {
+                        val down = awaitFirstDown(
+                            requireUnconsumed = false,
+                            pass = PointerEventPass.Initial,
+                        )
+                        while (true) {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                            val dragOffset = change.position - down.position
+                            if (
+                                abs(dragOffset.x) >= sectionSwipeThresholdPx ||
+                                abs(dragOffset.y) >= sectionSwipeThresholdPx
+                            ) {
+                                if (
+                                    dragOffset.x >= sectionSwipeThresholdPx &&
+                                    abs(dragOffset.x) > abs(dragOffset.y)
+                                ) {
+                                    currentOnSectionSelected(nextSection)
+                                    revealedEntryId = null
+                                }
+                                break
+                            }
+                            if (event.changes.none { it.pressed }) break
+                        }
+                    }
+                }
                 .then(
                     if (titleBarStyle == TitleBarStyle.DESIGN_TWO) {
                         Modifier.nestedScroll(autoHeaderScrollConnection)
