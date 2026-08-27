@@ -3418,6 +3418,11 @@ private fun MoreContent(
 ) {
     val context = LocalContext.current
     val fixedPrimaryDark = colorResource(R.color.app_primary_dark)
+    val appVersionName = remember(context) {
+        runCatching {
+            context.packageManager.getPackageInfo(context.packageName, 0).versionName.orEmpty()
+        }.getOrDefault("")
+    }
     var showDataTransferDialog by remember { mutableStateOf(false) }
     var pendingImportBackup by remember { mutableStateOf<String?>(null) }
     val exportLauncher = rememberLauncherForActivityResult(
@@ -3479,6 +3484,8 @@ private fun MoreContent(
             iconResource = R.drawable.ic_import_export_color,
             onClick = { showDataTransferDialog = true },
         )
+        Spacer(Modifier.height(12.dp))
+        AppVersionInfo(versionName = appVersionName)
     }
 
     if (showDataTransferDialog) {
@@ -3562,6 +3569,42 @@ private fun MoreContent(
                     colors = ButtonDefaults.textButtonColors(contentColor = fixedPrimaryDark),
                 ) { Text("取消") }
             },
+        )
+    }
+}
+
+@Composable
+private fun AppVersionInfo(versionName: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.White, RoundedCornerShape(16.dp))
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier.size(48.dp).background(Color.White, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_version_info_color),
+                contentDescription = null,
+                modifier = Modifier.size(34.dp),
+                tint = Color.Unspecified,
+            )
+        }
+        Text(
+            text = "版本信息",
+            modifier = Modifier.weight(1f).padding(horizontal = 14.dp),
+            fontSize = 17.sp,
+            fontWeight = FontWeight.Medium,
+            color = Ink,
+        )
+        Text(
+            text = if (versionName.isBlank()) "未知" else "V$versionName",
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Medium,
+            color = Muted,
         )
     }
 }
