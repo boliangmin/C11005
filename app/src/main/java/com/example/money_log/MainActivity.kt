@@ -381,6 +381,12 @@ private val incomeIcons = listOf(
     "🏦", "💳", "📊", "🧾", "⭐", "🤝", "🛍️", "⭕",
 )
 
+private val ledgerIcons = listOf(
+    "📒", "📕", "📗", "📘", "📙",
+    "📔", "📓", "📖", "🗒️", "📒💰",
+    "📒🏠", "📒✈️", "📒🎓", "📒🐾", "📒🎁",
+)
+
 private val legacyDefaultIcons = mapOf(
     "餐饮" to "🍜",
     "住房" to "🏠",
@@ -1687,7 +1693,7 @@ private fun LedgerEditorDialog(
     val iconGridState = rememberLazyGridState()
     var selectedIcon by remember(initial?.id) {
         mutableStateOf(
-            initial?.symbol?.takeIf(expenseIcons::contains),
+            initial?.symbol,
         )
     }
     var name by remember(initial?.id) { mutableStateOf(initial?.name.orEmpty()) }
@@ -1726,7 +1732,7 @@ private fun LedgerEditorDialog(
     }
 
     LaunchedEffect(initial?.id) {
-        val selectedIndex = initial?.symbol?.let(expenseIcons::indexOf) ?: -1
+        val selectedIndex = initial?.symbol?.let(ledgerIcons::indexOf) ?: -1
         if (selectedIndex >= 0) {
             iconGridState.scrollToItem(selectedIndex)
         }
@@ -1812,8 +1818,6 @@ private fun LedgerEditorDialog(
                                 .weight(1f, fill = false)
                                 .verticalScroll(editorScrollState),
                         ) {
-                            Text("分类", fontWeight = FontWeight.Medium, color = Ink)
-                            Spacer(Modifier.height(8.dp))
                             LazyVerticalGrid(
                                 columns = GridCells.Fixed(4),
                                 modifier = Modifier.fillMaxWidth().heightIn(max = 210.dp),
@@ -1821,8 +1825,8 @@ private fun LedgerEditorDialog(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
-                                items(expenseIcons.size) { index ->
-                                    val symbol = expenseIcons[index]
+                                items(ledgerIcons.size) { index ->
+                                    val symbol = ledgerIcons[index]
                                     LedgerIconChoice(symbol, selectedIcon == symbol) {
                                         selectedIcon = symbol
                                     }
