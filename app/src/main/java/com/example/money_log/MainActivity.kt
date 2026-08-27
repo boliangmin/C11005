@@ -385,10 +385,8 @@ private val incomeIcons = listOf(
 )
 
 private val ledgerIcons = listOf(
-    "ledger-icon-01", "ledger-icon-02", "ledger-icon-03", "ledger-icon-04",
-    "ledger-icon-05", "ledger-icon-06", "ledger-icon-07", "ledger-icon-08",
-    "ledger-icon-09", "ledger-icon-10", "ledger-icon-11", "ledger-icon-12",
-    "ledger-icon-13", "ledger-icon-14", "ledger-icon-15", "ledger-icon-16",
+    "ledger-icon-06", "ledger-icon-07", "ledger-icon-08", "ledger-icon-09",
+    "ledger-icon-10", "ledger-icon-13", "ledger-icon-15", "ledger-icon-16",
     "ledger-icon-17", "ledger-icon-18", "ledger-icon-19", "ledger-icon-20",
     "ledger-icon-21",
 )
