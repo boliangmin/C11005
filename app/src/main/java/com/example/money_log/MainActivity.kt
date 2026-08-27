@@ -7,8 +7,10 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -369,6 +371,16 @@ internal data class EntryFilter(
 )
 private data class CategoryEditTarget(val kind: String, val category: LedgerCategory)
 private data class CategoryDeleteRequest(val target: CategoryEditTarget, val isFinalConfirmation: Boolean = false)
+private data class MoneyLogBackup(
+    val entries: List<Entry>,
+    val expenseCategories: List<LedgerCategory>,
+    val incomeCategories: List<LedgerCategory>,
+    val ledgers: List<LedgerBook>,
+    val titleBarStyle: TitleBarStyle,
+)
+
+private const val MoneyLogBackupFormat = "Money_Log_Backup"
+private const val MoneyLogBackupVersion = 1
 
 private val expenseIcons = listOf(
     "🍜", "🍚", "🍔", "☕", "🥤", "🍰", "🛒", "🛍️",
@@ -450,35 +462,35 @@ private class Store(context: Context) {
         p.edit().remove("trashEntries").apply()
     }
 
-    fun categories(kind: String): List<LedgerCategory> {
-        val key = if (kind == "支出") "expenseCategories" else "incomeCategories"
-        val defaults = if (kind == "支出") {
-            listOf(LedgerCategory("餐饮", "🍜"), LedgerCategory("住房", "🏠"), LedgerCategory(UncategorizedName, UncategorizedIcon))
-        } else {
-            listOf(LedgerCategory("工资", "💰"), LedgerCategory("副业", "💼"), LedgerCategory(UncategorizedName, UncategorizedIcon))
-        }
-        val saved = p.getString(key, null)
-            ?: if (kind == "支出") p.getString("categories", null) else null
-            ?: return defaults
-        val categories = runCatching {
-            val a = JSONArray(saved)
-            List(a.length()) { index ->
-                when (val item = a.get(index)) {
-                    is JSONObject -> {
-                        val name = item.getString("name")
-                        LedgerCategory(name, item.optString("symbol").ifBlank { defaultIcon(name) })
-                    }
-                    else -> {
-                        val name = item.toString()
-                        LedgerCategory(name, defaultIcon(name))
-                    }
+    private fun defaultCategories(kind: String) = if (kind == "支出") {
+        listOf(
+            LedgerCategory("餐饮", "🍜"),
+            LedgerCategory("住房", "🏠"),
+            LedgerCategory(UncategorizedName, UncategorizedIcon),
+        )
+    } else {
+        listOf(
+            LedgerCategory("工资", "💰"),
+            LedgerCategory("副业", "💼"),
+            LedgerCategory(UncategorizedName, UncategorizedIcon),
+        )
+    }
+
+    private fun categoriesFromJson(values: JSONArray): List<LedgerCategory> =
+        List(values.length()) { index ->
+            when (val item = values.get(index)) {
+                is JSONObject -> {
+                    val name = item.getString("name")
+                    LedgerCategory(name, item.optString("symbol").ifBlank { defaultIcon(name) })
+                }
+                else -> {
+                    val name = item.toString()
+                    LedgerCategory(name, defaultIcon(name))
                 }
             }
-        }.getOrDefault(defaults)
-        return ensureUncategorizedCategory(categories)
-    }
-    fun saveCategories(kind: String, value: List<LedgerCategory>) {
-        val key = if (kind == "支出") "expenseCategories" else "incomeCategories"
+        }
+
+    private fun categoryListJson(value: List<LedgerCategory>): String {
         val categories = JSONArray()
         ensureUncategorizedCategory(value).forEach { category ->
             categories.put(JSONObject().apply {
@@ -486,26 +498,43 @@ private class Store(context: Context) {
                 put("symbol", category.symbol)
             })
         }
-        p.edit().putString(key, categories.toString()).apply()
+        return categories.toString()
     }
+
+    fun categories(kind: String): List<LedgerCategory> {
+        val key = if (kind == "支出") "expenseCategories" else "incomeCategories"
+        val defaults = defaultCategories(kind)
+        val saved = p.getString(key, null)
+            ?: if (kind == "支出") p.getString("categories", null) else null
+            ?: return defaults
+        val categories = runCatching { categoriesFromJson(JSONArray(saved)) }.getOrDefault(defaults)
+        return ensureUncategorizedCategory(categories)
+    }
+
+    fun saveCategories(kind: String, value: List<LedgerCategory>) {
+        val key = if (kind == "支出") "expenseCategories" else "incomeCategories"
+        p.edit().putString(key, categoryListJson(value)).apply()
+    }
+
+    private fun entriesFromJson(values: JSONArray): List<Entry> = List(values.length()) {
+        val value = values.getJSONObject(it)
+        Entry(
+            id = value.getString("id"),
+            kind = value.optString("kind", "支出"),
+            category = value.getString("category"),
+            amount = value.getDouble("amount"),
+            date = value.getLong("date"),
+            note = value.optString("note", ""),
+            ledgerId = if (value.isNull("ledgerId")) {
+                null
+            } else {
+                value.optString("ledgerId").takeIf { ledgerId -> ledgerId.isNotBlank() }
+            },
+        )
+    }
+
     private fun readEntries(key: String) = runCatching {
-        val a = JSONArray(p.getString(key, null)!!)
-        List(a.length()) {
-            val o = a.getJSONObject(it)
-            Entry(
-                id = o.getString("id"),
-                kind = o.optString("kind", "支出"),
-                category = o.getString("category"),
-                amount = o.getDouble("amount"),
-                date = o.getLong("date"),
-                note = o.optString("note", ""),
-                ledgerId = if (o.isNull("ledgerId")) {
-                    null
-                } else {
-                    o.optString("ledgerId").takeIf { value -> value.isNotBlank() }
-                },
-            )
-        }
+        entriesFromJson(JSONArray(p.getString(key, null)!!))
     }.getOrDefault(emptyList())
 
     private fun entryListJson(value: List<Entry>): String {
@@ -529,8 +558,8 @@ private class Store(context: Context) {
 
     fun entries() = readEntries("entries")
     fun saveEntries(value: List<Entry>) = saveEntryList("entries", value)
-    fun ledgers(): List<LedgerBook> = runCatching {
-        val values = JSONArray(p.getString("ledgers", null)!!)
+
+    private fun ledgersFromJson(values: JSONArray): List<LedgerBook> =
         List(values.length()) { index ->
             val value = values.getJSONObject(index)
             LedgerBook(
@@ -544,8 +573,8 @@ private class Store(context: Context) {
                 showIncomeInStatistics = value.optBoolean("showIncomeInStatistics", false),
             )
         }
-    }.getOrDefault(emptyList())
-    fun saveLedgers(value: List<LedgerBook>) {
+
+    private fun ledgerListJson(value: List<LedgerBook>): String {
         val values = JSONArray()
         value.forEach { ledger ->
             values.put(JSONObject().apply {
@@ -559,10 +588,80 @@ private class Store(context: Context) {
                 put("showIncomeInStatistics", ledger.showIncomeInStatistics)
             })
         }
-        p.edit().putString("ledgers", values.toString()).apply()
+        return values.toString()
     }
+
+    fun ledgers(): List<LedgerBook> = runCatching {
+        ledgersFromJson(JSONArray(p.getString("ledgers", null)!!))
+    }.getOrDefault(emptyList())
+
+    fun saveLedgers(value: List<LedgerBook>) {
+        p.edit().putString("ledgers", ledgerListJson(value)).apply()
+    }
+
     fun titleBarStyle() = titleBarStyleFromStorage(p.getString("titleBarStyle", null))
     fun saveTitleBarStyle(value: TitleBarStyle) = p.edit().putString("titleBarStyle", value.storageKey).apply()
+
+    fun exportBackup(): String = JSONObject().apply {
+        put("format", MoneyLogBackupFormat)
+        put("version", MoneyLogBackupVersion)
+        put("exportedAt", System.currentTimeMillis())
+        put("entries", JSONArray(entryListJson(entries())))
+        put("expenseCategories", JSONArray(categoryListJson(categories("支出"))))
+        put("incomeCategories", JSONArray(categoryListJson(categories("收入"))))
+        put("ledgers", JSONArray(ledgerListJson(ledgers())))
+        put("titleBarStyle", titleBarStyle().storageKey)
+    }.toString(2)
+
+    fun importBackup(rawBackup: String): MoneyLogBackup {
+        val root = JSONObject(rawBackup)
+        require(root.optString("format") == MoneyLogBackupFormat) { "不是 Money Log 备份文件" }
+        require(root.optInt("version", -1) == MoneyLogBackupVersion) { "不支持此备份版本" }
+        val styleKey = root.getString("titleBarStyle")
+        val importedStyle = TitleBarStyle.entries.firstOrNull { it.storageKey == styleKey }
+            ?: error("备份中的标题栏样式无效")
+        val imported = MoneyLogBackup(
+            entries = entriesFromJson(root.getJSONArray("entries")),
+            expenseCategories = ensureUncategorizedCategory(
+                categoriesFromJson(root.getJSONArray("expenseCategories")),
+            ),
+            incomeCategories = ensureUncategorizedCategory(
+                categoriesFromJson(root.getJSONArray("incomeCategories")),
+            ),
+            ledgers = ledgersFromJson(root.getJSONArray("ledgers")),
+            titleBarStyle = importedStyle,
+        )
+        require(imported.entries.all { entry ->
+            entry.id.isNotBlank() &&
+                entry.kind in setOf("支出", "收入") &&
+                entry.category.isNotBlank() &&
+                entry.amount.isFinite() &&
+                entry.amount >= 0.0
+        }) { "备份中包含无效账单" }
+        require(imported.entries.map { it.id }.distinct().size == imported.entries.size) {
+            "备份中存在重复账单"
+        }
+        require(imported.ledgers.all { ledger -> ledger.id.isNotBlank() && ledger.name.isNotBlank() }) {
+            "备份中包含无效账本"
+        }
+        require(imported.ledgers.map { it.id }.distinct().size == imported.ledgers.size) {
+            "备份中存在重复账本"
+        }
+        require((imported.expenseCategories + imported.incomeCategories).all { it.name.isNotBlank() }) {
+            "备份中包含无效分类"
+        }
+        check(
+            p.edit()
+                .putString("entries", entryListJson(imported.entries))
+                .putString("expenseCategories", categoryListJson(imported.expenseCategories))
+                .putString("incomeCategories", categoryListJson(imported.incomeCategories))
+                .putString("ledgers", ledgerListJson(imported.ledgers))
+                .putString("titleBarStyle", imported.titleBarStyle.storageKey)
+                .remove("categories")
+                .commit(),
+        ) { "无法保存导入的数据" }
+        return imported
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -715,6 +814,23 @@ private fun LedgerApp(
                     onManageCategories = { page = AppPage.CATEGORIES },
                     onTitleBarStyle = { page = AppPage.TITLE_BAR_STYLE },
                     onMonthlyStatistics = { page = AppPage.MONTHLY_STATISTICS },
+                    onExportData = store::exportBackup,
+                    onImportData = { rawBackup ->
+                        runCatching {
+                            val imported = store.importBackup(rawBackup)
+                            entries.clear()
+                            entries.addAll(imported.entries)
+                            expenses.clear()
+                            expenses.addAll(imported.expenseCategories)
+                            incomes.clear()
+                            incomes.addAll(imported.incomeCategories)
+                            ledgers.clear()
+                            ledgers.addAll(imported.ledgers)
+                            selectedLedgerId = null
+                            selectedMonthlyStatistics = null
+                            onTitleBarStyleSelected(imported.titleBarStyle)
+                        }
+                    },
                     addButtonXFraction = addButtonXFraction,
                     addButtonYFraction = addButtonYFraction,
                     onAddButtonPositionChange = { xFraction, yFraction ->
@@ -843,6 +959,8 @@ private fun DetailsScreen(
     onManageCategories: () -> Unit,
     onTitleBarStyle: () -> Unit,
     onMonthlyStatistics: () -> Unit,
+    onExportData: () -> String,
+    onImportData: (String) -> Result<Unit>,
     addButtonXFraction: Float,
     addButtonYFraction: Float,
     onAddButtonPositionChange: (Float, Float) -> Unit,
@@ -991,6 +1109,8 @@ private fun DetailsScreen(
                         modifier = Modifier.fillMaxSize(),
                         onManageCategories = onManageCategories,
                         onTitleBarStyle = onTitleBarStyle,
+                        onExportData = onExportData,
+                        onImportData = onImportData,
                     )
                     DetailsSection.LEDGER -> LedgerListContent(
                         modifier = Modifier.fillMaxSize(),
@@ -3293,7 +3413,54 @@ private fun MoreContent(
     modifier: Modifier = Modifier,
     onManageCategories: () -> Unit,
     onTitleBarStyle: () -> Unit,
+    onExportData: () -> String,
+    onImportData: (String) -> Result<Unit>,
 ) {
+    val context = LocalContext.current
+    val fixedPrimaryDark = colorResource(R.color.app_primary_dark)
+    var showDataTransferDialog by remember { mutableStateOf(false) }
+    var pendingImportBackup by remember { mutableStateOf<String?>(null) }
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json"),
+    ) { uri ->
+        if (uri != null) {
+            runCatching {
+                val output = context.contentResolver.openOutputStream(uri)
+                    ?: error("无法创建导出文件")
+                output.bufferedWriter(Charsets.UTF_8).use { writer ->
+                    writer.write(onExportData())
+                }
+            }.onSuccess {
+                Toast.makeText(context, "数据导出成功", Toast.LENGTH_SHORT).show()
+            }.onFailure { error ->
+                Toast.makeText(
+                    context,
+                    "导出失败：${error.message ?: "无法写入文件"}",
+                    Toast.LENGTH_LONG,
+                ).show()
+            }
+        }
+    }
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) {
+            runCatching {
+                val input = context.contentResolver.openInputStream(uri)
+                    ?: error("无法读取导入文件")
+                input.bufferedReader(Charsets.UTF_8).use { reader -> reader.readText() }
+            }.onSuccess { rawBackup ->
+                pendingImportBackup = rawBackup
+            }.onFailure { error ->
+                Toast.makeText(
+                    context,
+                    "读取失败：${error.message ?: "文件不可用"}",
+                    Toast.LENGTH_LONG,
+                ).show()
+            }
+        }
+    }
+
     Column(modifier.fillMaxWidth().padding(16.dp)) {
         MoreMenuItem(
             title = "类型管理",
@@ -3305,6 +3472,96 @@ private fun MoreContent(
             title = "标题栏样式",
             iconResource = R.drawable.ic_title_bar_style_color,
             onClick = onTitleBarStyle,
+        )
+        Spacer(Modifier.height(12.dp))
+        MoreMenuItem(
+            title = "数据导入导出",
+            iconResource = R.drawable.ic_import_export_color,
+            onClick = { showDataTransferDialog = true },
+        )
+    }
+
+    if (showDataTransferDialog) {
+        AlertDialog(
+            onDismissRequest = { showDataTransferDialog = false },
+            title = { Text("数据导入导出") },
+            text = {
+                Column {
+                    CategoryActionItem(
+                        symbol = "",
+                        title = "导出数据",
+                        subtitle = "备份账单、账本、分类和设置",
+                        iconResource = R.drawable.ic_export_data_color,
+                        iconBackgroundColor = Color.Transparent,
+                        preserveIconColors = true,
+                        expandIconToBackground = true,
+                        onClick = {
+                            showDataTransferDialog = false
+                            val timestamp = SimpleDateFormat("yyyyMMddHHmmss", Locale.US).format(Date())
+                            exportLauncher.launch("Money_Log_${timestamp}.json")
+                        },
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    CategoryActionItem(
+                        symbol = "",
+                        title = "导入数据",
+                        subtitle = "从 Money Log 备份恢复全部数据",
+                        iconResource = R.drawable.ic_import_data_color,
+                        iconBackgroundColor = Color.Transparent,
+                        preserveIconColors = true,
+                        expandIconToBackground = true,
+                        onClick = {
+                            showDataTransferDialog = false
+                            importLauncher.launch(
+                                arrayOf("application/json", "text/*", "application/octet-stream"),
+                            )
+                        },
+                    )
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(
+                    onClick = { showDataTransferDialog = false },
+                    colors = ButtonDefaults.textButtonColors(contentColor = fixedPrimaryDark),
+                ) { Text("取消") }
+            },
+        )
+    }
+
+    pendingImportBackup?.let { rawBackup ->
+        AlertDialog(
+            onDismissRequest = { pendingImportBackup = null },
+            title = { Text("确认导入数据？") },
+            text = {
+                Text(
+                    "导入会覆盖当前全部账单、账本、分类和设置，且无法撤销。建议先导出当前数据作为备份。",
+                    color = Muted,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        pendingImportBackup = null
+                        onImportData(rawBackup).onSuccess {
+                            Toast.makeText(context, "数据导入成功", Toast.LENGTH_SHORT).show()
+                        }.onFailure { error ->
+                            Toast.makeText(
+                                context,
+                                "导入失败：${error.message ?: "备份文件无效"}",
+                                Toast.LENGTH_LONG,
+                            ).show()
+                        }
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = Danger),
+                ) { Text("覆盖并导入") }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { pendingImportBackup = null },
+                    colors = ButtonDefaults.textButtonColors(contentColor = fixedPrimaryDark),
+                ) { Text("取消") }
+            },
         )
     }
 }
