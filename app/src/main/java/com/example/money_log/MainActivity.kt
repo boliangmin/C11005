@@ -1471,6 +1471,9 @@ private fun LedgerDetailScreen(
     var showEntryFilter by remember { mutableStateOf(false) }
     var selectedSection by remember(ledger.id) { mutableStateOf(DetailsSection.BILLS) }
     val ledgerSections = remember { listOf(DetailsSection.BILLS, DetailsSection.STATISTICS) }
+    val latestLedgerMonthlyStatistics = remember(entries) {
+        calculateMonthlyBillStatistics(entries).firstOrNull()
+    }
     val initialFilter = remember(ledger.id) {
         val currentTime = System.currentTimeMillis()
         val latestDate = entries.maxOfOrNull { it.date } ?: currentTime
@@ -1577,7 +1580,25 @@ private fun LedgerDetailScreen(
                 }
             }
             if (selectedSection == DetailsSection.STATISTICS) {
-                Spacer(Modifier.weight(1f))
+                latestLedgerMonthlyStatistics?.let { statistics ->
+                    MonthlyBillStatisticsDetailScreen(
+                        statistics = statistics,
+                        entries = entries,
+                        expenseCategories = expenseCategories,
+                        modifier = Modifier.weight(1f),
+                        applyStatusBarPadding = false,
+                    )
+                } ?: Box(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("📊", fontSize = 52.sp)
+                        Spacer(Modifier.height(8.dp))
+                        Text("账本中还没有可统计账单", fontSize = 18.sp, color = Muted)
+                        Text("添加账单后将在这里显示月度统计", color = Color(0xFFAAADB3))
+                    }
+                }
             } else if (entries.isEmpty()) {
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -2820,6 +2841,8 @@ private fun MonthlyBillStatisticsDetailScreen(
     statistics: MonthlyBillStatistics,
     entries: List<Entry>,
     expenseCategories: List<LedgerCategory>,
+    modifier: Modifier = Modifier,
+    applyStatusBarPadding: Boolean = true,
 ) {
     val categoryStatistics = remember(entries, statistics.year, statistics.month) {
         calculateMonthlyCategoryExpenseStatistics(
@@ -2851,7 +2874,9 @@ private fun MonthlyBillStatisticsDetailScreen(
         }.toMap()
     }
     LazyColumn(
-        modifier = Modifier.fillMaxSize().statusBarsPadding(),
+        modifier = modifier
+            .fillMaxSize()
+            .then(if (applyStatusBarPadding) Modifier.statusBarsPadding() else Modifier),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
