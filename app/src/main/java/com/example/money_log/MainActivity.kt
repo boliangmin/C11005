@@ -3542,30 +3542,42 @@ private fun MoreContent(
     }
 
     if (showVersionDialog) {
-        AlertDialog(
+        Dialog(
             onDismissRequest = { showVersionDialog = false },
-            title = { Text("版本信息") },
-            text = {
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(0.8f).height(140.dp),
+                shape = RoundedCornerShape(28.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                shadowElevation = 6.dp,
+            ) {
                 Box(
-                    modifier = Modifier.fillMaxWidth().height(112.dp),
-                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.fillMaxSize(),
                 ) {
                     Text(
+                        text = "版本信息",
+                        modifier = Modifier.align(Alignment.TopStart).padding(start = 24.dp, top = 18.dp),
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Ink,
+                    )
+                    Text(
                         text = if (appVersionName.isBlank()) "未知" else "V$appVersionName",
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.align(Alignment.Center),
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Medium,
                         color = Ink,
                         textAlign = TextAlign.Center,
                     )
+                    TextButton(
+                        onClick = { showVersionDialog = false },
+                        modifier = Modifier.align(Alignment.BottomEnd).padding(end = 12.dp, bottom = 4.dp),
+                        colors = ButtonDefaults.textButtonColors(contentColor = fixedPrimaryDark),
+                    ) { Text("确定") }
                 }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = { showVersionDialog = false },
-                    colors = ButtonDefaults.textButtonColors(contentColor = fixedPrimaryDark),
-                ) { Text("确定") }
-            },
-        )
+            }
+        }
     }
 
     pendingImportBackup?.let { rawBackup ->
