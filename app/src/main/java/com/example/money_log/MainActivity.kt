@@ -389,6 +389,8 @@ private val ledgerIcons = listOf(
     "ledger-icon-05", "ledger-icon-06", "ledger-icon-07", "ledger-icon-08",
     "ledger-icon-09", "ledger-icon-10", "ledger-icon-11", "ledger-icon-12",
     "ledger-icon-13", "ledger-icon-14", "ledger-icon-15", "ledger-icon-16",
+    "ledger-icon-17", "ledger-icon-18", "ledger-icon-19", "ledger-icon-20",
+    "ledger-icon-21",
 )
 
 private val ledgerIconResources = mapOf(
@@ -408,6 +410,11 @@ private val ledgerIconResources = mapOf(
     "ledger-icon-14" to R.drawable.ledger_icon_14,
     "ledger-icon-15" to R.drawable.ledger_icon_15,
     "ledger-icon-16" to R.drawable.ledger_icon_16,
+    "ledger-icon-17" to R.drawable.ledger_icon_17,
+    "ledger-icon-18" to R.drawable.ledger_icon_18,
+    "ledger-icon-19" to R.drawable.ledger_icon_19,
+    "ledger-icon-20" to R.drawable.ledger_icon_20,
+    "ledger-icon-21" to R.drawable.ledger_icon_21,
 )
 
 private val ledgerIconBadges = mapOf(
