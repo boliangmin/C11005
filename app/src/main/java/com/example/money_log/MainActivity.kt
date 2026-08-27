@@ -3424,6 +3424,7 @@ private fun MoreContent(
         }.getOrDefault("")
     }
     var showDataTransferDialog by remember { mutableStateOf(false) }
+    var showVersionDialog by remember { mutableStateOf(false) }
     var pendingImportBackup by remember { mutableStateOf<String?>(null) }
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json"),
@@ -3485,7 +3486,11 @@ private fun MoreContent(
             onClick = { showDataTransferDialog = true },
         )
         Spacer(Modifier.height(12.dp))
-        AppVersionInfo(versionName = appVersionName)
+        MoreMenuItem(
+            title = "版本信息",
+            iconResource = R.drawable.ic_version_info_color,
+            onClick = { showVersionDialog = true },
+        )
     }
 
     if (showDataTransferDialog) {
@@ -3536,6 +3541,29 @@ private fun MoreContent(
         )
     }
 
+    if (showVersionDialog) {
+        AlertDialog(
+            onDismissRequest = { showVersionDialog = false },
+            title = { Text("版本信息") },
+            text = {
+                Text(
+                    text = if (appVersionName.isBlank()) "当前版本：未知" else "当前版本：V$appVersionName",
+                    modifier = Modifier.fillMaxWidth(),
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Ink,
+                    textAlign = TextAlign.Center,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { showVersionDialog = false },
+                    colors = ButtonDefaults.textButtonColors(contentColor = fixedPrimaryDark),
+                ) { Text("确定") }
+            },
+        )
+    }
+
     pendingImportBackup?.let { rawBackup ->
         AlertDialog(
             onDismissRequest = { pendingImportBackup = null },
@@ -3569,42 +3597,6 @@ private fun MoreContent(
                     colors = ButtonDefaults.textButtonColors(contentColor = fixedPrimaryDark),
                 ) { Text("取消") }
             },
-        )
-    }
-}
-
-@Composable
-private fun AppVersionInfo(versionName: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color.White, RoundedCornerShape(16.dp))
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            Modifier.size(48.dp).background(Color.White, CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_version_info_color),
-                contentDescription = null,
-                modifier = Modifier.size(34.dp),
-                tint = Color.Unspecified,
-            )
-        }
-        Text(
-            text = "版本信息",
-            modifier = Modifier.weight(1f).padding(horizontal = 14.dp),
-            fontSize = 17.sp,
-            fontWeight = FontWeight.Medium,
-            color = Ink,
-        )
-        Text(
-            text = if (versionName.isBlank()) "未知" else "V$versionName",
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Medium,
-            color = Muted,
         )
     }
 }
