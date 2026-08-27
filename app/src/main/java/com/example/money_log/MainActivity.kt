@@ -80,6 +80,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -384,7 +385,17 @@ private val incomeIcons = listOf(
 private val ledgerIcons = listOf(
     "📒", "📕", "📗", "📘", "📙",
     "📔", "📓", "📖", "🗒️", "📒💰",
-    "📒🏠", "📒✈️", "📒🎓", "📒🐾", "📒🎁",
+    "📒🏠", "📒✈️", "📒🎓", "📒🐾", "📒🎁", "📒❤️",
+)
+
+private val ledgerIconBadges = mapOf(
+    "📒💰" to "💰",
+    "📒🏠" to "🏠",
+    "📒✈️" to "✈️",
+    "📒🎓" to "🎓",
+    "📒🐾" to "🐾",
+    "📒🎁" to "🎁",
+    "📒❤️" to "❤️",
 )
 
 private val legacyDefaultIcons = mapOf(
@@ -1228,7 +1239,13 @@ private fun LedgerCard(
                 modifier = Modifier.size(46.dp).background(Color.White, CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(ledger.symbol, fontSize = 28.sp)
+                LedgerSymbol(
+                    symbol = ledger.symbol,
+                    containerSize = 40.dp,
+                    baseFontSize = 28.sp,
+                    badgeSize = 18.dp,
+                    badgeFontSize = 14.sp,
+                )
             }
             Column(Modifier.weight(1f).padding(start = 14.dp)) {
                 Text(
@@ -4071,7 +4088,43 @@ private fun LedgerIconChoice(symbol: String, active: Boolean, onClick: () -> Uni
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Text(symbol, fontSize = 32.sp)
+        LedgerSymbol(
+            symbol = symbol,
+            containerSize = 48.dp,
+            baseFontSize = 32.sp,
+            badgeSize = 21.dp,
+            badgeFontSize = 16.sp,
+        )
+    }
+}
+
+@Composable
+private fun LedgerSymbol(
+    symbol: String,
+    containerSize: Dp,
+    baseFontSize: TextUnit,
+    badgeSize: Dp,
+    badgeFontSize: TextUnit,
+) {
+    val badge = ledgerIconBadges[symbol]
+    if (badge == null) {
+        Text(symbol, fontSize = baseFontSize)
+        return
+    }
+    Box(
+        modifier = Modifier.size(containerSize),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text("📒", fontSize = baseFontSize)
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .size(badgeSize)
+                .background(Color.White, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(badge, fontSize = badgeFontSize)
+        }
     }
 }
 
