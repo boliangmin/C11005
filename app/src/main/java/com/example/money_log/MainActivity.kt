@@ -947,7 +947,6 @@ private fun DetailsScreen(
                     DetailsSection.LEDGER -> LedgerListContent(
                         modifier = Modifier.fillMaxSize(),
                         ledgers = ledgers,
-                        entries = allEntries,
                         onOpenLedger = onOpenLedger,
                         onUpdateLedger = onUpdateLedger,
                     )
@@ -1113,7 +1112,6 @@ private fun DetailsScreen(
 @Composable
 private fun LedgerListContent(
     ledgers: List<LedgerBook>,
-    entries: List<Entry>,
     onOpenLedger: (LedgerBook) -> Unit,
     onUpdateLedger: (LedgerBook) -> Unit,
     modifier: Modifier = Modifier,
@@ -1130,15 +1128,6 @@ private fun LedgerListContent(
             )
         }
     }
-    val ledgerBalances = buildMap<String, Double> {
-        entries.forEach { entry ->
-            entry.ledgerId?.let { ledgerId ->
-                val signedAmount = if (entry.kind == "收入") entry.amount else -entry.amount
-                put(ledgerId, (get(ledgerId) ?: 0.0) + signedAmount)
-            }
-        }
-    }
-
     if (ledgers.isEmpty()) {
         Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -1161,7 +1150,6 @@ private fun LedgerListContent(
                 items(dayLedgers, key = { it.id }) { ledger ->
                     LedgerCard(
                         ledger = ledger,
-                        balance = ledgerBalances[ledger.id] ?: 0.0,
                         onClick = { onOpenLedger(ledger) },
                         onLongClick = { actionLedger = ledger },
                     )
@@ -1211,21 +1199,10 @@ private fun LedgerListContent(
 @Composable
 private fun LedgerCard(
     ledger: LedgerBook,
-    balance: Double,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val balanceColor = when {
-        balance > 0 -> IncomeAmountGreen
-        balance < 0 -> Danger
-        else -> Ink
-    }
-    val balanceText = if (balance < 0) {
-        "−${money(kotlin.math.abs(balance))}"
-    } else {
-        money(balance)
-    }
     Card(
         modifier = Modifier.fillMaxWidth().combinedClickable(
             interactionSource = interactionSource,
@@ -1266,14 +1243,6 @@ private fun LedgerCard(
                     )
                 }
             }
-            Text(
-                balanceText,
-                modifier = Modifier.padding(start = 10.dp),
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = balanceColor,
-                maxLines = 1,
-            )
             Spacer(Modifier.width(8.dp))
             Text("›", fontSize = 28.sp, color = Muted)
         }
