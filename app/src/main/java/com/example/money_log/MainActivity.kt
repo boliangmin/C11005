@@ -3557,16 +3557,16 @@ private fun MoreContent(
                 ) {
                     Text(
                         text = "版本信息",
-                        modifier = Modifier.align(Alignment.TopStart).padding(start = 24.dp, top = 18.dp),
-                        fontSize = 20.sp,
+                        modifier = Modifier.align(Alignment.TopStart).padding(start = 20.dp, top = 16.dp),
+                        fontSize = 16.sp,
                         fontWeight = FontWeight.Medium,
                         color = Ink,
                     )
                     Text(
                         text = if (appVersionName.isBlank()) "未知" else "V$appVersionName",
                         modifier = Modifier.align(Alignment.Center),
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Medium,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.SemiBold,
                         color = Ink,
                         textAlign = TextAlign.Center,
                     )
