@@ -3566,7 +3566,7 @@ private fun MoreContent(
                         text = if (appVersionName.isBlank()) "未知" else "V$appVersionName",
                         modifier = Modifier.align(Alignment.Center),
                         fontSize = 18.sp,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = FontWeight.Normal,
                         color = Ink,
                         textAlign = TextAlign.Center,
                     )

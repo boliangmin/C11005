@@ -159,7 +159,7 @@ android {
         minSdk = 23
         targetSdk = 36
         versionCode = 2
-        versionName = "1.0.1"
+        versionName = "1.0.1_${LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))}"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
