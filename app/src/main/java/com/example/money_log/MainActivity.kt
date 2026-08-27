@@ -3546,14 +3546,18 @@ private fun MoreContent(
             onDismissRequest = { showVersionDialog = false },
             title = { Text("版本信息") },
             text = {
-                Text(
-                    text = if (appVersionName.isBlank()) "当前版本：未知" else "当前版本：V$appVersionName",
-                    modifier = Modifier.fillMaxWidth(),
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Ink,
-                    textAlign = TextAlign.Center,
-                )
+                Box(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = if (appVersionName.isBlank()) "未知" else "V$appVersionName",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Ink,
+                        textAlign = TextAlign.Center,
+                    )
+                }
             },
             confirmButton = {
                 TextButton(
