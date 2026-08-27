@@ -314,7 +314,7 @@ private enum class AppPage {
     CATEGORIES,
 }
 private enum class DetailsSection { BILLS, LEDGER, STATISTICS, MORE }
-private const val DetailsSectionTransitionDurationMillis = 600
+private const val DetailsSectionTransitionDurationMillis = 300
 private const val UncategorizedName = "未分类"
 private const val UncategorizedIcon = "⭕"
 
