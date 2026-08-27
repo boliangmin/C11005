@@ -17,6 +17,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -63,6 +64,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -383,9 +385,29 @@ private val incomeIcons = listOf(
 )
 
 private val ledgerIcons = listOf(
-    "📒", "📕", "📗", "📘", "📙",
-    "📔", "📓", "📖", "🗒️", "📒💰",
-    "📒🏠", "📒✈️", "📒🎓", "📒🐾", "📒🎁", "📒❤️",
+    "ledger-icon-01", "ledger-icon-02", "ledger-icon-03", "ledger-icon-04",
+    "ledger-icon-05", "ledger-icon-06", "ledger-icon-07", "ledger-icon-08",
+    "ledger-icon-09", "ledger-icon-10", "ledger-icon-11", "ledger-icon-12",
+    "ledger-icon-13", "ledger-icon-14", "ledger-icon-15", "ledger-icon-16",
+)
+
+private val ledgerIconResources = mapOf(
+    "ledger-icon-01" to R.drawable.ledger_icon_01,
+    "ledger-icon-02" to R.drawable.ledger_icon_02,
+    "ledger-icon-03" to R.drawable.ledger_icon_03,
+    "ledger-icon-04" to R.drawable.ledger_icon_04,
+    "ledger-icon-05" to R.drawable.ledger_icon_05,
+    "ledger-icon-06" to R.drawable.ledger_icon_06,
+    "ledger-icon-07" to R.drawable.ledger_icon_07,
+    "ledger-icon-08" to R.drawable.ledger_icon_08,
+    "ledger-icon-09" to R.drawable.ledger_icon_09,
+    "ledger-icon-10" to R.drawable.ledger_icon_10,
+    "ledger-icon-11" to R.drawable.ledger_icon_11,
+    "ledger-icon-12" to R.drawable.ledger_icon_12,
+    "ledger-icon-13" to R.drawable.ledger_icon_13,
+    "ledger-icon-14" to R.drawable.ledger_icon_14,
+    "ledger-icon-15" to R.drawable.ledger_icon_15,
+    "ledger-icon-16" to R.drawable.ledger_icon_16,
 )
 
 private val ledgerIconBadges = mapOf(
@@ -4106,6 +4128,16 @@ private fun LedgerSymbol(
     badgeSize: Dp,
     badgeFontSize: TextUnit,
 ) {
+    val resourceId = ledgerIconResources[symbol]
+    if (resourceId != null) {
+        Image(
+            painter = painterResource(resourceId),
+            contentDescription = null,
+            modifier = Modifier.size(containerSize),
+            contentScale = ContentScale.Fit,
+        )
+        return
+    }
     val badge = ledgerIconBadges[symbol]
     if (badge == null) {
         Text(symbol, fontSize = baseFontSize)
