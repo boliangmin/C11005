@@ -336,7 +336,8 @@ data class LedgerBook(
     val name: String,
     val date: Long,
     val note: String = "",
-    val includeInBills: Boolean = true,
+    val includeInBills: Boolean = false,
+    val showIncomeInStatistics: Boolean = false,
 )
 data class LedgerCategory(val name: String, val symbol: String)
 internal data class EntryMonthGroup(val year: Int, val month: Int, val entries: List<Entry>)
@@ -538,7 +539,9 @@ private class Store(context: Context) {
                 name = value.getString("name"),
                 date = value.getLong("date"),
                 note = value.optString("note", ""),
-                includeInBills = value.optBoolean("includeInBills", true),
+                includeInBills = value.optBoolean("includeInBillsConfigured", false) &&
+                    value.optBoolean("includeInBills", false),
+                showIncomeInStatistics = value.optBoolean("showIncomeInStatistics", false),
             )
         }
     }.getOrDefault(emptyList())
@@ -552,6 +555,8 @@ private class Store(context: Context) {
                 put("date", ledger.date)
                 put("note", ledger.note)
                 put("includeInBills", ledger.includeInBills)
+                put("includeInBillsConfigured", true)
+                put("showIncomeInStatistics", ledger.showIncomeInStatistics)
             })
         }
         p.edit().putString("ledgers", values.toString()).apply()
@@ -1166,6 +1171,7 @@ private fun LedgerListContent(
     var actionLedger by remember { mutableStateOf<LedgerBook?>(null) }
     var editingLedger by remember { mutableStateOf<LedgerBook?>(null) }
     var mergingLedger by remember { mutableStateOf<LedgerBook?>(null) }
+    var incomeVisibilityLedger by remember { mutableStateOf<LedgerBook?>(null) }
     val ledgerDayGroups = ledgers.sortedByDescending { it.date }.groupBy { ledger ->
         Calendar.getInstance().apply { timeInMillis = ledger.date }.let { calendar ->
             Triple(
@@ -1216,6 +1222,10 @@ private fun LedgerListContent(
                 actionLedger = null
                 mergingLedger = ledger
             },
+            onIncomeVisibilitySelection = {
+                actionLedger = null
+                incomeVisibilityLedger = ledger
+            },
         )
     }
     editingLedger?.let { ledger ->
@@ -1237,6 +1247,16 @@ private fun LedgerListContent(
             confirm = { updatedLedger ->
                 onUpdateLedger(updatedLedger)
                 mergingLedger = null
+            },
+        )
+    }
+    incomeVisibilityLedger?.let { ledger ->
+        LedgerIncomeVisibilityDialog(
+            ledger = ledger,
+            dismiss = { incomeVisibilityLedger = null },
+            confirm = { updatedLedger ->
+                onUpdateLedger(updatedLedger)
+                incomeVisibilityLedger = null
             },
         )
     }
@@ -1308,6 +1328,7 @@ private fun LedgerActionDialog(
     dismiss: () -> Unit,
     onEdit: () -> Unit,
     onMergeSelection: () -> Unit,
+    onIncomeVisibilitySelection: () -> Unit,
 ) {
     val fixedPrimaryDark = colorResource(R.color.app_primary_dark)
     AlertDialog(
@@ -1336,9 +1357,71 @@ private fun LedgerActionDialog(
                     expandIconToBackground = true,
                     onClick = onMergeSelection,
                 )
+                Spacer(Modifier.height(10.dp))
+                CategoryActionItem(
+                    symbol = "",
+                    title = "收入显示选择",
+                    subtitle = if (ledger.showIncomeInStatistics) "当前：显示收入" else "当前：隐藏收入",
+                    iconResource = R.drawable.ic_show_income_color,
+                    iconBackgroundColor = Color.Transparent,
+                    preserveIconColors = true,
+                    expandIconToBackground = true,
+                    onClick = onIncomeVisibilitySelection,
+                )
             }
         },
         confirmButton = {},
+        dismissButton = {
+            TextButton(
+                onClick = dismiss,
+                colors = ButtonDefaults.textButtonColors(contentColor = fixedPrimaryDark),
+            ) { Text("取消") }
+        },
+    )
+}
+
+@Composable
+private fun LedgerIncomeVisibilityDialog(
+    ledger: LedgerBook,
+    dismiss: () -> Unit,
+    confirm: (LedgerBook) -> Unit,
+) {
+    val fixedPrimaryDark = colorResource(R.color.app_primary_dark)
+    var showIncome by remember(ledger.id, ledger.showIncomeInStatistics) {
+        mutableStateOf(ledger.showIncomeInStatistics)
+    }
+    AlertDialog(
+        onDismissRequest = dismiss,
+        title = { Text("收入显示选择") },
+        text = {
+            Column {
+                LedgerMergeOption(
+                    iconResource = R.drawable.ic_show_income_color,
+                    title = "显示收入",
+                    subtitle = "账本统计顶部同时显示收入柱",
+                    selected = showIncome,
+                    onClick = { showIncome = true },
+                )
+                Spacer(Modifier.height(8.dp))
+                LedgerMergeOption(
+                    iconResource = R.drawable.ic_hide_income_color,
+                    title = "隐藏收入",
+                    subtitle = "账本统计顶部仅显示支出柱",
+                    selected = !showIncome,
+                    onClick = { showIncome = false },
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { confirm(ledger.copy(showIncomeInStatistics = showIncome)) },
+                enabled = showIncome != ledger.showIncomeInStatistics,
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = fixedPrimaryDark,
+                    disabledContentColor = Muted.copy(alpha = 0.38f),
+                ),
+            ) { Text("保存") }
+        },
         dismissButton = {
             TextButton(
                 onClick = dismiss,
@@ -1587,6 +1670,7 @@ private fun LedgerDetailScreen(
                         expenseCategories = expenseCategories,
                         modifier = Modifier.weight(1f),
                         applyStatusBarPadding = false,
+                        showIncome = ledger.showIncomeInStatistics,
                     )
                 } ?: Box(
                     modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -2756,8 +2840,15 @@ private fun MonthlyBillStatisticsMonthSection(
 }
 
 @Composable
-private fun MonthlyIncomeExpenseBarsCard(statistics: MonthlyBillStatistics) {
-    val maximumAmount = maxOf(statistics.expenseTotal, statistics.incomeTotal)
+private fun MonthlyIncomeExpenseBarsCard(
+    statistics: MonthlyBillStatistics,
+    showIncome: Boolean,
+) {
+    val maximumAmount = if (showIncome) {
+        maxOf(statistics.expenseTotal, statistics.incomeTotal)
+    } else {
+        statistics.expenseTotal
+    }
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -2782,17 +2873,19 @@ private fun MonthlyIncomeExpenseBarsCard(statistics: MonthlyBillStatistics) {
                 },
                 color = MonthlyExpenseBarColor,
             )
-            Spacer(Modifier.height(14.dp))
-            MonthlyIncomeExpenseBar(
-                label = "收入",
-                amount = statistics.incomeTotal,
-                widthFraction = if (maximumAmount > 0.0) {
-                    (statistics.incomeTotal / maximumAmount).toFloat()
-                } else {
-                    0f
-                },
-                color = MonthlyIncomeBarColor,
-            )
+            if (showIncome) {
+                Spacer(Modifier.height(14.dp))
+                MonthlyIncomeExpenseBar(
+                    label = "收入",
+                    amount = statistics.incomeTotal,
+                    widthFraction = if (maximumAmount > 0.0) {
+                        (statistics.incomeTotal / maximumAmount).toFloat()
+                    } else {
+                        0f
+                    },
+                    color = MonthlyIncomeBarColor,
+                )
+            }
         }
     }
 }
@@ -2843,6 +2936,7 @@ private fun MonthlyBillStatisticsDetailScreen(
     expenseCategories: List<LedgerCategory>,
     modifier: Modifier = Modifier,
     applyStatusBarPadding: Boolean = true,
+    showIncome: Boolean = true,
 ) {
     val categoryStatistics = remember(entries, statistics.year, statistics.month) {
         calculateMonthlyCategoryExpenseStatistics(
@@ -2881,7 +2975,10 @@ private fun MonthlyBillStatisticsDetailScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            MonthlyIncomeExpenseBarsCard(statistics = statistics)
+            MonthlyIncomeExpenseBarsCard(
+                statistics = statistics,
+                showIncome = showIncome,
+            )
         }
         item {
             MonthlyExpensePieChart(
