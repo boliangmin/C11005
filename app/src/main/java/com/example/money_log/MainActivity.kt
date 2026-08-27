@@ -1119,15 +1119,13 @@ private fun LedgerListContent(
     var actionLedger by remember { mutableStateOf<LedgerBook?>(null) }
     var editingLedger by remember { mutableStateOf<LedgerBook?>(null) }
     var mergingLedger by remember { mutableStateOf<LedgerBook?>(null) }
-    val ledgerDayGroups = remember(ledgers) {
-        ledgers.sortedByDescending { it.date }.groupBy { ledger ->
-            Calendar.getInstance().apply { timeInMillis = ledger.date }.let { calendar ->
-                Triple(
-                    calendar[Calendar.YEAR],
-                    calendar[Calendar.MONTH] + 1,
-                    calendar[Calendar.DAY_OF_MONTH],
-                )
-            }
+    val ledgerDayGroups = ledgers.sortedByDescending { it.date }.groupBy { ledger ->
+        Calendar.getInstance().apply { timeInMillis = ledger.date }.let { calendar ->
+            Triple(
+                calendar[Calendar.YEAR],
+                calendar[Calendar.MONTH] + 1,
+                calendar[Calendar.DAY_OF_MONTH],
+            )
         }
     }
 
