@@ -1266,19 +1266,14 @@ private fun LedgerCard(
                     )
                 }
             }
-            Column(
+            Text(
+                balanceText,
                 modifier = Modifier.padding(start = 10.dp),
-                horizontalAlignment = Alignment.End,
-            ) {
-                Text("结余", fontSize = 11.sp, color = Muted)
-                Text(
-                    balanceText,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = balanceColor,
-                    maxLines = 1,
-                )
-            }
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = balanceColor,
+                maxLines = 1,
+            )
             Spacer(Modifier.width(8.dp))
             Text("›", fontSize = 28.sp, color = Muted)
         }
