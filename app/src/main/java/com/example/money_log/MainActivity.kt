@@ -886,7 +886,7 @@ private fun DetailsScreen(
                                 abs(dragOffset.y) >= sectionSwipeThresholdPx
                             ) {
                                 if (
-                                    dragOffset.x >= sectionSwipeThresholdPx &&
+                                    dragOffset.x <= -sectionSwipeThresholdPx &&
                                     abs(dragOffset.x) > abs(dragOffset.y)
                                 ) {
                                     currentOnSectionSelected(nextSection)
