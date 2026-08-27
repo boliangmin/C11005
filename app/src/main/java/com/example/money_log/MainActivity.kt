@@ -314,6 +314,7 @@ private enum class AppPage {
     CATEGORIES,
 }
 private enum class DetailsSection { BILLS, LEDGER, STATISTICS, MORE }
+private const val DetailsSectionTransitionDurationMillis = 600
 private const val UncategorizedName = "未分类"
 private const val UncategorizedIcon = "⭕"
 
@@ -817,8 +818,15 @@ private fun DetailsScreen(
     val dayGroups = groupEntriesByDay(visibleEntries)
     val listState = rememberLazyListState()
     val density = LocalDensity.current
-    val sectionSwipeThresholdPx = with(density) { 56.dp.toPx() }
     val currentOnSectionSelected by rememberUpdatedState(onSectionSelected)
+    val sectionPagerState = rememberPagerState(initialPage = selectedSection.ordinal) {
+        DetailsSection.entries.size
+    }
+    val sectionPagerFlingBehavior = PagerDefaults.flingBehavior(
+        state = sectionPagerState,
+        snapAnimationSpec = tween(durationMillis = DetailsSectionTransitionDurationMillis),
+    )
+    val displayedSection = DetailsSection.entries[sectionPagerState.currentPage]
     val autoHeaderHeight = 85.dp
     val autoHeaderHeightPx = with(density) { autoHeaderHeight.toPx() }
     var autoHeaderOffsetPx by remember(titleBarStyle) { mutableFloatStateOf(0f) }
@@ -834,6 +842,24 @@ private fun DetailsScreen(
 
     BackHandler(enabled = selectedSection != DetailsSection.BILLS) {
         onSectionSelected(DetailsSection.BILLS)
+    }
+
+    LaunchedEffect(selectedSection) {
+        val targetPage = selectedSection.ordinal
+        if (sectionPagerState.settledPage != targetPage) {
+            sectionPagerState.animateScrollToPage(
+                page = targetPage,
+                animationSpec = tween(durationMillis = DetailsSectionTransitionDurationMillis),
+            )
+        }
+    }
+
+    LaunchedEffect(sectionPagerState.settledPage) {
+        val settledSection = DetailsSection.entries[sectionPagerState.settledPage]
+        if (settledSection != selectedSection) {
+            currentOnSectionSelected(settledSection)
+            revealedEntryId = null
+        }
     }
 
     LaunchedEffect(entryFilter, titleBarStyle, selectedSection) {
@@ -866,30 +892,6 @@ private fun DetailsScreen(
             Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
-                .pointerInput(selectedSection, sectionSwipeThresholdPx) {
-                    var totalDragX = 0f
-                    detectHorizontalDragGestures(
-                        onDragStart = { totalDragX = 0f },
-                        onHorizontalDrag = { _, dragAmount -> totalDragX += dragAmount },
-                        onDragEnd = {
-                            val targetSection = when {
-                                totalDragX <= -sectionSwipeThresholdPx ->
-                                    DetailsSection.entries.getOrNull(selectedSection.ordinal + 1)
-                                totalDragX >= sectionSwipeThresholdPx ->
-                                    DetailsSection.entries.getOrNull(selectedSection.ordinal - 1)
-                                else -> null
-                            }
-                            targetSection?.let { section ->
-                                currentOnSectionSelected(section)
-                                revealedEntryId = null
-                            }
-                            totalDragX = 0f
-                        },
-                        onDragCancel = {
-                            totalDragX = 0f
-                        },
-                    )
-                }
                 .then(
                     if (titleBarStyle == TitleBarStyle.DESIGN_TWO) {
                         Modifier.nestedScroll(autoHeaderScrollConnection)
@@ -900,7 +902,7 @@ private fun DetailsScreen(
         ) {
             when (titleBarStyle) {
                 TitleBarStyle.DESIGN_ONE -> DetailsFeatureBar(
-                    selectedSection = selectedSection,
+                    selectedSection = displayedSection,
                     onSectionSelected = { section ->
                         onSectionSelected(section)
                         revealedEntryId = null
@@ -917,7 +919,7 @@ private fun DetailsScreen(
                         modifier = Modifier.offset {
                             IntOffset(x = 0, y = autoHeaderOffsetPx.roundToInt())
                         },
-                        selectedSection = selectedSection,
+                        selectedSection = displayedSection,
                         onSectionSelected = { section ->
                             onSectionSelected(section)
                             revealedEntryId = null
@@ -926,76 +928,92 @@ private fun DetailsScreen(
                     )
                 }
             }
-            if (selectedSection == DetailsSection.STATISTICS) {
-                StatisticsContent(
-                    modifier = Modifier.weight(1f),
-                    onMonthlyStatistics = onMonthlyStatistics,
-                )
-            } else if (selectedSection == DetailsSection.MORE) {
-                MoreContent(
-                    modifier = Modifier.weight(1f),
-                    onManageCategories = onManageCategories,
-                    onTitleBarStyle = onTitleBarStyle,
-                )
-            } else if (selectedSection == DetailsSection.LEDGER) {
-                LedgerListContent(
-                    modifier = Modifier.weight(1f),
-                    ledgers = ledgers,
-                    onOpenLedger = onOpenLedger,
-                    onUpdateLedger = onUpdateLedger,
-                )
-            } else if (entries.isEmpty()) {
-                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("🧾", fontSize = 52.sp)
-                        Spacer(Modifier.height(8.dp))
-                        Text("还没有账目", fontSize = 18.sp, color = Muted)
-                        Text("点击右下角“＋”添加第一笔记录", color = Color(0xFFAAADB3))
-                    }
-                }
-            } else if (visibleEntries.isEmpty()) {
-                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("🗓️", fontSize = 48.sp)
-                        Spacer(Modifier.height(8.dp))
-                        Text("当前筛选暂无账单", fontSize = 18.sp, color = Muted)
-                        Text("长按顶部“账单”调整筛选", color = Color(0xFFAAADB3))
-                    }
-                }
-            } else {
-                LazyColumn(
-                    Modifier.weight(1f).padding(horizontal = 16.dp),
-                    state = listState,
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    contentPadding = PaddingValues(top = 12.dp, bottom = 92.dp),
-                ) {
-                    dayGroups.forEach { dayGroup ->
-                        item(key = "day-${dayGroup.year}-${dayGroup.month}-${dayGroup.day}") {
-                            EntryDayHeader(dayGroup.month, dayGroup.day)
+            HorizontalPager(
+                state = sectionPagerState,
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                beyondViewportPageCount = 1,
+                flingBehavior = sectionPagerFlingBehavior,
+            ) { pageIndex ->
+                when (DetailsSection.entries[pageIndex]) {
+                    DetailsSection.STATISTICS -> StatisticsContent(
+                        modifier = Modifier.fillMaxSize(),
+                        onMonthlyStatistics = onMonthlyStatistics,
+                    )
+                    DetailsSection.MORE -> MoreContent(
+                        modifier = Modifier.fillMaxSize(),
+                        onManageCategories = onManageCategories,
+                        onTitleBarStyle = onTitleBarStyle,
+                    )
+                    DetailsSection.LEDGER -> LedgerListContent(
+                        modifier = Modifier.fillMaxSize(),
+                        ledgers = ledgers,
+                        onOpenLedger = onOpenLedger,
+                        onUpdateLedger = onUpdateLedger,
+                    )
+                    DetailsSection.BILLS -> when {
+                        entries.isEmpty() -> Box(
+                            Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("🧾", fontSize = 52.sp)
+                                Spacer(Modifier.height(8.dp))
+                                Text("还没有账目", fontSize = 18.sp, color = Muted)
+                                Text("点击右下角“＋”添加第一笔记录", color = Color(0xFFAAADB3))
+                            }
                         }
-                        items(dayGroup.entries, key = { it.id }) { entry ->
-                            val categories = if (entry.kind == "收入") incomeCategories else expenseCategories
-                            val symbol = categories.firstOrNull { it.name == entry.category }?.symbol
-                                ?: defaultIcon(entry.category)
-                            EntryCard(
-                                entry = entry,
-                                symbol = symbol,
-                                revealed = revealedEntryId == entry.id,
-                                onRevealChange = { reveal -> revealedEntryId = if (reveal) entry.id else null },
-                                onLongClick = {
-                                    revealedEntryId = null
-                                    actionEntry = entry
-                                },
-                                onDeleteClick = { deleteEntryRequest = entry },
-                            )
+                        visibleEntries.isEmpty() -> Box(
+                            Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("🗓️", fontSize = 48.sp)
+                                Spacer(Modifier.height(8.dp))
+                                Text("当前筛选暂无账单", fontSize = 18.sp, color = Muted)
+                                Text("长按顶部“账单”调整筛选", color = Color(0xFFAAADB3))
+                            }
+                        }
+                        else -> LazyColumn(
+                            Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                            state = listState,
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            contentPadding = PaddingValues(top = 12.dp, bottom = 92.dp),
+                        ) {
+                            dayGroups.forEach { dayGroup ->
+                                item(key = "day-${dayGroup.year}-${dayGroup.month}-${dayGroup.day}") {
+                                    EntryDayHeader(dayGroup.month, dayGroup.day)
+                                }
+                                items(dayGroup.entries, key = { it.id }) { entry ->
+                                    val categories = if (entry.kind == "收入") {
+                                        incomeCategories
+                                    } else {
+                                        expenseCategories
+                                    }
+                                    val symbol = categories.firstOrNull { it.name == entry.category }?.symbol
+                                        ?: defaultIcon(entry.category)
+                                    EntryCard(
+                                        entry = entry,
+                                        symbol = symbol,
+                                        revealed = revealedEntryId == entry.id,
+                                        onRevealChange = { reveal ->
+                                            revealedEntryId = if (reveal) entry.id else null
+                                        },
+                                        onLongClick = {
+                                            revealedEntryId = null
+                                            actionEntry = entry
+                                        },
+                                        onDeleteClick = { deleteEntryRequest = entry },
+                                    )
+                                }
+                            }
                         }
                     }
                 }
             }
         }
-        if (selectedSection == DetailsSection.BILLS || selectedSection == DetailsSection.LEDGER) {
+        if (displayedSection == DetailsSection.BILLS || displayedSection == DetailsSection.LEDGER) {
             FloatingActionButton(
-                onClick = if (selectedSection == DetailsSection.BILLS) onAddEntry else onAddLedger,
+                onClick = if (displayedSection == DetailsSection.BILLS) onAddEntry else onAddLedger,
                 modifier = Modifier
                     .offset { IntOffset(addButtonX.roundToInt(), addButtonY.roundToInt()) }
                     .size(addButtonSize)
