@@ -3547,13 +3547,13 @@ private fun MoreContent(
             title = { Text("版本信息") },
             text = {
                 Box(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                    modifier = Modifier.fillMaxWidth().height(112.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
                         text = if (appVersionName.isBlank()) "未知" else "V$appVersionName",
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Medium,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.SemiBold,
                         color = Ink,
                         textAlign = TextAlign.Center,
                     )
