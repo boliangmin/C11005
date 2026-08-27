@@ -892,10 +892,6 @@ private fun DetailsScreen(
         }
     }
 
-    BackHandler(enabled = selectedSection != DetailsSection.BILLS) {
-        onSectionSelected(DetailsSection.BILLS)
-    }
-
     LaunchedEffect(selectedSection) {
         val targetPage = selectedSection.ordinal
         if (sectionPagerState.settledPage != targetPage) {
@@ -1594,13 +1590,7 @@ private fun LedgerDetailScreen(
     }
     val fixedPrimaryDark = colorResource(R.color.app_primary_dark)
 
-    BackHandler {
-        if (selectedSection == DetailsSection.BILLS) {
-            onBack()
-        } else {
-            selectedSection = DetailsSection.BILLS
-        }
-    }
+    BackHandler(onBack = onBack)
 
     LaunchedEffect(selectedSection, ledger.id) {
         val targetPage = ledgerSections.indexOf(selectedSection).coerceAtLeast(0)
