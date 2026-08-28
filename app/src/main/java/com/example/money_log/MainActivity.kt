@@ -315,7 +315,6 @@ private enum class AppPage {
     LEDGER_DETAILS,
     MONTHLY_STATISTICS,
     MONTHLY_STATISTICS_DETAIL,
-    TITLE_BAR_STYLE,
     CATEGORIES,
 }
 private enum class DetailsSection { BILLS, LEDGER, STATISTICS, MORE }
@@ -749,7 +748,6 @@ private fun LedgerApp(
             AppPage.MONTHLY_STATISTICS -> AppPage.DETAILS
             AppPage.MONTHLY_STATISTICS_DETAIL -> AppPage.MONTHLY_STATISTICS
             AppPage.CATEGORIES -> AppPage.DETAILS
-            AppPage.TITLE_BAR_STYLE -> AppPage.DETAILS
             AppPage.DETAILS -> AppPage.DETAILS
         }
     }
@@ -812,7 +810,7 @@ private fun LedgerApp(
                         }
                     },
                     onManageCategories = { page = AppPage.CATEGORIES },
-                    onTitleBarStyle = { page = AppPage.TITLE_BAR_STYLE },
+                    onTitleBarStyleSelected = onTitleBarStyleSelected,
                     onMonthlyStatistics = { page = AppPage.MONTHLY_STATISTICS },
                     onExportData = store::exportBackup,
                     onImportData = { rawBackup ->
@@ -855,10 +853,6 @@ private fun LedgerApp(
                         entries = mainBillEntries,
                         expenseCategories = expenses,
                     )
-                page == AppPage.TITLE_BAR_STYLE -> TitleBarStyleScreen(
-                    selectedStyle = selectedTitleBarStyle,
-                    onStyleSelected = onTitleBarStyleSelected,
-                )
                 page == AppPage.CATEGORIES -> CategoryOverviewScreen(
                     expenseCategories = expenses,
                     incomeCategories = incomes,
@@ -957,7 +951,7 @@ private fun DetailsScreen(
     onOpenLedger: (LedgerBook) -> Unit,
     onUpdateLedger: (LedgerBook) -> Unit,
     onManageCategories: () -> Unit,
-    onTitleBarStyle: () -> Unit,
+    onTitleBarStyleSelected: (TitleBarStyle) -> Unit,
     onMonthlyStatistics: () -> Unit,
     onExportData: () -> String,
     onImportData: (String) -> Result<Unit>,
@@ -1108,7 +1102,8 @@ private fun DetailsScreen(
                     DetailsSection.MORE -> MoreContent(
                         modifier = Modifier.fillMaxSize(),
                         onManageCategories = onManageCategories,
-                        onTitleBarStyle = onTitleBarStyle,
+                        selectedTitleBarStyle = titleBarStyle,
+                        onTitleBarStyleSelected = onTitleBarStyleSelected,
                         onExportData = onExportData,
                         onImportData = onImportData,
                     )
@@ -3412,7 +3407,8 @@ private fun MonthlyBillStatisticsValue(
 private fun MoreContent(
     modifier: Modifier = Modifier,
     onManageCategories: () -> Unit,
-    onTitleBarStyle: () -> Unit,
+    selectedTitleBarStyle: TitleBarStyle,
+    onTitleBarStyleSelected: (TitleBarStyle) -> Unit,
     onExportData: () -> String,
     onImportData: (String) -> Result<Unit>,
 ) {
@@ -3423,6 +3419,7 @@ private fun MoreContent(
             context.packageManager.getPackageInfo(context.packageName, 0).versionName.orEmpty()
         }.getOrDefault("")
     }
+    var showTitleBarStyleDialog by remember { mutableStateOf(false) }
     var showDataTransferDialog by remember { mutableStateOf(false) }
     var showVersionDialog by remember { mutableStateOf(false) }
     var pendingImportBackup by remember { mutableStateOf<String?>(null) }
@@ -3477,7 +3474,7 @@ private fun MoreContent(
         MoreMenuItem(
             title = "标题栏样式",
             iconResource = R.drawable.ic_title_bar_style_color,
-            onClick = onTitleBarStyle,
+            onClick = { showTitleBarStyleDialog = true },
         )
         Spacer(Modifier.height(12.dp))
         MoreMenuItem(
@@ -3490,6 +3487,31 @@ private fun MoreContent(
             title = "版本信息",
             iconResource = R.drawable.ic_version_info_color,
             onClick = { showVersionDialog = true },
+        )
+    }
+
+    if (showTitleBarStyleDialog) {
+        AlertDialog(
+            onDismissRequest = { showTitleBarStyleDialog = false },
+            title = { Text("标题栏样式") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    TitleBarStyle.entries.forEach { style ->
+                        TitleBarStyleOption(
+                            style = style,
+                            selected = style == selectedTitleBarStyle,
+                            onClick = { onTitleBarStyleSelected(style) },
+                        )
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(
+                    onClick = { showTitleBarStyleDialog = false },
+                    colors = ButtonDefaults.textButtonColors(contentColor = fixedPrimaryDark),
+                ) { Text("取消") }
+            },
         )
     }
 
@@ -3618,28 +3640,6 @@ private fun MoreContent(
 }
 
 @Composable
-private fun TitleBarStyleScreen(
-    selectedStyle: TitleBarStyle,
-    onStyleSelected: (TitleBarStyle) -> Unit,
-) {
-    Column(Modifier.fillMaxSize().statusBarsPadding()) {
-        LazyColumn(
-            modifier = Modifier.fillMaxWidth().weight(1f),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            items(TitleBarStyle.entries, key = { it.storageKey }) { style ->
-                TitleBarStyleOption(
-                    style = style,
-                    selected = style == selectedStyle,
-                    onClick = { onStyleSelected(style) },
-                )
-            }
-        }
-    }
-}
-
-@Composable
 private fun TitleBarStyleOption(
     style: TitleBarStyle,
     selected: Boolean,
@@ -3649,7 +3649,7 @@ private fun TitleBarStyleOption(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(if (selected) SelectionBlueContainer else Color.White, RoundedCornerShape(16.dp))
+            .background(if (selected) SelectionBlueContainer else Bg, RoundedCornerShape(16.dp))
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
