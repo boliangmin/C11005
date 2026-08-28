@@ -3527,6 +3527,7 @@ private fun MoreContent(
                         subtitle = "备份账单、账本、分类和设置",
                         iconResource = R.drawable.ic_export_data_color,
                         iconBackgroundColor = Color.Transparent,
+                        containerColor = Color.White,
                         preserveIconColors = true,
                         expandIconToBackground = true,
                         onClick = {
@@ -3542,6 +3543,7 @@ private fun MoreContent(
                         subtitle = "从 Money Log 备份恢复全部数据",
                         iconResource = R.drawable.ic_import_data_color,
                         iconBackgroundColor = Color.Transparent,
+                        containerColor = Color.White,
                         preserveIconColors = true,
                         expandIconToBackground = true,
                         onClick = {
@@ -3571,7 +3573,7 @@ private fun MoreContent(
             Surface(
                 modifier = Modifier.fillMaxWidth(0.8f).height(140.dp),
                 shape = RoundedCornerShape(28.dp),
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                color = Color.White,
                 shadowElevation = 6.dp,
             ) {
                 Box(
@@ -3649,7 +3651,7 @@ private fun TitleBarStyleOption(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(if (selected) SelectionBlueContainer else Bg, RoundedCornerShape(16.dp))
+            .background(if (selected) SelectionBlueContainer else Color.White, RoundedCornerShape(16.dp))
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -3872,6 +3874,7 @@ private fun CategoryActionItem(
     subtitle: String,
     iconResource: Int? = null,
     iconBackgroundColor: Color? = null,
+    containerColor: Color = Bg,
     preserveIconColors: Boolean = false,
     expandIconToBackground: Boolean = false,
     onClick: () -> Unit,
@@ -3881,7 +3884,7 @@ private fun CategoryActionItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Bg, RoundedCornerShape(14.dp))
+            .background(containerColor, RoundedCornerShape(14.dp))
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
