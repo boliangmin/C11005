@@ -315,6 +315,8 @@ private enum class AppPage {
     LEDGER_DETAILS,
     MONTHLY_STATISTICS,
     MONTHLY_STATISTICS_DETAIL,
+    ANNUAL_STATISTICS,
+    ANNUAL_STATISTICS_DETAIL,
     CATEGORIES,
 }
 private enum class DetailsSection { BILLS, LEDGER, STATISTICS, MORE }
@@ -721,6 +723,7 @@ private fun LedgerApp(
     var selectedSection by remember { mutableStateOf(DetailsSection.BILLS) }
     var selectedLedgerId by remember { mutableStateOf<String?>(null) }
     var selectedMonthlyStatistics by remember { mutableStateOf<MonthlyBillStatistics?>(null) }
+    var selectedAnnualStatistics by remember { mutableStateOf<AnnualBillStatistics?>(null) }
     var selectedStatisticsYear by remember {
         mutableIntStateOf(Calendar.getInstance()[Calendar.YEAR].coerceIn(2000, 2099))
     }
@@ -747,6 +750,8 @@ private fun LedgerApp(
             AppPage.LEDGER_DETAILS -> AppPage.DETAILS
             AppPage.MONTHLY_STATISTICS -> AppPage.DETAILS
             AppPage.MONTHLY_STATISTICS_DETAIL -> AppPage.MONTHLY_STATISTICS
+            AppPage.ANNUAL_STATISTICS -> AppPage.DETAILS
+            AppPage.ANNUAL_STATISTICS_DETAIL -> AppPage.ANNUAL_STATISTICS
             AppPage.CATEGORIES -> AppPage.DETAILS
             AppPage.DETAILS -> AppPage.DETAILS
         }
@@ -812,6 +817,7 @@ private fun LedgerApp(
                     onManageCategories = { page = AppPage.CATEGORIES },
                     onTitleBarStyleSelected = onTitleBarStyleSelected,
                     onMonthlyStatistics = { page = AppPage.MONTHLY_STATISTICS },
+                    onAnnualStatistics = { page = AppPage.ANNUAL_STATISTICS },
                     onExportData = store::exportBackup,
                     onImportData = { rawBackup ->
                         runCatching {
@@ -826,6 +832,7 @@ private fun LedgerApp(
                             ledgers.addAll(imported.ledgers)
                             selectedLedgerId = null
                             selectedMonthlyStatistics = null
+                            selectedAnnualStatistics = null
                             onTitleBarStyleSelected(imported.titleBarStyle)
                         }
                     },
@@ -850,6 +857,19 @@ private fun LedgerApp(
                 page == AppPage.MONTHLY_STATISTICS_DETAIL && selectedMonthlyStatistics != null ->
                     MonthlyBillStatisticsDetailScreen(
                         statistics = selectedMonthlyStatistics!!,
+                        entries = mainBillEntries,
+                        expenseCategories = expenses,
+                    )
+                page == AppPage.ANNUAL_STATISTICS -> AnnualBillStatisticsScreen(
+                    entries = mainBillEntries,
+                    onYearSelected = { statistics ->
+                        selectedAnnualStatistics = statistics
+                        page = AppPage.ANNUAL_STATISTICS_DETAIL
+                    },
+                )
+                page == AppPage.ANNUAL_STATISTICS_DETAIL && selectedAnnualStatistics != null ->
+                    AnnualBillStatisticsDetailScreen(
+                        statistics = selectedAnnualStatistics!!,
                         entries = mainBillEntries,
                         expenseCategories = expenses,
                     )
@@ -953,6 +973,7 @@ private fun DetailsScreen(
     onManageCategories: () -> Unit,
     onTitleBarStyleSelected: (TitleBarStyle) -> Unit,
     onMonthlyStatistics: () -> Unit,
+    onAnnualStatistics: () -> Unit,
     onExportData: () -> String,
     onImportData: (String) -> Result<Unit>,
     addButtonXFraction: Float,
@@ -1098,6 +1119,7 @@ private fun DetailsScreen(
                     DetailsSection.STATISTICS -> StatisticsContent(
                         modifier = Modifier.fillMaxSize(),
                         onMonthlyStatistics = onMonthlyStatistics,
+                        onAnnualStatistics = onAnnualStatistics,
                     )
                     DetailsSection.MORE -> MoreContent(
                         modifier = Modifier.fillMaxSize(),
@@ -2641,6 +2663,7 @@ private fun FilterNumberPicker(
 private fun StatisticsContent(
     modifier: Modifier = Modifier,
     onMonthlyStatistics: () -> Unit,
+    onAnnualStatistics: () -> Unit,
 ) {
     Column(modifier.fillMaxWidth().padding(16.dp)) {
         MoreMenuItem(
@@ -2648,6 +2671,203 @@ private fun StatisticsContent(
             iconResource = R.drawable.ic_monthly_statistics_color,
             onClick = onMonthlyStatistics,
         )
+        Spacer(Modifier.height(12.dp))
+        MoreMenuItem(
+            title = "年度账单统计",
+            iconResource = R.drawable.ic_annual_statistics_color,
+            onClick = onAnnualStatistics,
+        )
+    }
+}
+
+@Composable
+private fun AnnualBillStatisticsScreen(
+    entries: List<Entry>,
+    onYearSelected: (AnnualBillStatistics) -> Unit,
+) {
+    val annualStatistics = remember(entries) {
+        calculateAnnualBillStatistics(entries)
+    }
+    val totalExpense = remember(annualStatistics) {
+        annualStatistics.sumOf { statistics -> statistics.expenseTotal }
+    }
+    val totalIncome = remember(annualStatistics) {
+        annualStatistics.sumOf { statistics -> statistics.incomeTotal }
+    }
+    Column(Modifier.fillMaxSize().statusBarsPadding()) {
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            item(key = "overall-dashboard") {
+                OverallBillStatisticsCard(
+                    expenseTotal = totalExpense,
+                    incomeTotal = totalIncome,
+                )
+            }
+            if (annualStatistics.isEmpty()) {
+                item(key = "annual-empty") {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 64.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text("📊", fontSize = 52.sp)
+                        Spacer(Modifier.height(8.dp))
+                        Text("暂无可统计账单", fontSize = 18.sp, color = Muted)
+                        Text("添加账单后将在这里按年汇总", color = Color(0xFFAAADB3))
+                    }
+                }
+            } else {
+                items(
+                    items = annualStatistics,
+                    key = { statistics -> statistics.year },
+                ) { statistics ->
+                    AnnualBillStatisticsYearSection(
+                        statistics = statistics,
+                        onClick = { onYearSelected(statistics) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OverallBillStatisticsCard(
+    expenseTotal: Double,
+    incomeTotal: Double,
+) {
+    val balance = incomeTotal - expenseTotal
+    val balanceText = if (balance < 0) {
+        "−${money(kotlin.math.abs(balance))}"
+    } else {
+        money(balance)
+    }
+    val dashboardGradient = remember {
+        Brush.horizontalGradient(colors = AnnualDashboardGradientColors)
+    }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        shape = RoundedCornerShape(20.dp),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(dashboardGradient)
+                .padding(horizontal = 16.dp, vertical = 18.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            AnnualBillStatisticsValue(
+                label = "总支出",
+                value = money(expenseTotal),
+                modifier = Modifier.weight(1f),
+            )
+            Box(
+                Modifier
+                    .width(1.dp)
+                    .height(40.dp)
+                    .background(AnnualDashboardInk.copy(alpha = 0.10f)),
+            )
+            AnnualBillStatisticsValue(
+                label = "总收入",
+                value = money(incomeTotal),
+                modifier = Modifier.weight(1f),
+            )
+            Box(
+                Modifier
+                    .width(1.dp)
+                    .height(40.dp)
+                    .background(AnnualDashboardInk.copy(alpha = 0.10f)),
+            )
+            AnnualBillStatisticsValue(
+                label = "总结余",
+                value = balanceText,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun AnnualBillStatisticsYearSection(
+    statistics: AnnualBillStatistics,
+    onClick: () -> Unit,
+) {
+    val balanceColor = when {
+        statistics.balance > 0 -> IncomeAmountGreen
+        statistics.balance < 0 -> Danger
+        else -> Ink
+    }
+    val balanceText = if (statistics.balance < 0) {
+        "−${money(kotlin.math.abs(statistics.balance))}"
+    } else {
+        money(statistics.balance)
+    }
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            ),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        shape = RoundedCornerShape(16.dp),
+    ) {
+        Column(Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 14.dp, top = 10.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "${statistics.year}年",
+                    modifier = Modifier.weight(1f),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Muted.copy(alpha = 0.72f),
+                )
+                Text(
+                    text = "›",
+                    fontSize = 22.sp,
+                    color = Muted.copy(alpha = 0.72f),
+                )
+            }
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                color = Color(0xFFE8E9EB),
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 8.dp, end = 8.dp, top = 12.dp, bottom = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                MonthlyBillStatisticsValue(
+                    label = "支出",
+                    value = money(statistics.expenseTotal),
+                    valueColor = Ink,
+                    modifier = Modifier.weight(1f),
+                )
+                MonthlyBillStatisticsValue(
+                    label = "收入",
+                    value = money(statistics.incomeTotal),
+                    valueColor = Ink,
+                    modifier = Modifier.weight(1f),
+                )
+                MonthlyBillStatisticsValue(
+                    label = "结余",
+                    value = balanceText,
+                    valueColor = balanceColor,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
     }
 }
 
@@ -3147,9 +3367,114 @@ private fun MonthlyBillStatisticsDetailScreen(
 }
 
 @Composable
+private fun AnnualBillStatisticsDetailScreen(
+    statistics: AnnualBillStatistics,
+    entries: List<Entry>,
+    expenseCategories: List<LedgerCategory>,
+) {
+    val categoryStatistics = remember(entries, statistics.year) {
+        calculateAnnualCategoryExpenseStatistics(
+            entries = entries,
+            year = statistics.year,
+        )
+    }
+    val categorySymbols = remember(expenseCategories) {
+        expenseCategories.associate { category -> category.name to category.symbol }
+    }
+    val pieStatistics = remember(categoryStatistics) {
+        summarizeMonthlyExpensePieStatistics(categoryStatistics)
+    }
+    val pieColorStartIndex = remember(pieStatistics) {
+        kotlin.random.Random.nextInt(MonthlyExpensePieColorCandidates.size)
+    }
+    val pieCategoryColors = remember(pieStatistics, pieColorStartIndex) {
+        val colors = highContrastPieColors(pieStatistics.size, pieColorStartIndex)
+        pieStatistics.mapIndexed { index, item ->
+            item.category to colors[index]
+        }.toMap()
+    }
+    val barCategoryColors = remember(categoryStatistics) {
+        categoryStatistics.mapIndexed { index, item ->
+            item.category to MonthlyExpenseCategoryBarColors[
+                index % MonthlyExpenseCategoryBarColors.size
+            ]
+        }.toMap()
+    }
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().statusBarsPadding(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        item {
+            AnnualIncomeExpenseBarsCard(statistics = statistics)
+        }
+        item {
+            MonthlyExpensePieChart(
+                statistics = pieStatistics,
+                categoryColors = pieCategoryColors,
+                emptyMessage = "当年暂无支出记录",
+            )
+        }
+        item {
+            MonthlyCategoryExpenseChart(
+                statistics = categoryStatistics,
+                categorySymbols = categorySymbols,
+                categoryColors = barCategoryColors,
+                emptyMessage = "当年暂无支出记录",
+            )
+        }
+    }
+}
+
+@Composable
+private fun AnnualIncomeExpenseBarsCard(
+    statistics: AnnualBillStatistics,
+) {
+    val maximumAmount = maxOf(statistics.expenseTotal, statistics.incomeTotal)
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        shape = RoundedCornerShape(16.dp),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Text(
+                text = "${statistics.year}年",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Medium,
+                color = Ink,
+            )
+            Spacer(Modifier.height(16.dp))
+            MonthlyIncomeExpenseBar(
+                label = "年度总支出",
+                amount = statistics.expenseTotal,
+                widthFraction = if (maximumAmount > 0.0) {
+                    (statistics.expenseTotal / maximumAmount).toFloat()
+                } else {
+                    0f
+                },
+                color = MonthlyExpenseBarColor,
+            )
+            Spacer(Modifier.height(14.dp))
+            MonthlyIncomeExpenseBar(
+                label = "年度总收入",
+                amount = statistics.incomeTotal,
+                widthFraction = if (maximumAmount > 0.0) {
+                    (statistics.incomeTotal / maximumAmount).toFloat()
+                } else {
+                    0f
+                },
+                color = MonthlyIncomeBarColor,
+            )
+        }
+    }
+}
+
+@Composable
 private fun MonthlyExpensePieChart(
     statistics: List<CategoryExpenseStatistics>,
     categoryColors: Map<String, Color>,
+    emptyMessage: String = "当月暂无支出记录",
 ) {
     val totalAmount = statistics.sumOf { item -> item.amount }
     Card(
@@ -3168,7 +3493,7 @@ private fun MonthlyExpensePieChart(
             Spacer(Modifier.height(16.dp))
             if (statistics.isEmpty() || totalAmount <= 0.0) {
                 Text(
-                    text = "当月暂无支出记录",
+                    text = emptyMessage,
                     modifier = Modifier.fillMaxWidth().padding(vertical = 28.dp),
                     color = Muted,
                     textAlign = TextAlign.Center,
@@ -3301,6 +3626,7 @@ private fun MonthlyCategoryExpenseChart(
     statistics: List<CategoryExpenseStatistics>,
     categorySymbols: Map<String, String>,
     categoryColors: Map<String, Color>,
+    emptyMessage: String = "当月暂无支出记录",
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -3318,7 +3644,7 @@ private fun MonthlyCategoryExpenseChart(
             Spacer(Modifier.height(16.dp))
             if (statistics.isEmpty()) {
                 Text(
-                    text = "当月暂无支出记录",
+                    text = emptyMessage,
                     modifier = Modifier.fillMaxWidth().padding(vertical = 28.dp),
                     color = Muted,
                     textAlign = TextAlign.Center,
@@ -5893,6 +6219,23 @@ internal fun calculateMonthlyBillStatistics(entries: List<Entry>): List<MonthlyB
         )
     }
 
+internal fun calculateAnnualBillStatistics(entries: List<Entry>): List<AnnualBillStatistics> = entries
+    .groupBy { entry ->
+        Calendar.getInstance().apply { timeInMillis = entry.date }[Calendar.YEAR]
+    }
+    .map { (year, annualEntries) ->
+        AnnualBillStatistics(
+            year = year,
+            expenseTotal = annualEntries
+                .filter { entry -> entry.kind == "支出" }
+                .sumOf { entry -> entry.amount },
+            incomeTotal = annualEntries
+                .filter { entry -> entry.kind == "收入" }
+                .sumOf { entry -> entry.amount },
+        )
+    }
+    .sortedByDescending { statistics -> statistics.year }
+
 internal fun calculateAnnualBillStatistics(entries: List<Entry>, year: Int): AnnualBillStatistics {
     val annualEntries = entries.filter { entry ->
         Calendar.getInstance().apply { timeInMillis = entry.date }[Calendar.YEAR] == year
@@ -5903,6 +6246,26 @@ internal fun calculateAnnualBillStatistics(entries: List<Entry>, year: Int): Ann
         incomeTotal = annualEntries.filter { entry -> entry.kind == "收入" }.sumOf { entry -> entry.amount },
     )
 }
+
+internal fun calculateAnnualCategoryExpenseStatistics(
+    entries: List<Entry>,
+    year: Int,
+): List<CategoryExpenseStatistics> = entries
+    .filter { entry ->
+        entry.kind == "支出" &&
+            Calendar.getInstance().apply { timeInMillis = entry.date }[Calendar.YEAR] == year
+    }
+    .groupBy { entry -> entry.category }
+    .map { (category, categoryEntries) ->
+        CategoryExpenseStatistics(
+            category = category,
+            amount = categoryEntries.sumOf { entry -> entry.amount },
+        )
+    }
+    .sortedWith(
+        compareByDescending<CategoryExpenseStatistics> { item -> item.amount }
+            .thenBy { item -> item.category },
+    )
 
 internal fun calculateMonthlyCategoryExpenseStatistics(
     entries: List<Entry>,
