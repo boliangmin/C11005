@@ -3420,6 +3420,9 @@ private fun MoreContent(
         }.getOrDefault("")
     }
     var showTitleBarStyleDialog by remember { mutableStateOf(false) }
+    var pendingTitleBarStyle by remember(selectedTitleBarStyle) {
+        mutableStateOf(selectedTitleBarStyle)
+    }
     var showDataTransferDialog by remember { mutableStateOf(false) }
     var showVersionDialog by remember { mutableStateOf(false) }
     var pendingImportBackup by remember { mutableStateOf<String?>(null) }
@@ -3474,7 +3477,10 @@ private fun MoreContent(
         MoreMenuItem(
             title = "标题栏样式",
             iconResource = R.drawable.ic_title_bar_style_color,
-            onClick = { showTitleBarStyleDialog = true },
+            onClick = {
+                pendingTitleBarStyle = selectedTitleBarStyle
+                showTitleBarStyleDialog = true
+            },
         )
         Spacer(Modifier.height(12.dp))
         MoreMenuItem(
@@ -3499,13 +3505,21 @@ private fun MoreContent(
                     TitleBarStyle.entries.forEach { style ->
                         TitleBarStyleOption(
                             style = style,
-                            selected = style == selectedTitleBarStyle,
-                            onClick = { onTitleBarStyleSelected(style) },
+                            selected = style == pendingTitleBarStyle,
+                            onClick = { pendingTitleBarStyle = style },
                         )
                     }
                 }
             },
-            confirmButton = {},
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onTitleBarStyleSelected(pendingTitleBarStyle)
+                        showTitleBarStyleDialog = false
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = fixedPrimaryDark),
+                ) { Text("确定") }
+            },
             dismissButton = {
                 TextButton(
                     onClick = { showTitleBarStyleDialog = false },
