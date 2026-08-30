@@ -372,6 +372,7 @@ internal data class EntryFilter(
 )
 private data class CategoryEditTarget(val kind: String, val category: LedgerCategory)
 private data class CategoryDeleteRequest(val target: CategoryEditTarget, val isFinalConfirmation: Boolean = false)
+private data class LedgerDeleteRequest(val ledger: LedgerBook, val isFinalConfirmation: Boolean = false)
 private data class MoneyLogBackup(
     val entries: List<Entry>,
     val expenseCategories: List<LedgerCategory>,
@@ -600,6 +601,15 @@ private class Store(context: Context) {
         p.edit().putString("ledgers", ledgerListJson(value)).apply()
     }
 
+    fun saveLedgerDeletion(updatedEntries: List<Entry>, updatedLedgers: List<LedgerBook>) {
+        check(
+            p.edit()
+                .putString("entries", entryListJson(updatedEntries))
+                .putString("ledgers", ledgerListJson(updatedLedgers))
+                .commit(),
+        ) { "无法删除账本及其账单" }
+    }
+
     fun titleBarStyle() = titleBarStyleFromStorage(p.getString("titleBarStyle", null))
     fun saveTitleBarStyle(value: TitleBarStyle) = p.edit().putString("titleBarStyle", value.storageKey).apply()
 
@@ -814,6 +824,16 @@ private fun LedgerApp(
                             store.saveLedgers(ledgers)
                         }
                     },
+                    onDeleteLedger = { ledger ->
+                        val updatedEntries = entries.filterNot { it.ledgerId == ledger.id }
+                        val updatedLedgers = ledgers.filterNot { it.id == ledger.id }
+                        store.saveLedgerDeletion(updatedEntries, updatedLedgers)
+                        entries.clear()
+                        entries.addAll(updatedEntries)
+                        ledgers.clear()
+                        ledgers.addAll(updatedLedgers)
+                        if (selectedLedgerId == ledger.id) selectedLedgerId = null
+                    },
                     onManageCategories = { page = AppPage.CATEGORIES },
                     onTitleBarStyleSelected = onTitleBarStyleSelected,
                     onMonthlyStatistics = { page = AppPage.MONTHLY_STATISTICS },
@@ -970,6 +990,7 @@ private fun DetailsScreen(
     onAddLedger: () -> Unit,
     onOpenLedger: (LedgerBook) -> Unit,
     onUpdateLedger: (LedgerBook) -> Unit,
+    onDeleteLedger: (LedgerBook) -> Unit,
     onManageCategories: () -> Unit,
     onTitleBarStyleSelected: (TitleBarStyle) -> Unit,
     onMonthlyStatistics: () -> Unit,
@@ -1132,8 +1153,10 @@ private fun DetailsScreen(
                     DetailsSection.LEDGER -> LedgerListContent(
                         modifier = Modifier.fillMaxSize(),
                         ledgers = ledgers,
+                        entries = allEntries,
                         onOpenLedger = onOpenLedger,
                         onUpdateLedger = onUpdateLedger,
+                        onDeleteLedger = onDeleteLedger,
                     )
                     DetailsSection.BILLS -> when {
                         entries.isEmpty() -> Box(
@@ -1297,14 +1320,17 @@ private fun DetailsScreen(
 @Composable
 private fun LedgerListContent(
     ledgers: List<LedgerBook>,
+    entries: List<Entry>,
     onOpenLedger: (LedgerBook) -> Unit,
     onUpdateLedger: (LedgerBook) -> Unit,
+    onDeleteLedger: (LedgerBook) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var actionLedger by remember { mutableStateOf<LedgerBook?>(null) }
     var editingLedger by remember { mutableStateOf<LedgerBook?>(null) }
     var mergingLedger by remember { mutableStateOf<LedgerBook?>(null) }
     var incomeVisibilityLedger by remember { mutableStateOf<LedgerBook?>(null) }
+    var deleteLedgerRequest by remember { mutableStateOf<LedgerDeleteRequest?>(null) }
     val ledgerDayGroups = ledgers.sortedByDescending { it.date }.groupBy { ledger ->
         Calendar.getInstance().apply { timeInMillis = ledger.date }.let { calendar ->
             Triple(
@@ -1359,6 +1385,10 @@ private fun LedgerListContent(
                 actionLedger = null
                 incomeVisibilityLedger = ledger
             },
+            onDelete = {
+                actionLedger = null
+                deleteLedgerRequest = LedgerDeleteRequest(ledger)
+            },
         )
     }
     editingLedger?.let { ledger ->
@@ -1390,6 +1420,22 @@ private fun LedgerListContent(
             confirm = { updatedLedger ->
                 onUpdateLedger(updatedLedger)
                 incomeVisibilityLedger = null
+            },
+        )
+    }
+    deleteLedgerRequest?.let { request ->
+        DeleteLedgerDialog(
+            ledger = request.ledger,
+            entryCount = entries.count { it.ledgerId == request.ledger.id },
+            isFinalConfirmation = request.isFinalConfirmation,
+            dismiss = { deleteLedgerRequest = null },
+            confirm = {
+                if (request.isFinalConfirmation) {
+                    onDeleteLedger(request.ledger)
+                    deleteLedgerRequest = null
+                } else {
+                    deleteLedgerRequest = request.copy(isFinalConfirmation = true)
+                }
             },
         )
     }
@@ -1462,6 +1508,7 @@ private fun LedgerActionDialog(
     onEdit: () -> Unit,
     onMergeSelection: () -> Unit,
     onIncomeVisibilitySelection: () -> Unit,
+    onDelete: () -> Unit,
 ) {
     val fixedPrimaryDark = colorResource(R.color.app_primary_dark)
     AlertDialog(
@@ -1501,6 +1548,17 @@ private fun LedgerActionDialog(
                     expandIconToBackground = true,
                     onClick = onIncomeVisibilitySelection,
                 )
+                Spacer(Modifier.height(10.dp))
+                CategoryActionItem(
+                    symbol = "",
+                    title = "删除账本",
+                    subtitle = "删除账本及账本下的全部账单",
+                    iconResource = R.drawable.ic_delete_category_color,
+                    iconBackgroundColor = Color.Transparent,
+                    preserveIconColors = true,
+                    expandIconToBackground = true,
+                    onClick = onDelete,
+                )
             }
         },
         confirmButton = {},
@@ -1508,6 +1566,42 @@ private fun LedgerActionDialog(
             TextButton(
                 onClick = dismiss,
                 colors = ButtonDefaults.textButtonColors(contentColor = fixedPrimaryDark),
+            ) { Text("取消") }
+        },
+    )
+}
+
+@Composable
+private fun DeleteLedgerDialog(
+    ledger: LedgerBook,
+    entryCount: Int,
+    isFinalConfirmation: Boolean,
+    dismiss: () -> Unit,
+    confirm: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = dismiss,
+        title = { Text(if (isFinalConfirmation) "再次确认删除" else "删除账本？") },
+        text = {
+            Text(
+                if (isFinalConfirmation) {
+                    "此操作无法撤销。确定删除“${ledger.name}”账本，以及账本下的全部${entryCount}笔账单吗？"
+                } else {
+                    "即将删除“${ledger.name}”账本，并永久删除账本下的全部${entryCount}笔账单。"
+                },
+                color = Muted,
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = confirm,
+                colors = ButtonDefaults.textButtonColors(contentColor = DeleteActionRed),
+            ) { Text(if (isFinalConfirmation) "确认删除" else "继续") }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = dismiss,
+                colors = ButtonDefaults.textButtonColors(contentColor = Muted),
             ) { Text("取消") }
         },
     )
