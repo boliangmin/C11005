@@ -79,6 +79,8 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -4542,16 +4544,44 @@ private fun EntryCategoryGroupCard(
                     Text(group.category, fontSize = 17.sp, fontWeight = FontWeight.Medium)
                     Text("${group.entries.size}笔 · ${group.entries.map { it.note }.filter { it.isNotBlank() }.take(3).joinToString("、")}", fontSize = 12.sp, color = NoteSlate, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                Text("${if (group.kind == "收入") "+" else "−"}${money(total)}", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = if (group.kind == "收入") IncomeAmountGreen else Ink)
-                Spacer(Modifier.width(8.dp))
-                Icon(
-                    painter = painterResource(
-                        if (expanded) R.drawable.ic_expand_less else R.drawable.ic_keyboard_arrow_down,
-                    ),
-                    contentDescription = if (expanded) "收起明细" else "展开明细",
-                    modifier = Modifier.size(24.dp),
-                    tint = Muted,
-                )
+                Column(horizontalAlignment = Alignment.End) {
+                    Text("${if (group.kind == "收入") "+" else "−"}${money(total)}", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = if (group.kind == "收入") IncomeAmountGreen else Ink)
+                    Box(
+                        modifier = Modifier.size(28.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Canvas(
+                            modifier = Modifier
+                                .size(width = 18.dp, height = 11.dp)
+                                .semantics {
+                                    contentDescription = if (expanded) "收起明细" else "展开明细"
+                                },
+                        ) {
+                            val stroke = 2.2.dp.toPx()
+                            val y = if (expanded) size.height * 0.72f else size.height * 0.28f
+                            val path = androidx.compose.ui.graphics.Path().apply {
+                                if (expanded) {
+                                    moveTo(1f, y)
+                                    lineTo(size.width / 2f, size.height * 0.18f)
+                                    lineTo(size.width - 1f, y)
+                                } else {
+                                    moveTo(1f, y)
+                                    lineTo(size.width / 2f, size.height * 0.82f)
+                                    lineTo(size.width - 1f, y)
+                                }
+                            }
+                            drawPath(
+                                path = path,
+                                color = Muted,
+                                style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                    width = stroke,
+                                    cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                                    join = androidx.compose.ui.graphics.StrokeJoin.Round,
+                                ),
+                            )
+                        }
+                    }
+                }
             }
             AnimatedVisibility(visible = expanded, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
                 Column(Modifier.padding(top = 10.dp)) {
