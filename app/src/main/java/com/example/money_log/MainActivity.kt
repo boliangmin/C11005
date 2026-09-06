@@ -2779,7 +2779,7 @@ private fun FilterNumberPicker(
                 enabled = previousEnabled,
                 contentPadding = PaddingValues(0.dp),
                 colors = ButtonDefaults.textButtonColors(
-                    contentColor = SelectionBlue,
+                    contentColor = Color(0xFF2F80ED),
                     disabledContentColor = Muted,
                 ),
             ) { Text("‹", fontSize = 22.sp) }
@@ -2788,7 +2788,7 @@ private fun FilterNumberPicker(
                 enabled = nextEnabled,
                 contentPadding = PaddingValues(0.dp),
                 colors = ButtonDefaults.textButtonColors(
-                    contentColor = SelectionBlue,
+                    contentColor = Color(0xFFEF8C2F),
                     disabledContentColor = Muted,
                 ),
             ) { Text("›", fontSize = 22.sp) }
