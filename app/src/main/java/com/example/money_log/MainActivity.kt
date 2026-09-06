@@ -12,6 +12,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.expandVertically
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
@@ -332,6 +333,7 @@ data class Entry(
     val date: Long,
     val note: String = "",
     val ledgerId: String? = null,
+    val includeInBills: Boolean = true,
 )
 data class LedgerBook(
     val id: String,
@@ -345,6 +347,7 @@ data class LedgerBook(
 data class LedgerCategory(val name: String, val symbol: String)
 internal data class EntryMonthGroup(val year: Int, val month: Int, val entries: List<Entry>)
 internal data class EntryDayGroup(val year: Int, val month: Int, val day: Int, val entries: List<Entry>)
+internal data class EntryCategoryGroup(val kind: String, val category: String, val ledgerId: String?, val entries: List<Entry>)
 internal data class MonthlyBillStatistics(
     val year: Int,
     val month: Int,
@@ -532,6 +535,7 @@ private class Store(context: Context) {
             } else {
                 value.optString("ledgerId").takeIf { ledgerId -> ledgerId.isNotBlank() }
             },
+            includeInBills = value.optBoolean("includeInBills", true),
         )
     }
 
@@ -550,6 +554,7 @@ private class Store(context: Context) {
                 put("date", e.date)
                 put("note", e.note)
                 e.ledgerId?.let { put("ledgerId", it) }
+                put("includeInBills", e.includeInBills)
             })
         }
         return a.toString()
@@ -1004,6 +1009,7 @@ private fun DetailsScreen(
     onDeleteEntry: (Entry) -> Unit,
 ) {
     var actionEntry by remember { mutableStateOf<Entry?>(null) }
+    var mergingEntry by remember { mutableStateOf<Entry?>(null) }
     var editingEntry by remember { mutableStateOf<Entry?>(null) }
     var deleteEntryRequest by remember { mutableStateOf<Entry?>(null) }
     var revealedEntryId by remember { mutableStateOf<String?>(null) }
@@ -1191,27 +1197,23 @@ private fun DetailsScreen(
                                 item(key = "day-${dayGroup.year}-${dayGroup.month}-${dayGroup.day}") {
                                     EntryDayHeader(dayGroup.month, dayGroup.day)
                                 }
-                                items(dayGroup.entries, key = { it.id }) { entry ->
-                                    val categories = if (entry.kind == "收入") {
-                                        incomeCategories
-                                    } else {
-                                        expenseCategories
+                                groupEntriesByCategory(dayGroup.entries).forEach { group ->
+                                    item(key = "entry-group-${dayGroup.year}-${dayGroup.month}-${dayGroup.day}-${group.kind}-${group.category}-${group.ledgerId}") {
+                                        EntryCategoryGroupCard(
+                                            group = group,
+                                            expenseCategories = expenseCategories,
+                                            incomeCategories = incomeCategories,
+                                            revealedEntryId = revealedEntryId,
+                                            onRevealChange = { entryId, reveal ->
+                                                revealedEntryId = if (reveal) entryId else null
+                                            },
+                                            onLongClick = { entry ->
+                                                revealedEntryId = null
+                                                actionEntry = entry
+                                            },
+                                            onDeleteClick = { deleteEntryRequest = it },
+                                        )
                                     }
-                                    val symbol = categories.firstOrNull { it.name == entry.category }?.symbol
-                                        ?: defaultIcon(entry.category)
-                                    EntryCard(
-                                        entry = entry,
-                                        symbol = symbol,
-                                        revealed = revealedEntryId == entry.id,
-                                        onRevealChange = { reveal ->
-                                            revealedEntryId = if (reveal) entry.id else null
-                                        },
-                                        onLongClick = {
-                                            revealedEntryId = null
-                                            actionEntry = entry
-                                        },
-                                        onDeleteClick = { deleteEntryRequest = entry },
-                                    )
                                 }
                             }
                         }
@@ -1265,6 +1267,20 @@ private fun DetailsScreen(
             onEdit = {
                 actionEntry = null
                 editingEntry = entry
+            },
+            onMergeSelection = {
+                actionEntry = null
+                mergingEntry = entry
+            },
+        )
+    }
+    mergingEntry?.let { entry ->
+        EntryMergeDialog(
+            entry = entry,
+            dismiss = { mergingEntry = null },
+            confirm = { updatedEntry ->
+                onUpdateEntry(updatedEntry)
+                mergingEntry = null
             },
         )
     }
@@ -1774,6 +1790,7 @@ private fun LedgerDetailScreen(
     onDeleteEntry: (Entry) -> Unit,
 ) {
     var actionEntry by remember { mutableStateOf<Entry?>(null) }
+    var mergingEntry by remember { mutableStateOf<Entry?>(null) }
     var editingEntry by remember { mutableStateOf<Entry?>(null) }
     var deleteEntryRequest by remember { mutableStateOf<Entry?>(null) }
     var revealedEntryId by remember { mutableStateOf<String?>(null) }
@@ -1969,27 +1986,23 @@ private fun LedgerDetailScreen(
                                 item(key = "ledger-day-${dayGroup.year}-${dayGroup.month}-${dayGroup.day}") {
                                     EntryDayHeader(dayGroup.month, dayGroup.day)
                                 }
-                                items(dayGroup.entries, key = { it.id }) { entry ->
-                                    val categories = if (entry.kind == "收入") {
-                                        incomeCategories
-                                    } else {
-                                        expenseCategories
+                                groupEntriesByCategory(dayGroup.entries).forEach { group ->
+                                    item(key = "ledger-entry-group-${dayGroup.year}-${dayGroup.month}-${dayGroup.day}-${group.kind}-${group.category}-${group.ledgerId}") {
+                                        EntryCategoryGroupCard(
+                                            group = group,
+                                            expenseCategories = expenseCategories,
+                                            incomeCategories = incomeCategories,
+                                            revealedEntryId = revealedEntryId,
+                                            onRevealChange = { entryId, reveal ->
+                                                revealedEntryId = if (reveal) entryId else null
+                                            },
+                                            onLongClick = { entry ->
+                                                revealedEntryId = null
+                                                actionEntry = entry
+                                            },
+                                            onDeleteClick = { deleteEntryRequest = it },
+                                        )
                                     }
-                                    val symbol = categories.firstOrNull { it.name == entry.category }?.symbol
-                                        ?: defaultIcon(entry.category)
-                                    EntryCard(
-                                        entry = entry,
-                                        symbol = symbol,
-                                        revealed = revealedEntryId == entry.id,
-                                        onRevealChange = { reveal ->
-                                            revealedEntryId = if (reveal) entry.id else null
-                                        },
-                                        onLongClick = {
-                                            revealedEntryId = null
-                                            actionEntry = entry
-                                        },
-                                        onDeleteClick = { deleteEntryRequest = entry },
-                                    )
                                 }
                             }
                         }
@@ -2045,6 +2058,20 @@ private fun LedgerDetailScreen(
             onEdit = {
                 actionEntry = null
                 editingEntry = entry
+            },
+            onMergeSelection = {
+                actionEntry = null
+                mergingEntry = entry
+            },
+        )
+    }
+    mergingEntry?.let { entry ->
+        EntryMergeDialog(
+            entry = entry,
+            dismiss = { mergingEntry = null },
+            confirm = { updatedEntry ->
+                onUpdateEntry(updatedEntry)
+                mergingEntry = null
             },
         )
     }
@@ -4471,6 +4498,73 @@ private fun CategoryOverviewItem(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
+private fun EntryCategoryGroupCard(
+    group: EntryCategoryGroup,
+    expenseCategories: List<LedgerCategory>,
+    incomeCategories: List<LedgerCategory>,
+    revealedEntryId: String?,
+    onRevealChange: (String, Boolean) -> Unit,
+    onLongClick: (Entry) -> Unit,
+    onDeleteClick: (Entry) -> Unit,
+) {
+    if (group.entries.size == 1) {
+        val entry = group.entries.single()
+        val categories = if (entry.kind == "收入") incomeCategories else expenseCategories
+        EntryCard(
+            entry = entry,
+            symbol = categories.firstOrNull { it.name == entry.category }?.symbol ?: defaultIcon(entry.category),
+            revealed = revealedEntryId == entry.id,
+            onRevealChange = { onRevealChange(entry.id, it) },
+            onLongClick = { onLongClick(entry) },
+            onDeleteClick = { onDeleteClick(entry) },
+        )
+        return
+    }
+    var expanded by remember(group.entries.map { it.id }) { mutableStateOf(false) }
+    val categories = if (group.kind == "收入") incomeCategories else expenseCategories
+    val symbol = categories.firstOrNull { it.name == group.category }?.symbol ?: defaultIcon(group.category)
+    val total = group.entries.sumOf { it.amount }
+    Card(
+        modifier = Modifier.fillMaxWidth().combinedClickable(
+            onClick = { expanded = !expanded },
+            onLongClick = { onLongClick(group.entries.first()) },
+        ),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        shape = RoundedCornerShape(16.dp),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(46.dp).background(Color.White, CircleShape), contentAlignment = Alignment.Center) {
+                    Text(symbol, fontSize = 28.sp)
+                }
+                Column(Modifier.weight(1f).padding(start = 14.dp)) {
+                    Text(group.category, fontSize = 17.sp, fontWeight = FontWeight.Medium)
+                    Text("${group.entries.size}笔 · ${group.entries.map { it.note }.filter { it.isNotBlank() }.take(3).joinToString("、")}", fontSize = 12.sp, color = NoteSlate, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                Text("${if (group.kind == "收入") "+" else "−"}${money(total)}", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = if (group.kind == "收入") IncomeAmountGreen else Ink)
+                Spacer(Modifier.width(8.dp))
+                Text(if (expanded) "⌃" else "⌄", fontSize = 22.sp, color = Muted)
+            }
+            AnimatedVisibility(visible = expanded, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+                Column(Modifier.padding(top = 10.dp)) {
+                    group.entries.forEach { entry ->
+                        Row(
+                            Modifier.fillMaxWidth().combinedClickable(onClick = { onLongClick(entry) }, onLongClick = { onLongClick(entry) }).padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(entry.note.ifBlank { entry.category }, Modifier.weight(1f), fontSize = 14.sp, color = NoteSlate, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text("${if (entry.kind == "收入") "+" else "−"}${money(entry.amount)}", fontSize = 14.sp, color = if (entry.kind == "收入") IncomeAmountGreen else Ink)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
 private fun EntryCard(
     entry: Entry,
     symbol: String,
@@ -4569,22 +4663,38 @@ private fun EntryActionDialog(
     entry: Entry,
     dismiss: () -> Unit,
     onEdit: () -> Unit,
+    onMergeSelection: () -> Unit,
 ) {
     val fixedPrimaryDark = colorResource(R.color.app_primary_dark)
     AlertDialog(
         onDismissRequest = dismiss,
         title = { Text(entry.category) },
         text = {
-            CategoryActionItem(
-                symbol = "",
-                title = "修改账单",
-                subtitle = "修改分类、金额、日期和备注",
-                iconResource = R.drawable.ic_edit_bill_color,
-                iconBackgroundColor = Color.Transparent,
-                preserveIconColors = true,
-                expandIconToBackground = true,
-                onClick = onEdit,
-            )
+            Column {
+                CategoryActionItem(
+                    symbol = "",
+                    title = "修改账单",
+                    subtitle = "修改分类、金额、日期和备注",
+                    iconResource = R.drawable.ic_edit_bill_color,
+                    iconBackgroundColor = Color.Transparent,
+                    preserveIconColors = true,
+                    expandIconToBackground = true,
+                    onClick = onEdit,
+                )
+                if (entry.ledgerId != null) {
+                    Spacer(Modifier.height(10.dp))
+                    CategoryActionItem(
+                        symbol = "",
+                        title = "账单合入选择",
+                        subtitle = if (entry.includeInBills) "当前：合入总账单" else "当前：仅在本账本显示",
+                        iconResource = R.drawable.ic_merge_bills_color,
+                        iconBackgroundColor = Color.Transparent,
+                        preserveIconColors = true,
+                        expandIconToBackground = true,
+                        onClick = onMergeSelection,
+                    )
+                }
+            }
         },
         confirmButton = {},
         dismissButton = {
@@ -4592,6 +4702,51 @@ private fun EntryActionDialog(
                 onClick = dismiss,
                 colors = ButtonDefaults.textButtonColors(contentColor = fixedPrimaryDark),
             ) { Text("取消") }
+        },
+    )
+}
+
+@Composable
+private fun EntryMergeDialog(
+    entry: Entry,
+    dismiss: () -> Unit,
+    confirm: (Entry) -> Unit,
+) {
+    val primary = colorResource(R.color.app_primary_dark)
+    var includeInBills by remember(entry.id, entry.includeInBills) { mutableStateOf(entry.includeInBills) }
+    AlertDialog(
+        onDismissRequest = dismiss,
+        title = { Text("账单合入选择") },
+        text = {
+            Column {
+                LedgerMergeOption(
+                    iconResource = R.drawable.ic_merge_bills_color,
+                    title = "合入总账单",
+                    subtitle = "仅当账本未合入总账单时生效",
+                    selected = includeInBills,
+                    onClick = { includeInBills = true },
+                )
+                Spacer(Modifier.height(8.dp))
+                LedgerMergeOption(
+                    iconResource = R.drawable.ic_separate_bills_color,
+                    title = "仅在本账本显示",
+                    subtitle = "该账单不会显示在总账单中",
+                    selected = !includeInBills,
+                    onClick = { includeInBills = false },
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { confirm(entry.copy(includeInBills = includeInBills)) },
+                enabled = includeInBills != entry.includeInBills,
+                colors = ButtonDefaults.textButtonColors(contentColor = primary),
+            ) { Text("保存") }
+        },
+        dismissButton = {
+            TextButton(onClick = dismiss, colors = ButtonDefaults.textButtonColors(contentColor = primary)) {
+                Text("取消")
+            }
         },
     )
 }
@@ -6079,6 +6234,13 @@ internal fun isDateAfterToday(date: Long, currentTime: Long = System.currentTime
 
 internal fun initialDateForNewEntry(entries: List<Entry>, currentTime: Long = System.currentTimeMillis()): Long {
     val previousEntryDate = entries.lastOrNull()?.date ?: return currentTime
+    val previousCalendar = Calendar.getInstance().apply { timeInMillis = previousEntryDate }
+    val currentCalendar = Calendar.getInstance().apply { timeInMillis = currentTime }
+    if (previousCalendar[Calendar.YEAR] == currentCalendar[Calendar.YEAR] &&
+        previousCalendar[Calendar.MONTH] == currentCalendar[Calendar.MONTH]
+    ) {
+        return currentTime
+    }
     val previousMonthFirst = Calendar.getInstance().apply {
         timeInMillis = previousEntryDate
         set(Calendar.DAY_OF_MONTH, 1)
@@ -6264,7 +6426,7 @@ private fun defaultIcon(value: String) = legacyDefaultIcons[value] ?: "◉"
 internal fun entriesForMainBills(entries: List<Entry>, ledgers: List<LedgerBook>): List<Entry> {
     val ledgerVisibility = ledgers.associate { it.id to it.includeInBills }
     return entries.filter { entry ->
-        entry.ledgerId == null || ledgerVisibility[entry.ledgerId] != false
+        entry.ledgerId == null || ledgerVisibility[entry.ledgerId] != false || entry.includeInBills
     }
 }
 internal fun updateEntriesCategory(
@@ -6397,6 +6559,17 @@ internal fun groupEntriesByDay(entries: List<Entry>): List<EntryDayGroup> =
         }
         .map { (date, dayEntries) ->
             EntryDayGroup(year = date.first, month = date.second, day = date.third, entries = dayEntries)
+        }
+
+internal fun groupEntriesByCategory(entries: List<Entry>): List<EntryCategoryGroup> =
+    entries.groupBy { entry -> Triple(entry.kind, entry.category, entry.ledgerId) }
+        .map { (key, groupedEntries) ->
+            EntryCategoryGroup(
+                kind = key.first,
+                category = key.second,
+                ledgerId = key.third,
+                entries = groupedEntries,
+            )
         }
 
 internal fun filterEntries(entries: List<Entry>, filter: EntryFilter): List<Entry> = when (filter.mode) {
