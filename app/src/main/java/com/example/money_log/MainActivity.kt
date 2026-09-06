@@ -741,6 +741,12 @@ private fun LedgerApp(
     var selectedLedgerId by remember { mutableStateOf<String?>(null) }
     var selectedMonthlyStatistics by remember { mutableStateOf<MonthlyBillStatistics?>(null) }
     var selectedAnnualStatistics by remember { mutableStateOf<AnnualBillStatistics?>(null) }
+    var billFilterState by remember { mutableStateOf<EntryFilter?>(null) }
+    val defaultBillFilter = remember {
+        val latestDate = entries.maxOfOrNull { it.date } ?: System.currentTimeMillis()
+        val calendar = Calendar.getInstance().apply { timeInMillis = latestDate }
+        EntryFilter(EntryFilterMode.ALL, calendar[Calendar.YEAR], calendar[Calendar.MONTH] + 1)
+    }
     var selectedStatisticsYear by remember {
         mutableIntStateOf(Calendar.getInstance()[Calendar.YEAR].coerceIn(2000, 2099))
     }
@@ -809,6 +815,8 @@ private fun LedgerApp(
                     incomeCategories = incomes,
                     titleBarStyle = selectedTitleBarStyle,
                     selectedSection = selectedSection,
+                    entryFilter = billFilterState ?: defaultBillFilter,
+                    onEntryFilterChange = { billFilterState = it },
                     onSectionSelected = { selectedSection = it },
                     onAddEntry = {
                         addReturnPage = AppPage.DETAILS
@@ -992,6 +1000,8 @@ private fun DetailsScreen(
     incomeCategories: List<LedgerCategory>,
     titleBarStyle: TitleBarStyle,
     selectedSection: DetailsSection,
+    entryFilter: EntryFilter,
+    onEntryFilterChange: (EntryFilter) -> Unit,
     onSectionSelected: (DetailsSection) -> Unit,
     onAddEntry: () -> Unit,
     onAddLedger: () -> Unit,
@@ -1017,17 +1027,6 @@ private fun DetailsScreen(
     var revealedEntryId by remember { mutableStateOf<String?>(null) }
     var showBillOptions by remember { mutableStateOf(false) }
     var showEntryFilter by remember { mutableStateOf(false) }
-    val initialFilter = remember {
-        val currentTime = System.currentTimeMillis()
-        val latestDate = entries.maxOfOrNull { it.date } ?: currentTime
-        val latestCalendar = Calendar.getInstance().apply { timeInMillis = latestDate }
-        EntryFilter(
-            mode = EntryFilterMode.ALL,
-            year = latestCalendar[Calendar.YEAR],
-            month = latestCalendar[Calendar.MONTH] + 1,
-        )
-    }
-    var entryFilter by remember { mutableStateOf(initialFilter) }
     val visibleEntries = filterEntries(entries, entryFilter)
     val dayGroups = groupEntriesByDay(visibleEntries)
     val listState = rememberLazyListState()
@@ -1327,7 +1326,7 @@ private fun DetailsScreen(
             initialFilter = entryFilter,
             dismiss = { showEntryFilter = false },
             onApply = { updatedFilter ->
-                entryFilter = updatedFilter
+                onEntryFilterChange(updatedFilter)
                 showEntryFilter = false
                 revealedEntryId = null
             },
@@ -1597,6 +1596,7 @@ private fun DeleteLedgerDialog(
     dismiss: () -> Unit,
     confirm: () -> Unit,
 ) {
+    val fixedPrimaryDark = colorResource(R.color.app_primary_dark)
     AlertDialog(
         onDismissRequest = dismiss,
         title = { Text(if (isFinalConfirmation) "再次确认删除" else "删除账本？") },
@@ -2597,6 +2597,7 @@ private fun BillOptionsDialog(
     dismiss: () -> Unit,
     onFilterView: () -> Unit,
 ) {
+    val fixedPrimaryDark = colorResource(R.color.app_primary_dark)
     AlertDialog(
         onDismissRequest = dismiss,
         title = { Text("账单选项") },
@@ -2610,7 +2611,7 @@ private fun BillOptionsDialog(
             )
         },
         confirmButton = {},
-        dismissButton = { TextButton(dismiss) { Text("取消") } },
+        dismissButton = { TextButton(onClick = dismiss, colors = ButtonDefaults.textButtonColors(contentColor = fixedPrimaryDark)) { Text("取消") } },
     )
 }
 
@@ -2620,6 +2621,7 @@ private fun EntryFilterDialog(
     dismiss: () -> Unit,
     onApply: (EntryFilter) -> Unit,
 ) {
+    val fixedPrimaryDark = colorResource(R.color.app_primary_dark)
     val currentCalendar = remember { Calendar.getInstance() }
     val currentYear = currentCalendar[Calendar.YEAR]
     val currentMonth = currentCalendar[Calendar.MONTH] + 1
@@ -2707,9 +2709,10 @@ private fun EntryFilterDialog(
                         ),
                     )
                 },
+                colors = ButtonDefaults.textButtonColors(contentColor = fixedPrimaryDark),
             ) { Text("应用") }
         },
-        dismissButton = { TextButton(dismiss) { Text("取消") } },
+        dismissButton = { TextButton(onClick = dismiss, colors = ButtonDefaults.textButtonColors(contentColor = fixedPrimaryDark)) { Text("取消") } },
     )
 }
 
