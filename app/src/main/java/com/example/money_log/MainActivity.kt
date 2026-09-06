@@ -4544,7 +4544,14 @@ private fun EntryCategoryGroupCard(
                 }
                 Text("${if (group.kind == "收入") "+" else "−"}${money(total)}", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = if (group.kind == "收入") IncomeAmountGreen else Ink)
                 Spacer(Modifier.width(8.dp))
-                Text(if (expanded) "⌃" else "⌄", fontSize = 22.sp, color = Muted)
+                Icon(
+                    painter = painterResource(
+                        if (expanded) R.drawable.ic_expand_less else R.drawable.ic_keyboard_arrow_down,
+                    ),
+                    contentDescription = if (expanded) "收起明细" else "展开明细",
+                    modifier = Modifier.size(24.dp),
+                    tint = Muted,
+                )
             }
             AnimatedVisibility(visible = expanded, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
                 Column(Modifier.padding(top = 10.dp)) {
