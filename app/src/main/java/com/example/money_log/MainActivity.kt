@@ -4544,42 +4544,47 @@ private fun EntryCategoryGroupCard(
                     Text(group.category, fontSize = 17.sp, fontWeight = FontWeight.Medium)
                     Text("${group.entries.size}笔 · ${group.entries.map { it.note }.filter { it.isNotBlank() }.take(3).joinToString("、")}", fontSize = 12.sp, color = NoteSlate, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                Column(horizontalAlignment = Alignment.End) {
-                    Text("${if (group.kind == "收入") "+" else "−"}${money(total)}", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = if (group.kind == "收入") IncomeAmountGreen else Ink)
-                    Box(
-                        modifier = Modifier.size(28.dp),
-                        contentAlignment = Alignment.Center,
+                Box(
+                    modifier = Modifier
+                        .width(150.dp)
+                        .height(46.dp),
+                ) {
+                    Text(
+                        text = "${if (group.kind == "收入") "+" else "−"}${money(total)}",
+                        modifier = Modifier.align(Alignment.CenterEnd),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (group.kind == "收入") IncomeAmountGreen else Ink,
+                    )
+                    Canvas(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .offset(y = 10.dp)
+                            .size(width = 14.dp, height = 6.dp)
+                            .semantics {
+                                contentDescription = if (expanded) "收起明细" else "展开明细"
+                            },
                     ) {
-                        Canvas(
-                            modifier = Modifier
-                                .size(width = 18.dp, height = 11.dp)
-                                .semantics {
-                                    contentDescription = if (expanded) "收起明细" else "展开明细"
-                                },
-                        ) {
-                            val stroke = 2.2.dp.toPx()
-                            val y = if (expanded) size.height * 0.72f else size.height * 0.28f
-                            val path = androidx.compose.ui.graphics.Path().apply {
-                                if (expanded) {
-                                    moveTo(1f, y)
-                                    lineTo(size.width / 2f, size.height * 0.18f)
-                                    lineTo(size.width - 1f, y)
-                                } else {
-                                    moveTo(1f, y)
-                                    lineTo(size.width / 2f, size.height * 0.82f)
-                                    lineTo(size.width - 1f, y)
-                                }
+                        val path = androidx.compose.ui.graphics.Path().apply {
+                            if (expanded) {
+                                moveTo(0.8f, size.height * 0.8f)
+                                lineTo(size.width / 2f, size.height * 0.15f)
+                                lineTo(size.width - 0.8f, size.height * 0.8f)
+                            } else {
+                                moveTo(0.8f, size.height * 0.2f)
+                                lineTo(size.width / 2f, size.height * 0.85f)
+                                lineTo(size.width - 0.8f, size.height * 0.2f)
                             }
-                            drawPath(
-                                path = path,
-                                color = Muted,
-                                style = androidx.compose.ui.graphics.drawscope.Stroke(
-                                    width = stroke,
-                                    cap = androidx.compose.ui.graphics.StrokeCap.Round,
-                                    join = androidx.compose.ui.graphics.StrokeJoin.Round,
-                                ),
-                            )
                         }
+                        drawPath(
+                            path = path,
+                            color = Muted,
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                width = 1.6.dp.toPx(),
+                                cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                                join = androidx.compose.ui.graphics.StrokeJoin.Round,
+                            ),
+                        )
                     }
                 }
             }
