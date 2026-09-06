@@ -4547,12 +4547,12 @@ private fun EntryCategoryGroupCard(
                 Box(
                     modifier = Modifier
                         .width(150.dp)
-                        .height(56.dp),
+                        .height(46.dp),
                 ) {
                     Canvas(
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
-                            .offset(y = (-28).dp)
+                            .offset(y = 10.dp)
                             .size(width = 14.dp, height = 6.dp)
                             .semantics {
                                 contentDescription = if (expanded) "收起明细" else "展开明细"
@@ -4581,7 +4581,7 @@ private fun EntryCategoryGroupCard(
                     }
                     Text(
                         text = "${if (group.kind == "收入") "+" else "−"}${money(total)}",
-                        modifier = Modifier.align(Alignment.BottomEnd),
+                        modifier = Modifier.align(Alignment.CenterEnd),
                         fontSize = 16.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = if (group.kind == "收入") IncomeAmountGreen else Ink,
@@ -4589,7 +4589,7 @@ private fun EntryCategoryGroupCard(
                 }
             }
             AnimatedVisibility(visible = expanded, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
-                Column(Modifier.padding(top = 10.dp)) {
+                Column(Modifier.padding(top = 22.dp)) {
                     group.entries.forEach { entry ->
                         Row(
                             Modifier.fillMaxWidth().combinedClickable(onClick = { onLongClick(entry) }, onLongClick = { onLongClick(entry) }).padding(vertical = 8.dp),
