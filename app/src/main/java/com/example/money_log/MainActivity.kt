@@ -4549,36 +4549,6 @@ private fun EntryCategoryGroupCard(
                         .width(150.dp)
                         .height(46.dp),
                 ) {
-                    Canvas(
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .offset(y = 10.dp)
-                            .size(width = 14.dp, height = 6.dp)
-                            .semantics {
-                                contentDescription = if (expanded) "收起明细" else "展开明细"
-                            },
-                    ) {
-                        val path = androidx.compose.ui.graphics.Path().apply {
-                            if (expanded) {
-                                moveTo(0.8f, size.height * 0.8f)
-                                lineTo(size.width / 2f, size.height * 0.15f)
-                                lineTo(size.width - 0.8f, size.height * 0.8f)
-                            } else {
-                                moveTo(0.8f, size.height * 0.2f)
-                                lineTo(size.width / 2f, size.height * 0.85f)
-                                lineTo(size.width - 0.8f, size.height * 0.2f)
-                            }
-                        }
-                        drawPath(
-                            path = path,
-                            color = Muted,
-                            style = androidx.compose.ui.graphics.drawscope.Stroke(
-                                width = 1.6.dp.toPx(),
-                                cap = androidx.compose.ui.graphics.StrokeCap.Round,
-                                join = androidx.compose.ui.graphics.StrokeJoin.Round,
-                            ),
-                        )
-                    }
                     Text(
                         text = "${if (group.kind == "收入") "+" else "−"}${money(total)}",
                         modifier = Modifier.align(Alignment.CenterEnd),
@@ -4588,8 +4558,44 @@ private fun EntryCategoryGroupCard(
                     )
                 }
             }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(12.dp),
+                contentAlignment = Alignment.CenterEnd,
+            ) {
+                Canvas(
+                    modifier = Modifier
+                        .padding(end = 2.dp)
+                        .size(width = 14.dp, height = 6.dp)
+                        .semantics {
+                            contentDescription = if (expanded) "收起明细" else "展开明细"
+                        },
+                ) {
+                    val path = androidx.compose.ui.graphics.Path().apply {
+                        if (expanded) {
+                            moveTo(0.8f, size.height * 0.8f)
+                            lineTo(size.width / 2f, size.height * 0.15f)
+                            lineTo(size.width - 0.8f, size.height * 0.8f)
+                        } else {
+                            moveTo(0.8f, size.height * 0.2f)
+                            lineTo(size.width / 2f, size.height * 0.85f)
+                            lineTo(size.width - 0.8f, size.height * 0.2f)
+                        }
+                    }
+                    drawPath(
+                        path = path,
+                        color = Muted,
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(
+                            width = 1.6.dp.toPx(),
+                            cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                            join = androidx.compose.ui.graphics.StrokeJoin.Round,
+                        ),
+                    )
+                }
+            }
             AnimatedVisibility(visible = expanded, enter = expandVertically(), exit = shrinkVertically()) {
-                Column(Modifier.padding(top = 22.dp)) {
+                Column(Modifier.padding(top = 10.dp)) {
                     group.entries.forEach { entry ->
                         Row(
                             Modifier.fillMaxWidth().combinedClickable(onClick = { onLongClick(entry) }, onLongClick = { onLongClick(entry) }).padding(vertical = 8.dp),
