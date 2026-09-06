@@ -4588,7 +4588,7 @@ private fun EntryCategoryGroupCard(
                     )
                 }
             }
-            AnimatedVisibility(visible = expanded, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+            AnimatedVisibility(visible = expanded, enter = expandVertically(), exit = shrinkVertically()) {
                 Column(Modifier.padding(top = 22.dp)) {
                     group.entries.forEach { entry ->
                         Row(
