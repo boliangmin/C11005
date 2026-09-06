@@ -2606,7 +2606,10 @@ private fun BillOptionsDialog(
                 symbol = "",
                 title = "筛选查看",
                 subtitle = "当前：${entryFilterSummary(entryFilter)}",
-                iconResource = R.drawable.ic_calendar_month_outline,
+                iconResource = R.drawable.ic_filter_view_color,
+                iconBackgroundColor = Color.Transparent,
+                preserveIconColors = true,
+                expandIconToBackground = true,
                 onClick = onFilterView,
             )
         },
@@ -2645,7 +2648,7 @@ private fun EntryFilterDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(
-                            if (mode == EntryFilterMode.MONTH) AppPrimaryContainer else Bg,
+                            if (mode == EntryFilterMode.MONTH) SelectionBlueContainer else Bg,
                             RoundedCornerShape(14.dp),
                         ),
                     verticalAlignment = Alignment.CenterVertically,
@@ -2727,7 +2730,7 @@ private fun FilterModeOption(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(if (selected) AppPrimaryContainer else Bg, RoundedCornerShape(14.dp))
+            .background(if (selected) SelectionBlueContainer else Bg, RoundedCornerShape(14.dp))
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -2775,11 +2778,19 @@ private fun FilterNumberPicker(
                 onClick = onPrevious,
                 enabled = previousEnabled,
                 contentPadding = PaddingValues(0.dp),
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = SelectionBlue,
+                    disabledContentColor = Muted,
+                ),
             ) { Text("‹", fontSize = 22.sp) }
             TextButton(
                 onClick = onNext,
                 enabled = nextEnabled,
                 contentPadding = PaddingValues(0.dp),
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = SelectionBlue,
+                    disabledContentColor = Muted,
+                ),
             ) { Text("›", fontSize = 22.sp) }
         }
     }
