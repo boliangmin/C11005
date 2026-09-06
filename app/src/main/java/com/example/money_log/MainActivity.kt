@@ -1021,7 +1021,6 @@ private fun DetailsScreen(
     onDeleteEntry: (Entry) -> Unit,
 ) {
     var actionEntry by remember { mutableStateOf<Entry?>(null) }
-    var mergingEntry by remember { mutableStateOf<Entry?>(null) }
     var editingEntry by remember { mutableStateOf<Entry?>(null) }
     var deleteEntryRequest by remember { mutableStateOf<Entry?>(null) }
     var revealedEntryId by remember { mutableStateOf<String?>(null) }
@@ -1268,20 +1267,6 @@ private fun DetailsScreen(
             onEdit = {
                 actionEntry = null
                 editingEntry = entry
-            },
-            onMergeSelection = {
-                actionEntry = null
-                mergingEntry = entry
-            },
-        )
-    }
-    mergingEntry?.let { entry ->
-        EntryMergeDialog(
-            entry = entry,
-            dismiss = { mergingEntry = null },
-            confirm = { updatedEntry ->
-                onUpdateEntry(updatedEntry)
-                mergingEntry = null
             },
         )
     }
@@ -4725,7 +4710,7 @@ private fun EntryActionDialog(
     entry: Entry,
     dismiss: () -> Unit,
     onEdit: () -> Unit,
-    onMergeSelection: () -> Unit,
+    onMergeSelection: (() -> Unit)? = null,
 ) {
     val fixedPrimaryDark = colorResource(R.color.app_primary_dark)
     AlertDialog(
@@ -4743,7 +4728,7 @@ private fun EntryActionDialog(
                     expandIconToBackground = true,
                     onClick = onEdit,
                 )
-                if (entry.ledgerId != null) {
+                if (entry.ledgerId != null && onMergeSelection != null) {
                     Spacer(Modifier.height(10.dp))
                     CategoryActionItem(
                         symbol = "",
