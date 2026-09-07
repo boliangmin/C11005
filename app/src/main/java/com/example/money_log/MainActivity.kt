@@ -456,6 +456,17 @@ private val legacyDefaultIcons = mapOf(
     UncategorizedName to UncategorizedIcon,
 )
 
+private fun removeOriginalEntryPrefix(note: String): String = when {
+    note.startsWith("原账目：") -> note.removePrefix("原账目：")
+    note.startsWith("原账目:") -> note.removePrefix("原账目:")
+    else -> note
+}
+
+private fun removeOriginalEntryPrefixes(entries: List<Entry>): List<Entry> = entries.map { entry ->
+    val cleanedNote = removeOriginalEntryPrefix(entry.note)
+    if (cleanedNote == entry.note) entry else entry.copy(note = cleanedNote)
+}
+
 internal fun ensureUncategorizedCategory(categories: List<LedgerCategory>): List<LedgerCategory> {
     val uncategorized = categories.firstOrNull { it.name == UncategorizedName }
         ?: LedgerCategory(UncategorizedName, UncategorizedIcon)
@@ -565,7 +576,12 @@ private class Store(context: Context) {
     private fun saveEntryList(key: String, value: List<Entry>) =
         p.edit().putString(key, entryListJson(value)).apply()
 
-    fun entries() = readEntries("entries")
+    fun entries(): List<Entry> {
+        val storedEntries = readEntries("entries")
+        val cleanedEntries = removeOriginalEntryPrefixes(storedEntries)
+        if (cleanedEntries != storedEntries) saveEntryList("entries", cleanedEntries)
+        return cleanedEntries
+    }
     fun saveEntries(value: List<Entry>) = saveEntryList("entries", value)
 
     private fun ledgersFromJson(values: JSONArray): List<LedgerBook> =
@@ -639,7 +655,7 @@ private class Store(context: Context) {
         val importedStyle = TitleBarStyle.entries.firstOrNull { it.storageKey == styleKey }
             ?: error("备份中的标题栏样式无效")
         val imported = MoneyLogBackup(
-            entries = entriesFromJson(root.getJSONArray("entries")),
+            entries = removeOriginalEntryPrefixes(entriesFromJson(root.getJSONArray("entries"))),
             expenseCategories = ensureUncategorizedCategory(
                 categoriesFromJson(root.getJSONArray("expenseCategories")),
             ),
