@@ -2586,6 +2586,8 @@ private fun DetailsFeatureItem(
                 contentDescription = label,
                 modifier = Modifier.size(
                     when {
+                        largeIcon && iconResource == R.drawable.ic_ledger_color && selected -> 44.dp
+                        largeIcon && iconResource == R.drawable.ic_ledger_color -> 32.dp
                         largeIcon && selected -> 40.dp
                         largeIcon -> 28.dp
                         else -> 21.dp
