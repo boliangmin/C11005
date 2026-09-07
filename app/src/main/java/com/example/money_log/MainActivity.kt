@@ -1034,6 +1034,7 @@ private fun DetailsScreen(
     val sectionPagerState = rememberPagerState(initialPage = selectedSection.ordinal) {
         DetailsSection.entries.size
     }
+    var pendingTappedSection by remember { mutableStateOf<DetailsSection?>(null) }
     val sectionPagerFlingBehavior = PagerDefaults.flingBehavior(
         state = sectionPagerState,
         snapAnimationSpec = tween(durationMillis = DetailsSectionTransitionDurationMillis),
@@ -1052,13 +1053,20 @@ private fun DetailsScreen(
         }
     }
 
-    LaunchedEffect(selectedSection) {
+    LaunchedEffect(selectedSection, pendingTappedSection) {
         val targetPage = selectedSection.ordinal
         if (sectionPagerState.settledPage != targetPage) {
-            sectionPagerState.animateScrollToPage(
-                page = targetPage,
-                animationSpec = tween(durationMillis = DetailsSectionTransitionDurationMillis),
-            )
+            if (pendingTappedSection == selectedSection) {
+                sectionPagerState.scrollToPage(targetPage)
+            } else {
+                sectionPagerState.animateScrollToPage(
+                    page = targetPage,
+                    animationSpec = tween(durationMillis = DetailsSectionTransitionDurationMillis),
+                )
+            }
+        }
+        if (pendingTappedSection == selectedSection) {
+            pendingTappedSection = null
         }
     }
 
@@ -1112,6 +1120,7 @@ private fun DetailsScreen(
                 TitleBarStyle.DESIGN_ONE -> DetailsFeatureBar(
                     selectedSection = displayedSection,
                     onSectionSelected = { section ->
+                        pendingTappedSection = section
                         onSectionSelected(section)
                         revealedEntryId = null
                     },
@@ -1129,6 +1138,7 @@ private fun DetailsScreen(
                         },
                         selectedSection = displayedSection,
                         onSectionSelected = { section ->
+                            pendingTappedSection = section
                             onSectionSelected(section)
                             revealedEntryId = null
                         },
