@@ -2540,7 +2540,6 @@ private fun DetailsFeatureItem(
     onClick: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
 ) {
-    val fixedPrimaryDark = colorResource(R.color.app_primary_dark)
     val interactionSource = remember { MutableInteractionSource() }
     val gestureModifier = when {
         onLongClick != null -> Modifier.combinedClickable(
@@ -2562,7 +2561,7 @@ private fun DetailsFeatureItem(
     ) {
         Box(
             modifier = Modifier.size(38.dp).background(
-                color = if (selected) fixedPrimaryDark else Bg,
+                color = if (selected) SelectionBlueContainer else Bg,
                 shape = CircleShape,
             ),
             contentAlignment = Alignment.Center,
