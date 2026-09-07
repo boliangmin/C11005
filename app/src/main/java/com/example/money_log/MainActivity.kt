@@ -5293,6 +5293,7 @@ private fun AddScreen(
     var editingIconTarget by remember { mutableStateOf<CategoryEditTarget?>(null) }
     var addingKind by remember { mutableStateOf<String?>(null) }
     var inputPanelHeight by remember { mutableStateOf(0.dp) }
+    val dismissCategorySelectionInteraction = remember { MutableInteractionSource() }
     val selectedCategory = selected
     val initialPagerPage = remember { (Int.MAX_VALUE / 2).let { it - it % 2 } }
     val pagerState = rememberPagerState(initialPage = initialPagerPage) { Int.MAX_VALUE }
@@ -5307,7 +5308,12 @@ private fun AddScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(bottom = inputPanelHeight),
+                .padding(bottom = inputPanelHeight)
+                .clickable(
+                    interactionSource = dismissCategorySelectionInteraction,
+                    indication = null,
+                    onClick = onDismiss,
+                ),
             contentAlignment = Alignment.Center,
         ) {
             Surface(
@@ -5550,6 +5556,16 @@ private fun EntryInputDialog(
         collapseInputPanel()
         inputWindowActions.clearFocus()
     }
+    val dismissInputOrDialog = {
+        if (
+            showCalculatorKeyboard || noteInputRequested ||
+            calculatorSurfaceVisible || isSystemKeyboardVisible
+        ) {
+            collapseInputPanel()
+        } else {
+            onDismiss()
+        }
+    }
 
     LaunchedEffect(visibleImeHeight) {
         if (visibleImeHeight > 0) {
@@ -5628,16 +5644,7 @@ private fun EntryInputDialog(
     }
 
     Dialog(
-        onDismissRequest = {
-            if (
-                showCalculatorKeyboard || noteInputRequested ||
-                calculatorSurfaceVisible || isSystemKeyboardVisible
-            ) {
-                collapseInputPanel()
-            } else {
-                onDismiss()
-            }
-        },
+        onDismissRequest = dismissInputOrDialog,
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
         BindInputWindowActions(inputWindowActions)
@@ -5647,7 +5654,7 @@ private fun EntryInputDialog(
                 .clickable(
                     interactionSource = dismissInputInteraction,
                     indication = null,
-                    onClick = collapseInputPanel,
+                    onClick = dismissInputOrDialog,
                 ),
         ) {
             Box(
