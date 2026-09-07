@@ -2584,7 +2584,13 @@ private fun DetailsFeatureItem(
             Icon(
                 painter = painterResource(iconResource),
                 contentDescription = label,
-                modifier = Modifier.size(if (largeIcon) 28.dp else 21.dp),
+                modifier = Modifier.size(
+                    when {
+                        largeIcon && selected -> 32.dp
+                        largeIcon -> 28.dp
+                        else -> 21.dp
+                    },
+                ),
                 tint = Color.Unspecified,
             )
         }
