@@ -320,6 +320,7 @@ private enum class AppPage {
     MONTHLY_STATISTICS_DETAIL,
     ANNUAL_STATISTICS,
     ANNUAL_STATISTICS_DETAIL,
+    CATEGORY_EXPENSE_ENTRIES,
     CATEGORIES,
 }
 private enum class DetailsSection { BILLS, LEDGER, STATISTICS, MORE }
@@ -378,6 +379,12 @@ internal data class EntryFilter(
 private data class CategoryEditTarget(val kind: String, val category: LedgerCategory)
 private data class CategoryDeleteRequest(val target: CategoryEditTarget, val isFinalConfirmation: Boolean = false)
 private data class LedgerDeleteRequest(val ledger: LedgerBook, val isFinalConfirmation: Boolean = false)
+private data class CategoryExpenseEntriesView(
+    val category: String,
+    val symbol: String,
+    val periodLabel: String,
+    val entries: List<Entry>,
+)
 private data class MoneyLogBackup(
     val entries: List<Entry>,
     val expenseCategories: List<LedgerCategory>,
@@ -757,6 +764,8 @@ private fun LedgerApp(
     var selectedLedgerId by remember { mutableStateOf<String?>(null) }
     var selectedMonthlyStatistics by remember { mutableStateOf<MonthlyBillStatistics?>(null) }
     var selectedAnnualStatistics by remember { mutableStateOf<AnnualBillStatistics?>(null) }
+    var categoryExpenseEntriesView by remember { mutableStateOf<CategoryExpenseEntriesView?>(null) }
+    var categoryExpenseEntriesReturnPage by remember { mutableStateOf(AppPage.DETAILS) }
     var billFilterState by remember { mutableStateOf<EntryFilter?>(null) }
     val defaultBillFilter = remember {
         val latestDate = entries.maxOfOrNull { it.date } ?: System.currentTimeMillis()
@@ -783,23 +792,31 @@ private fun LedgerApp(
     }
 
     BackHandler(enabled = page != AppPage.DETAILS) {
-        page = when (page) {
-            AppPage.ADD_ENTRY -> addReturnPage
-            AppPage.ADD_LEDGER -> AppPage.DETAILS
-            AppPage.LEDGER_DETAILS -> AppPage.DETAILS
-            AppPage.MONTHLY_STATISTICS -> AppPage.DETAILS
-            AppPage.MONTHLY_STATISTICS_DETAIL -> AppPage.MONTHLY_STATISTICS
-            AppPage.ANNUAL_STATISTICS -> AppPage.DETAILS
-            AppPage.ANNUAL_STATISTICS_DETAIL -> AppPage.ANNUAL_STATISTICS
-            AppPage.CATEGORIES -> AppPage.DETAILS
-            AppPage.DETAILS -> AppPage.DETAILS
+        if (page == AppPage.CATEGORY_EXPENSE_ENTRIES) {
+            page = categoryExpenseEntriesReturnPage
+            categoryExpenseEntriesView = null
+        } else {
+            page = when (page) {
+                AppPage.ADD_ENTRY -> addReturnPage
+                AppPage.ADD_LEDGER -> AppPage.DETAILS
+                AppPage.LEDGER_DETAILS -> AppPage.DETAILS
+                AppPage.MONTHLY_STATISTICS -> AppPage.DETAILS
+                AppPage.MONTHLY_STATISTICS_DETAIL -> AppPage.MONTHLY_STATISTICS
+                AppPage.ANNUAL_STATISTICS -> AppPage.DETAILS
+                AppPage.ANNUAL_STATISTICS_DETAIL -> AppPage.ANNUAL_STATISTICS
+                AppPage.CATEGORY_EXPENSE_ENTRIES -> categoryExpenseEntriesReturnPage
+                AppPage.CATEGORIES -> AppPage.DETAILS
+                AppPage.DETAILS -> AppPage.DETAILS
+            }
         }
     }
 
     Surface(Modifier.fillMaxSize(), color = Bg) {
         Box(Modifier.fillMaxSize()) {
             val showLedgerDetail = page == AppPage.LEDGER_DETAILS ||
-                page == AppPage.ADD_ENTRY && addReturnPage == AppPage.LEDGER_DETAILS
+                page == AppPage.ADD_ENTRY && addReturnPage == AppPage.LEDGER_DETAILS ||
+                page == AppPage.CATEGORY_EXPENSE_ENTRIES &&
+                categoryExpenseEntriesReturnPage == AppPage.LEDGER_DETAILS
             when {
                 showLedgerDetail && selectedLedger != null -> LedgerDetailScreen(
                     ledger = selectedLedger,
@@ -822,6 +839,23 @@ private fun LedgerApp(
                     },
                     onUpdateEntry = updateStoredEntry,
                     onDeleteEntry = deleteStoredEntry,
+                    onCategoryExpenseSelected = { statistics, category ->
+                        val categoryEntries = monthlyCategoryExpenseEntries(
+                            entries = entries.filter { it.ledgerId == selectedLedger.id },
+                            year = statistics.year,
+                            month = statistics.month,
+                            category = category,
+                        )
+                        categoryExpenseEntriesView = CategoryExpenseEntriesView(
+                            category = category,
+                            symbol = expenses.firstOrNull { it.name == category }?.symbol
+                                ?: defaultIcon(category),
+                            periodLabel = "${selectedLedger.name} · ${statistics.year}年${statistics.month}月",
+                            entries = categoryEntries,
+                        )
+                        categoryExpenseEntriesReturnPage = AppPage.LEDGER_DETAILS
+                        page = AppPage.CATEGORY_EXPENSE_ENTRIES
+                    },
                 )
                 page == AppPage.DETAILS || page == AppPage.ADD_ENTRY || page == AppPage.ADD_LEDGER -> DetailsScreen(
                     entries = mainBillEntries,
@@ -905,11 +939,31 @@ private fun LedgerApp(
                         page = AppPage.MONTHLY_STATISTICS_DETAIL
                     },
                 )
-                page == AppPage.MONTHLY_STATISTICS_DETAIL && selectedMonthlyStatistics != null ->
+                (page == AppPage.MONTHLY_STATISTICS_DETAIL ||
+                    page == AppPage.CATEGORY_EXPENSE_ENTRIES &&
+                    categoryExpenseEntriesReturnPage == AppPage.MONTHLY_STATISTICS_DETAIL) &&
+                    selectedMonthlyStatistics != null ->
                     MonthlyBillStatisticsDetailScreen(
                         statistics = selectedMonthlyStatistics!!,
                         entries = mainBillEntries,
                         expenseCategories = expenses,
+                        onCategoryExpenseSelected = { category ->
+                            val statistics = selectedMonthlyStatistics!!
+                            categoryExpenseEntriesView = CategoryExpenseEntriesView(
+                                category = category,
+                                symbol = expenses.firstOrNull { it.name == category }?.symbol
+                                    ?: defaultIcon(category),
+                                periodLabel = "${statistics.year}年${statistics.month}月",
+                                entries = monthlyCategoryExpenseEntries(
+                                    entries = mainBillEntries,
+                                    year = statistics.year,
+                                    month = statistics.month,
+                                    category = category,
+                                ),
+                            )
+                            categoryExpenseEntriesReturnPage = AppPage.MONTHLY_STATISTICS_DETAIL
+                            page = AppPage.CATEGORY_EXPENSE_ENTRIES
+                        },
                     )
                 page == AppPage.ANNUAL_STATISTICS -> AnnualBillStatisticsScreen(
                     entries = mainBillEntries,
@@ -918,11 +972,30 @@ private fun LedgerApp(
                         page = AppPage.ANNUAL_STATISTICS_DETAIL
                     },
                 )
-                page == AppPage.ANNUAL_STATISTICS_DETAIL && selectedAnnualStatistics != null ->
+                (page == AppPage.ANNUAL_STATISTICS_DETAIL ||
+                    page == AppPage.CATEGORY_EXPENSE_ENTRIES &&
+                    categoryExpenseEntriesReturnPage == AppPage.ANNUAL_STATISTICS_DETAIL) &&
+                    selectedAnnualStatistics != null ->
                     AnnualBillStatisticsDetailScreen(
                         statistics = selectedAnnualStatistics!!,
                         entries = mainBillEntries,
                         expenseCategories = expenses,
+                        onCategoryExpenseSelected = { category ->
+                            val statistics = selectedAnnualStatistics!!
+                            categoryExpenseEntriesView = CategoryExpenseEntriesView(
+                                category = category,
+                                symbol = expenses.firstOrNull { it.name == category }?.symbol
+                                    ?: defaultIcon(category),
+                                periodLabel = "${statistics.year}年",
+                                entries = annualCategoryExpenseEntries(
+                                    entries = mainBillEntries,
+                                    year = statistics.year,
+                                    category = category,
+                                ),
+                            )
+                            categoryExpenseEntriesReturnPage = AppPage.ANNUAL_STATISTICS_DETAIL
+                            page = AppPage.CATEGORY_EXPENSE_ENTRIES
+                        },
                     )
                 page == AppPage.CATEGORIES -> CategoryOverviewScreen(
                     expenseCategories = expenses,
@@ -1000,6 +1073,15 @@ private fun LedgerApp(
                         store.saveLedgers(ledgers)
                         selectedSection = DetailsSection.LEDGER
                         page = AppPage.DETAILS
+                    },
+                )
+            }
+            if (page == AppPage.CATEGORY_EXPENSE_ENTRIES && categoryExpenseEntriesView != null) {
+                CategoryExpenseEntriesScreen(
+                    view = categoryExpenseEntriesView!!,
+                    onBack = {
+                        page = categoryExpenseEntriesReturnPage
+                        categoryExpenseEntriesView = null
                     },
                 )
             }
@@ -1803,6 +1885,7 @@ private fun LedgerDetailScreen(
     onAddButtonPositionChange: (Float, Float) -> Unit,
     onUpdateEntry: (Entry) -> Unit,
     onDeleteEntry: (Entry) -> Unit,
+    onCategoryExpenseSelected: (MonthlyBillStatistics, String) -> Unit,
 ) {
     var actionEntry by remember { mutableStateOf<Entry?>(null) }
     var mergingEntry by remember { mutableStateOf<Entry?>(null) }
@@ -1956,6 +2039,9 @@ private fun LedgerDetailScreen(
                             modifier = Modifier.fillMaxSize(),
                             applyStatusBarPadding = false,
                             showIncome = ledger.showIncomeInStatistics,
+                            onCategoryExpenseSelected = { category ->
+                                onCategoryExpenseSelected(statistics, category)
+                            },
                         )
                     } ?: Box(
                         modifier = Modifier.fillMaxSize(),
@@ -3481,6 +3567,7 @@ private fun MonthlyBillStatisticsDetailScreen(
     modifier: Modifier = Modifier,
     applyStatusBarPadding: Boolean = true,
     showIncome: Boolean = true,
+    onCategoryExpenseSelected: (String) -> Unit,
 ) {
     val categoryStatistics = remember(entries, statistics.year, statistics.month) {
         calculateMonthlyCategoryExpenseStatistics(
@@ -3535,6 +3622,7 @@ private fun MonthlyBillStatisticsDetailScreen(
                 statistics = categoryStatistics,
                 categorySymbols = categorySymbols,
                 categoryColors = barCategoryColors,
+                onCategorySelected = onCategoryExpenseSelected,
             )
         }
     }
@@ -3545,6 +3633,7 @@ private fun AnnualBillStatisticsDetailScreen(
     statistics: AnnualBillStatistics,
     entries: List<Entry>,
     expenseCategories: List<LedgerCategory>,
+    onCategoryExpenseSelected: (String) -> Unit,
 ) {
     val categoryStatistics = remember(entries, statistics.year) {
         calculateAnnualCategoryExpenseStatistics(
@@ -3595,6 +3684,7 @@ private fun AnnualBillStatisticsDetailScreen(
                 categorySymbols = categorySymbols,
                 categoryColors = barCategoryColors,
                 emptyMessage = "当年暂无支出记录",
+                onCategorySelected = onCategoryExpenseSelected,
             )
         }
     }
@@ -3801,6 +3891,7 @@ private fun MonthlyCategoryExpenseChart(
     categorySymbols: Map<String, String>,
     categoryColors: Map<String, Color>,
     emptyMessage: String = "当月暂无支出记录",
+    onCategorySelected: (String) -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -3833,50 +3924,200 @@ private fun MonthlyCategoryExpenseChart(
                     } else {
                         0f
                     }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = categorySymbols[item.category] ?: defaultIcon(item.category),
-                            fontSize = 22.sp,
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = item.category,
-                            modifier = Modifier.weight(1f),
-                            fontSize = 15.sp,
-                            color = Ink,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Text(
-                            text = money(item.amount),
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Ink,
-                        )
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Box(
-                        Modifier
+                    Column(
+                        modifier = Modifier
                             .fillMaxWidth()
-                            .height(12.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(Color(0xFFE9EDF3)),
+                            .clickable { onCategorySelected(item.category) },
                     ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = categorySymbols[item.category] ?: defaultIcon(item.category),
+                                fontSize = 22.sp,
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = item.category,
+                                modifier = Modifier.weight(1f),
+                                fontSize = 15.sp,
+                                color = Ink,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                text = money(item.amount),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Ink,
+                            )
+                        }
+                        Spacer(Modifier.height(8.dp))
                         Box(
                             Modifier
-                                .fillMaxWidth(widthFraction)
-                                .fillMaxHeight()
-                                .background(itemColor),
-                        )
+                                .fillMaxWidth()
+                                .height(12.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(Color(0xFFE9EDF3)),
+                        ) {
+                            Box(
+                                Modifier
+                                    .fillMaxWidth(widthFraction)
+                                    .fillMaxHeight()
+                                    .background(itemColor),
+                            )
+                        }
                     }
                     if (index != statistics.lastIndex) {
                         Spacer(Modifier.height(16.dp))
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun CategoryExpenseEntriesScreen(
+    view: CategoryExpenseEntriesView,
+    onBack: () -> Unit,
+) {
+    val dayGroups = remember(view.entries) { groupEntriesByDay(view.entries) }
+    BackHandler(onBack = onBack)
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = Bg,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding(),
+        ) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                shape = RoundedCornerShape(16.dp),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(68.dp)
+                        .padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clickable(onClick = onBack),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text("‹", fontSize = 32.sp, lineHeight = 32.sp, color = Ink)
+                    }
+                    Text(view.symbol, fontSize = 28.sp)
+                    Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            text = "${view.category}支出明细",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Ink,
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text = "${view.periodLabel} · ${view.entries.size}笔",
+                            fontSize = 12.sp,
+                            color = NoteSlate,
+                        )
+                    }
+                    Text(
+                        text = "−${money(view.entries.sumOf { it.amount })}",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Ink,
+                    )
+                }
+            }
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .navigationBarsPadding(),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                dayGroups.forEach { dayGroup ->
+                    item(key = "category-expense-day-${dayGroup.year}-${dayGroup.month}-${dayGroup.day}") {
+                        EntryDayHeader(dayGroup.month, dayGroup.day)
+                    }
+                    items(
+                        items = dayGroup.entries,
+                        key = { entry -> "category-expense-entry-${entry.id}" },
+                    ) { entry ->
+                        CategoryExpenseEntryCard(
+                            entry = entry,
+                            symbol = view.symbol,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CategoryExpenseEntryCard(
+    entry: Entry,
+    symbol: String,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        shape = RoundedCornerShape(16.dp),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier.size(46.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(symbol, fontSize = 28.sp)
+            }
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 14.dp),
+            ) {
+                Text(
+                    text = entry.category,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Ink,
+                )
+                if (entry.note.isNotBlank()) {
+                    Text(
+                        text = entry.note,
+                        fontSize = 12.sp,
+                        color = NoteSlate,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            Text(
+                text = "−${money(entry.amount)}",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Ink,
+            )
         }
     }
 }
@@ -6651,6 +6892,28 @@ internal fun calculateMonthlyCategoryExpenseStatistics(
         compareByDescending<CategoryExpenseStatistics> { item -> item.amount }
             .thenBy { item -> item.category },
     )
+
+private fun monthlyCategoryExpenseEntries(
+    entries: List<Entry>,
+    year: Int,
+    month: Int,
+    category: String,
+): List<Entry> = entries.filter { entry ->
+    if (entry.kind != "支出" || entry.category != category) return@filter false
+    Calendar.getInstance().apply { timeInMillis = entry.date }.let { calendar ->
+        calendar[Calendar.YEAR] == year && calendar[Calendar.MONTH] + 1 == month
+    }
+}.sortedByDescending { entry -> entry.date }
+
+private fun annualCategoryExpenseEntries(
+    entries: List<Entry>,
+    year: Int,
+    category: String,
+): List<Entry> = entries.filter { entry ->
+    entry.kind == "支出" &&
+        entry.category == category &&
+        Calendar.getInstance().apply { timeInMillis = entry.date }[Calendar.YEAR] == year
+}.sortedByDescending { entry -> entry.date }
 
 internal fun groupEntriesByDay(entries: List<Entry>): List<EntryDayGroup> =
     entries.sortedByDescending { it.date }
