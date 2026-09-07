@@ -1040,7 +1040,7 @@ private fun DetailsScreen(
         snapAnimationSpec = tween(durationMillis = DetailsSectionTransitionDurationMillis),
     )
     val displayedSection = DetailsSection.entries[sectionPagerState.currentPage]
-    val autoHeaderHeight = 85.dp
+    val autoHeaderHeight = 91.dp
     val autoHeaderHeightPx = with(density) { autoHeaderHeight.toPx() }
     var autoHeaderOffsetPx by remember(titleBarStyle) { mutableFloatStateOf(0f) }
     val autoHeaderScrollConnection = remember(autoHeaderHeightPx) {
@@ -1119,6 +1119,7 @@ private fun DetailsScreen(
             when (titleBarStyle) {
                 TitleBarStyle.DESIGN_ONE -> DetailsFeatureBar(
                     selectedSection = displayedSection,
+                    largeIcons = true,
                     onSectionSelected = { section ->
                         pendingTappedSection = section
                         onSectionSelected(section)
@@ -1137,6 +1138,7 @@ private fun DetailsScreen(
                             IntOffset(x = 0, y = autoHeaderOffsetPx.roundToInt())
                         },
                         selectedSection = displayedSection,
+                        largeIcons = true,
                         onSectionSelected = { section ->
                             pendingTappedSection = section
                             onSectionSelected(section)
@@ -2410,6 +2412,7 @@ private fun DetailsFeatureBar(
     selectedSection: DetailsSection,
     onSectionSelected: (DetailsSection) -> Unit,
     onBillLongClick: () -> Unit,
+    largeIcons: Boolean = false,
     sections: List<DetailsSection> = DetailsSection.entries,
 ) {
     var expanded by remember { mutableStateOf(true) }
@@ -2452,6 +2455,7 @@ private fun DetailsFeatureBar(
                             detailsSectionIcon(section),
                             detailsSectionLabel(section),
                             selected = selectedSection == section,
+                            largeIcon = largeIcons,
                             onClick = { onSectionSelected(section) },
                             onLongClick = if (section == DetailsSection.BILLS) onBillLongClick else null,
                         )
@@ -2498,14 +2502,15 @@ private fun DetailsAutoCollapsingFeatureBar(
     selectedSection: DetailsSection,
     onSectionSelected: (DetailsSection) -> Unit,
     onBillLongClick: () -> Unit,
+    largeIcons: Boolean = false,
     sections: List<DetailsSection> = DetailsSection.entries,
 ) {
-    Box(modifier = modifier.fillMaxWidth().height(85.dp)) {
+    Box(modifier = modifier.fillMaxWidth().height(if (largeIcons) 91.dp else 85.dp)) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(start = 16.dp, top = 8.dp, end = 16.dp)
-                .height(77.dp),
+                .height(if (largeIcons) 83.dp else 77.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
             shape = RoundedCornerShape(16.dp),
@@ -2521,6 +2526,7 @@ private fun DetailsAutoCollapsingFeatureBar(
                         detailsSectionIcon(section),
                         detailsSectionLabel(section),
                         selected = selectedSection == section,
+                        largeIcon = largeIcons,
                         onClick = { onSectionSelected(section) },
                         onLongClick = if (section == DetailsSection.BILLS) onBillLongClick else null,
                     )
@@ -2537,6 +2543,7 @@ private fun DetailsFeatureItem(
     iconResource: Int,
     label: String,
     selected: Boolean = false,
+    largeIcon: Boolean = false,
     onClick: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
 ) {
@@ -2560,16 +2567,24 @@ private fun DetailsFeatureItem(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
-            modifier = Modifier.size(38.dp).background(
-                color = if (selected) SelectionBlueContainer else Bg,
-                shape = CircleShape,
-            ),
+            modifier = Modifier
+                .size(if (largeIcon) 44.dp else 38.dp)
+                .then(
+                    if (largeIcon) {
+                        Modifier
+                    } else {
+                        Modifier.background(
+                            color = if (selected) SelectionBlueContainer else Bg,
+                            shape = CircleShape,
+                        )
+                    },
+                ),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 painter = painterResource(iconResource),
                 contentDescription = label,
-                modifier = Modifier.size(21.dp),
+                modifier = Modifier.size(if (largeIcon) 28.dp else 21.dp),
                 tint = Color.Unspecified,
             )
         }
