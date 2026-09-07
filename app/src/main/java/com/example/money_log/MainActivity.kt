@@ -2586,7 +2586,7 @@ private fun DetailsFeatureItem(
                 contentDescription = label,
                 modifier = Modifier.size(
                     when {
-                        largeIcon && selected -> 32.dp
+                        largeIcon && selected -> 36.dp
                         largeIcon -> 28.dp
                         else -> 21.dp
                     },
@@ -2599,7 +2599,11 @@ private fun DetailsFeatureItem(
             label,
             color = if (selected) Ink else Muted,
             fontSize = 10.sp,
-            fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
+            fontWeight = when {
+                largeIcon && selected -> FontWeight.Bold
+                selected -> FontWeight.Medium
+                else -> FontWeight.Normal
+            },
             lineHeight = 12.sp,
             maxLines = 1,
         )
