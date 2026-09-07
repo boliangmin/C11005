@@ -2586,7 +2586,7 @@ private fun DetailsFeatureItem(
                 contentDescription = label,
                 modifier = Modifier.size(
                     when {
-                        largeIcon && selected -> 36.dp
+                        largeIcon && selected -> 40.dp
                         largeIcon -> 28.dp
                         else -> 21.dp
                     },
