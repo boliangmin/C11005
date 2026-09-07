@@ -2392,10 +2392,10 @@ private fun EntryDayHeader(month: Int, day: Int) {
 }
 
 private fun detailsSectionIcon(section: DetailsSection) = when (section) {
-    DetailsSection.BILLS -> R.drawable.ic_bill_outline
-    DetailsSection.LEDGER -> R.drawable.ic_ledger_outline
-    DetailsSection.STATISTICS -> R.drawable.ic_statistics_outline
-    DetailsSection.MORE -> R.drawable.ic_more_outline
+    DetailsSection.BILLS -> R.drawable.ic_bill_color
+    DetailsSection.LEDGER -> R.drawable.ic_ledger_color
+    DetailsSection.STATISTICS -> R.drawable.ic_statistics_color
+    DetailsSection.MORE -> R.drawable.ic_more_color
 }
 
 private fun detailsSectionLabel(section: DetailsSection) = when (section) {
@@ -2571,7 +2571,7 @@ private fun DetailsFeatureItem(
                 painter = painterResource(iconResource),
                 contentDescription = label,
                 modifier = Modifier.size(21.dp),
-                tint = if (selected) Color.White else Ink,
+                tint = Color.Unspecified,
             )
         }
         Spacer(Modifier.height(3.dp))
