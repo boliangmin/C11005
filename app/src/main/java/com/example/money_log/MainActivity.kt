@@ -4036,6 +4036,21 @@ private fun CategoryExpenseEntriesScreen(
     } else {
         0f
     }
+    val density = LocalDensity.current
+    val autoHeaderHeight = 133.dp
+    val autoHeaderHeightPx = with(density) { autoHeaderHeight.toPx() }
+    var autoHeaderOffsetPx by remember(view.category, view.year, view.month, view.ledgerId) {
+        mutableFloatStateOf(0f)
+    }
+    val autoHeaderScrollConnection = remember(autoHeaderHeightPx) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                val previousOffset = autoHeaderOffsetPx
+                autoHeaderOffsetPx = (previousOffset + available.y).coerceIn(-autoHeaderHeightPx, 0f)
+                return Offset(x = 0f, y = autoHeaderOffsetPx - previousOffset)
+            }
+        }
+    }
     BackHandler(onBack = onBack)
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -4044,43 +4059,49 @@ private fun CategoryExpenseEntriesScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .statusBarsPadding(),
+                .statusBarsPadding()
+                .nestedScroll(autoHeaderScrollConnection),
         ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(with(density) { (autoHeaderHeightPx + autoHeaderOffsetPx).toDp() })
+                    .clipToBounds(),
+            ) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .offset { IntOffset(x = 0, y = autoHeaderOffsetPx.roundToInt()) }
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                    shape = RoundedCornerShape(16.dp),
+                ) {
+                    Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                        Text(
+                            text = view.periodLabel,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Ink,
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        MonthlyIncomeExpenseBar(
+                            label = "支出",
+                            amount = categoryExpenseTotal,
+                            widthFraction = expenseWidthFraction,
+                            color = MonthlyExpenseBarColor,
+                        )
+                    }
+                }
+            }
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
                     .navigationBarsPadding(),
-                contentPadding = PaddingValues(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 24.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                item(key = "category-expense-summary") {
-                    Column {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-                            shape = RoundedCornerShape(16.dp),
-                        ) {
-                            Column(Modifier.fillMaxWidth().padding(16.dp)) {
-                                Text(
-                                    text = view.periodLabel,
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = Ink,
-                                )
-                                Spacer(Modifier.height(16.dp))
-                                MonthlyIncomeExpenseBar(
-                                    label = "支出",
-                                    amount = categoryExpenseTotal,
-                                    widthFraction = expenseWidthFraction,
-                                    color = MonthlyExpenseBarColor,
-                                )
-                            }
-                        }
-                        Spacer(Modifier.height(2.dp))
-                    }
-                }
                 dayGroups.forEach { dayGroup ->
                     item(key = "category-expense-day-${dayGroup.year}-${dayGroup.month}-${dayGroup.day}") {
                         EntryDayHeader(dayGroup.month, dayGroup.day)
