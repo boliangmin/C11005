@@ -383,6 +383,7 @@ private data class CategoryExpenseEntriesView(
     val category: String,
     val symbol: String,
     val periodLabel: String,
+    val scopeExpenseTotal: Double,
     val entries: List<Entry>,
 )
 private data class MoneyLogBackup(
@@ -850,7 +851,8 @@ private fun LedgerApp(
                             category = category,
                             symbol = expenses.firstOrNull { it.name == category }?.symbol
                                 ?: defaultIcon(category),
-                            periodLabel = "${selectedLedger.name} · ${statistics.year}年${statistics.month}月",
+                            periodLabel = selectedLedger.name,
+                            scopeExpenseTotal = statistics.expenseTotal,
                             entries = categoryEntries,
                         )
                         categoryExpenseEntriesReturnPage = AppPage.LEDGER_DETAILS
@@ -954,6 +956,7 @@ private fun LedgerApp(
                                 symbol = expenses.firstOrNull { it.name == category }?.symbol
                                     ?: defaultIcon(category),
                                 periodLabel = "${statistics.year}年${statistics.month}月",
+                                scopeExpenseTotal = statistics.expenseTotal,
                                 entries = monthlyCategoryExpenseEntries(
                                     entries = mainBillEntries,
                                     year = statistics.year,
@@ -987,6 +990,7 @@ private fun LedgerApp(
                                 symbol = expenses.firstOrNull { it.name == category }?.symbol
                                     ?: defaultIcon(category),
                                 periodLabel = "${statistics.year}年",
+                                scopeExpenseTotal = statistics.expenseTotal,
                                 entries = annualCategoryExpenseEntries(
                                     entries = mainBillEntries,
                                     year = statistics.year,
@@ -3984,6 +3988,12 @@ private fun CategoryExpenseEntriesScreen(
     onBack: () -> Unit,
 ) {
     val dayGroups = remember(view.entries) { groupEntriesByDay(view.entries) }
+    val categoryExpenseTotal = remember(view.entries) { view.entries.sumOf { entry -> entry.amount } }
+    val expenseWidthFraction = if (view.scopeExpenseTotal > 0.0) {
+        (categoryExpenseTotal / view.scopeExpenseTotal).toFloat().coerceIn(0f, 1f)
+    } else {
+        0f
+    }
     BackHandler(onBack = onBack)
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -4002,42 +4012,19 @@ private fun CategoryExpenseEntriesScreen(
                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                 shape = RoundedCornerShape(16.dp),
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(68.dp)
-                        .padding(horizontal = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clickable(onClick = onBack),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text("‹", fontSize = 32.sp, lineHeight = 32.sp, color = Ink)
-                    }
-                    Text(view.symbol, fontSize = 28.sp)
-                    Spacer(Modifier.width(10.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            text = "${view.category}支出明细",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = Ink,
-                        )
-                        Spacer(Modifier.height(2.dp))
-                        Text(
-                            text = "${view.periodLabel} · ${view.entries.size}笔",
-                            fontSize = 12.sp,
-                            color = NoteSlate,
-                        )
-                    }
+                Column(Modifier.fillMaxWidth().padding(16.dp)) {
                     Text(
-                        text = "−${money(view.entries.sumOf { it.amount })}",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold,
+                        text = view.periodLabel,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Medium,
                         color = Ink,
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    MonthlyIncomeExpenseBar(
+                        label = "支出",
+                        amount = categoryExpenseTotal,
+                        widthFraction = expenseWidthFraction,
+                        color = MonthlyExpenseBarColor,
                     )
                 }
             }
@@ -4054,7 +4041,10 @@ private fun CategoryExpenseEntriesScreen(
                         EntryDayHeader(dayGroup.month, dayGroup.day)
                     }
                     item(key = "category-expense-card-${dayGroup.year}-${dayGroup.month}-${dayGroup.day}") {
-                        CategoryExpenseDayCard(entries = dayGroup.entries)
+                        CategoryExpenseDayCard(
+                            entries = dayGroup.entries,
+                            symbol = view.symbol,
+                        )
                     }
                 }
             }
@@ -4065,6 +4055,7 @@ private fun CategoryExpenseEntriesScreen(
 @Composable
 private fun CategoryExpenseDayCard(
     entries: List<Entry>,
+    symbol: String,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -4081,6 +4072,13 @@ private fun CategoryExpenseDayCard(
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    Box(
+                        modifier = Modifier.size(34.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(symbol, fontSize = 24.sp)
+                    }
+                    Spacer(Modifier.width(10.dp))
                     Text(
                         text = entry.note.ifBlank { "无备注" },
                         modifier = Modifier.weight(1f),
