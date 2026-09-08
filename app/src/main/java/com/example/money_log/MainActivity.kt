@@ -4046,38 +4046,41 @@ private fun CategoryExpenseEntriesScreen(
                 .fillMaxSize()
                 .statusBarsPadding(),
         ) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-                shape = RoundedCornerShape(16.dp),
-            ) {
-                Column(Modifier.fillMaxWidth().padding(16.dp)) {
-                    Text(
-                        text = view.periodLabel,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = Ink,
-                    )
-                    Spacer(Modifier.height(16.dp))
-                    MonthlyIncomeExpenseBar(
-                        label = "支出",
-                        amount = categoryExpenseTotal,
-                        widthFraction = expenseWidthFraction,
-                        color = MonthlyExpenseBarColor,
-                    )
-                }
-            }
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
                     .navigationBarsPadding(),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
+                contentPadding = PaddingValues(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
+                item(key = "category-expense-summary") {
+                    Column {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                            shape = RoundedCornerShape(16.dp),
+                        ) {
+                            Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                                Text(
+                                    text = view.periodLabel,
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Ink,
+                                )
+                                Spacer(Modifier.height(16.dp))
+                                MonthlyIncomeExpenseBar(
+                                    label = "支出",
+                                    amount = categoryExpenseTotal,
+                                    widthFraction = expenseWidthFraction,
+                                    color = MonthlyExpenseBarColor,
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(2.dp))
+                    }
+                }
                 dayGroups.forEach { dayGroup ->
                     item(key = "category-expense-day-${dayGroup.year}-${dayGroup.month}-${dayGroup.day}") {
                         EntryDayHeader(dayGroup.month, dayGroup.day)
