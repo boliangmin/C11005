@@ -2313,6 +2313,13 @@ private fun LedgerEditorDialog(
         inputWindowActions.hideKeyboard()
         inputWindowActions.clearFocus()
     }
+    val dismissInputOrDialog = {
+        if (nameHasFocus || noteHasFocus || isSystemKeyboardVisible) {
+            collapseInputPanel()
+        } else {
+            onDismiss()
+        }
+    }
 
     LaunchedEffect(initial?.id) {
         val selectedIndex = initial?.symbol?.let(ledgerIcons::indexOf) ?: -1
@@ -2364,7 +2371,7 @@ private fun LedgerEditorDialog(
                     indication = null,
                     onClick = {
                         if (initial == null) {
-                            onDismiss()
+                            dismissInputOrDialog()
                         } else {
                             collapseInputPanel()
                         }
