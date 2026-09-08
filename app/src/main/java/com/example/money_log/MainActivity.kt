@@ -2287,6 +2287,7 @@ private fun LedgerEditorDialog(
     var retainInputPanelPlacement by remember { mutableStateOf(false) }
     val dateInteractionSource = remember { MutableInteractionSource() }
     val dismissInputInteraction = remember { MutableInteractionSource() }
+    val dialogContentInteraction = remember { MutableInteractionSource() }
     val fixedPrimaryDark = colorResource(R.color.app_primary_dark)
     val imeBottom = WindowInsets.ime.getBottom(density)
     val navigationBarBottom = WindowInsets.navigationBars.getBottom(density)
@@ -2361,7 +2362,13 @@ private fun LedgerEditorDialog(
                 .clickable(
                     interactionSource = dismissInputInteraction,
                     indication = null,
-                    onClick = collapseInputPanel,
+                    onClick = {
+                        if (initial == null) {
+                            onDismiss()
+                        } else {
+                            collapseInputPanel()
+                        }
+                    },
                 ),
         ) {
             Box(
@@ -2382,7 +2389,19 @@ private fun LedgerEditorDialog(
                 },
             ) {
                 Surface(
-                    modifier = Modifier.fillMaxWidth(BookkeepingDialogWidthFraction),
+                    modifier = Modifier
+                        .fillMaxWidth(BookkeepingDialogWidthFraction)
+                        .then(
+                            if (initial == null) {
+                                Modifier.clickable(
+                                    interactionSource = dialogContentInteraction,
+                                    indication = null,
+                                    onClick = {},
+                                )
+                            } else {
+                                Modifier
+                            },
+                        ),
                     shape = RoundedCornerShape(28.dp),
                     color = Bg,
                     shadowElevation = 10.dp,
