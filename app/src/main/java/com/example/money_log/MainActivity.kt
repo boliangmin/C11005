@@ -4053,14 +4053,8 @@ private fun CategoryExpenseEntriesScreen(
                     item(key = "category-expense-day-${dayGroup.year}-${dayGroup.month}-${dayGroup.day}") {
                         EntryDayHeader(dayGroup.month, dayGroup.day)
                     }
-                    items(
-                        items = dayGroup.entries,
-                        key = { entry -> "category-expense-entry-${entry.id}" },
-                    ) { entry ->
-                        CategoryExpenseEntryCard(
-                            entry = entry,
-                            symbol = view.symbol,
-                        )
+                    item(key = "category-expense-card-${dayGroup.year}-${dayGroup.month}-${dayGroup.day}") {
+                        CategoryExpenseDayCard(entries = dayGroup.entries)
                     }
                 }
             }
@@ -4069,9 +4063,8 @@ private fun CategoryExpenseEntriesScreen(
 }
 
 @Composable
-private fun CategoryExpenseEntryCard(
-    entry: Entry,
-    symbol: String,
+private fun CategoryExpenseDayCard(
+    entries: List<Entry>,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -4079,45 +4072,41 @@ private fun CategoryExpenseEntryCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         shape = RoundedCornerShape(16.dp),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                modifier = Modifier.size(46.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(symbol, fontSize = 28.sp)
-            }
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(start = 14.dp),
-            ) {
-                Text(
-                    text = entry.category,
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Ink,
-                )
-                if (entry.note.isNotBlank()) {
+        Column(Modifier.fillMaxWidth()) {
+            entries.forEachIndexed { index, entry ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 58.dp)
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Text(
-                        text = entry.note,
-                        fontSize = 12.sp,
+                        text = entry.note.ifBlank { "无备注" },
+                        modifier = Modifier.weight(1f),
+                        fontSize = 15.sp,
                         color = NoteSlate,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
+                    Spacer(Modifier.width(16.dp))
+                    Text(
+                        text = "−${money(entry.amount)}",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Ink,
+                    )
+                }
+                if (index != entries.lastIndex) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                            .height(1.dp)
+                            .background(Color(0xFFE9E9E9)),
+                    )
                 }
             }
-            Text(
-                text = "−${money(entry.amount)}",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Ink,
-            )
         }
     }
 }
