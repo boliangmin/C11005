@@ -1932,9 +1932,20 @@ private fun LedgerDetailScreen(
     var showEntryFilter by remember { mutableStateOf(false) }
     var selectedSection by remember(ledger.id) { mutableStateOf(DetailsSection.BILLS) }
     val ledgerSections = remember { listOf(DetailsSection.BILLS, DetailsSection.STATISTICS) }
-    val latestLedgerMonthlyStatistics = remember(entries) {
-        calculateMonthlyBillStatistics(entries).firstOrNull()
+    val ledgerMonthlyStatistics = remember(entries) {
+        calculateMonthlyBillStatistics(entries).sortedWith(
+            compareBy<MonthlyBillStatistics> { it.year }.thenBy { it.month },
+        )
     }
+    var selectedLedgerStatisticsPeriod by remember(ledger.id) {
+        mutableStateOf<Pair<Int, Int>?>(null)
+    }
+    val selectedLedgerMonthlyStatistics = ledgerMonthlyStatistics.firstOrNull { statistics ->
+        selectedLedgerStatisticsPeriod == (statistics.year to statistics.month)
+    } ?: ledgerMonthlyStatistics.lastOrNull()
+    val selectedLedgerMonthlyStatisticsIndex = selectedLedgerMonthlyStatistics?.let {
+        ledgerMonthlyStatistics.indexOf(it)
+    } ?: -1
     val initialFilter = remember(ledger.id) {
         val currentTime = System.currentTimeMillis()
         val latestDate = entries.maxOfOrNull { it.date } ?: currentTime
@@ -2067,7 +2078,7 @@ private fun LedgerDetailScreen(
                 flingBehavior = sectionPagerFlingBehavior,
             ) { pageIndex ->
                 when (ledgerSections[pageIndex]) {
-                    DetailsSection.STATISTICS -> latestLedgerMonthlyStatistics?.let { statistics ->
+                    DetailsSection.STATISTICS -> selectedLedgerMonthlyStatistics?.let { statistics ->
                         MonthlyBillStatisticsDetailScreen(
                             statistics = statistics,
                             entries = entries,
@@ -2075,6 +2086,27 @@ private fun LedgerDetailScreen(
                             modifier = Modifier.fillMaxSize(),
                             applyStatusBarPadding = false,
                             showIncome = ledger.showIncomeInStatistics,
+                            onPreviousMonth = if (selectedLedgerMonthlyStatisticsIndex > 0) {
+                                {
+                                    ledgerMonthlyStatistics[selectedLedgerMonthlyStatisticsIndex - 1].let { previous ->
+                                        selectedLedgerStatisticsPeriod = previous.year to previous.month
+                                    }
+                                }
+                            } else {
+                                null
+                            },
+                            onNextMonth = if (
+                                selectedLedgerMonthlyStatisticsIndex >= 0 &&
+                                selectedLedgerMonthlyStatisticsIndex < ledgerMonthlyStatistics.lastIndex
+                            ) {
+                                {
+                                    ledgerMonthlyStatistics[selectedLedgerMonthlyStatisticsIndex + 1].let { next ->
+                                        selectedLedgerStatisticsPeriod = next.year to next.month
+                                    }
+                                }
+                            } else {
+                                null
+                            },
                             onCategoryExpenseSelected = { category ->
                                 onCategoryExpenseSelected(statistics, category)
                             },
@@ -3533,6 +3565,8 @@ private fun MonthlyBillStatisticsMonthSection(
 private fun MonthlyIncomeExpenseBarsCard(
     statistics: MonthlyBillStatistics,
     showIncome: Boolean,
+    onPreviousMonth: (() -> Unit)? = null,
+    onNextMonth: (() -> Unit)? = null,
 ) {
     val maximumAmount = if (showIncome) {
         maxOf(statistics.expenseTotal, statistics.incomeTotal)
@@ -3546,12 +3580,38 @@ private fun MonthlyIncomeExpenseBarsCard(
         shape = RoundedCornerShape(16.dp),
     ) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
-            Text(
-                text = "${statistics.year}年${statistics.month}月",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Medium,
-                color = Ink,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "${statistics.year}年${statistics.month}月",
+                    modifier = Modifier.weight(1f),
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Ink,
+                )
+                if (onPreviousMonth != null || onNextMonth != null) {
+                    TextButton(
+                        onClick = { onPreviousMonth?.invoke() },
+                        enabled = onPreviousMonth != null,
+                        contentPadding = PaddingValues(0.dp),
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = SelectionBlue,
+                            disabledContentColor = Muted,
+                        ),
+                    ) { Text("‹", fontSize = 22.sp) }
+                    TextButton(
+                        onClick = { onNextMonth?.invoke() },
+                        enabled = onNextMonth != null,
+                        contentPadding = PaddingValues(0.dp),
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = SelectionBlue,
+                            disabledContentColor = Muted,
+                        ),
+                    ) { Text("›", fontSize = 22.sp) }
+                }
+            }
             Spacer(Modifier.height(16.dp))
             MonthlyIncomeExpenseBar(
                 label = "支出",
@@ -3627,6 +3687,8 @@ private fun MonthlyBillStatisticsDetailScreen(
     modifier: Modifier = Modifier,
     applyStatusBarPadding: Boolean = true,
     showIncome: Boolean = true,
+    onPreviousMonth: (() -> Unit)? = null,
+    onNextMonth: (() -> Unit)? = null,
     onCategoryExpenseSelected: (String) -> Unit,
 ) {
     val categoryStatistics = remember(entries, statistics.year, statistics.month) {
@@ -3669,6 +3731,8 @@ private fun MonthlyBillStatisticsDetailScreen(
             MonthlyIncomeExpenseBarsCard(
                 statistics = statistics,
                 showIncome = showIncome,
+                onPreviousMonth = onPreviousMonth,
+                onNextMonth = onNextMonth,
             )
         }
         item {
@@ -5783,6 +5847,7 @@ private fun AddScreen(
                         date = date,
                         note = note.trim(),
                         ledgerId = ledgerId,
+                        includeInBills = ledgerId == null,
                     ),
                 )
             },
