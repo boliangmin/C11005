@@ -382,7 +382,7 @@ private data class LedgerDeleteRequest(val ledger: LedgerBook, val isFinalConfir
 private data class CategoryExpenseEntriesView(
     val category: String,
     val periodLabel: String,
-    val year: Int,
+    val year: Int?,
     val month: Int?,
     val ledgerId: String?,
     val scopeExpenseTotal: Double,
@@ -858,20 +858,20 @@ private fun LedgerApp(
                     },
                     onUpdateEntry = updateStoredEntry,
                     onDeleteEntry = deleteStoredEntry,
-                    onCategoryExpenseSelected = { statistics, category ->
-                        val categoryEntries = monthlyCategoryExpenseEntries(
-                            entries = entries.filter { it.ledgerId == selectedLedger.id },
-                            year = statistics.year,
-                            month = statistics.month,
-                            category = category,
-                        )
+                    onCategoryExpenseSelected = { category ->
+                        val ledgerEntries = entries.filter { it.ledgerId == selectedLedger.id }
+                        val categoryEntries = ledgerEntries.filter { entry ->
+                            entry.kind == "支出" && entry.category == category
+                        }.sortedByDescending { entry -> entry.date }
                         categoryExpenseEntriesView = CategoryExpenseEntriesView(
                             category = category,
                             periodLabel = selectedLedger.name,
-                            year = statistics.year,
-                            month = statistics.month,
+                            year = null,
+                            month = null,
                             ledgerId = selectedLedger.id,
-                            scopeExpenseTotal = statistics.expenseTotal,
+                            scopeExpenseTotal = ledgerEntries
+                                .filter { entry -> entry.kind == "支出" }
+                                .sumOf { entry -> entry.amount },
                             entries = categoryEntries,
                         )
                         categoryExpenseEntriesReturnPage = AppPage.LEDGER_DETAILS
@@ -1921,7 +1921,7 @@ private fun LedgerDetailScreen(
     onAddButtonPositionChange: (Float, Float) -> Unit,
     onUpdateEntry: (Entry) -> Unit,
     onDeleteEntry: (Entry) -> Unit,
-    onCategoryExpenseSelected: (MonthlyBillStatistics, String) -> Unit,
+    onCategoryExpenseSelected: (String) -> Unit,
 ) {
     var actionEntry by remember { mutableStateOf<Entry?>(null) }
     var mergingEntry by remember { mutableStateOf<Entry?>(null) }
@@ -1932,20 +1932,6 @@ private fun LedgerDetailScreen(
     var showEntryFilter by remember { mutableStateOf(false) }
     var selectedSection by remember(ledger.id) { mutableStateOf(DetailsSection.BILLS) }
     val ledgerSections = remember { listOf(DetailsSection.BILLS, DetailsSection.STATISTICS) }
-    val ledgerMonthlyStatistics = remember(entries) {
-        calculateMonthlyBillStatistics(entries).sortedWith(
-            compareBy<MonthlyBillStatistics> { it.year }.thenBy { it.month },
-        )
-    }
-    var selectedLedgerStatisticsPeriod by remember(ledger.id) {
-        mutableStateOf<Pair<Int, Int>?>(null)
-    }
-    val selectedLedgerMonthlyStatistics = ledgerMonthlyStatistics.firstOrNull { statistics ->
-        selectedLedgerStatisticsPeriod == (statistics.year to statistics.month)
-    } ?: ledgerMonthlyStatistics.lastOrNull()
-    val selectedLedgerMonthlyStatisticsIndex = selectedLedgerMonthlyStatistics?.let {
-        ledgerMonthlyStatistics.indexOf(it)
-    } ?: -1
     val initialFilter = remember(ledger.id) {
         val currentTime = System.currentTimeMillis()
         val latestDate = entries.maxOfOrNull { it.date } ?: currentTime
@@ -2078,40 +2064,14 @@ private fun LedgerDetailScreen(
                 flingBehavior = sectionPagerFlingBehavior,
             ) { pageIndex ->
                 when (ledgerSections[pageIndex]) {
-                    DetailsSection.STATISTICS -> selectedLedgerMonthlyStatistics?.let { statistics ->
-                        MonthlyBillStatisticsDetailScreen(
-                            statistics = statistics,
+                    DetailsSection.STATISTICS -> if (entries.isNotEmpty()) {
+                        LedgerStatisticsDetailScreen(
                             entries = entries,
                             expenseCategories = expenseCategories,
                             modifier = Modifier.fillMaxSize(),
-                            applyStatusBarPadding = false,
-                            showIncome = ledger.showIncomeInStatistics,
-                            onPreviousMonth = if (selectedLedgerMonthlyStatisticsIndex > 0) {
-                                {
-                                    ledgerMonthlyStatistics[selectedLedgerMonthlyStatisticsIndex - 1].let { previous ->
-                                        selectedLedgerStatisticsPeriod = previous.year to previous.month
-                                    }
-                                }
-                            } else {
-                                null
-                            },
-                            onNextMonth = if (
-                                selectedLedgerMonthlyStatisticsIndex >= 0 &&
-                                selectedLedgerMonthlyStatisticsIndex < ledgerMonthlyStatistics.lastIndex
-                            ) {
-                                {
-                                    ledgerMonthlyStatistics[selectedLedgerMonthlyStatisticsIndex + 1].let { next ->
-                                        selectedLedgerStatisticsPeriod = next.year to next.month
-                                    }
-                                }
-                            } else {
-                                null
-                            },
-                            onCategoryExpenseSelected = { category ->
-                                onCategoryExpenseSelected(statistics, category)
-                            },
+                            onCategoryExpenseSelected = onCategoryExpenseSelected,
                         )
-                    } ?: Box(
+                    } else Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center,
                     ) {
@@ -3565,8 +3525,6 @@ private fun MonthlyBillStatisticsMonthSection(
 private fun MonthlyIncomeExpenseBarsCard(
     statistics: MonthlyBillStatistics,
     showIncome: Boolean,
-    onPreviousMonth: (() -> Unit)? = null,
-    onNextMonth: (() -> Unit)? = null,
 ) {
     val maximumAmount = if (showIncome) {
         maxOf(statistics.expenseTotal, statistics.incomeTotal)
@@ -3580,38 +3538,12 @@ private fun MonthlyIncomeExpenseBarsCard(
         shape = RoundedCornerShape(16.dp),
     ) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = "${statistics.year}年${statistics.month}月",
-                    modifier = Modifier.weight(1f),
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Ink,
-                )
-                if (onPreviousMonth != null || onNextMonth != null) {
-                    TextButton(
-                        onClick = { onPreviousMonth?.invoke() },
-                        enabled = onPreviousMonth != null,
-                        contentPadding = PaddingValues(0.dp),
-                        colors = ButtonDefaults.textButtonColors(
-                            contentColor = SelectionBlue,
-                            disabledContentColor = Muted,
-                        ),
-                    ) { Text("‹", fontSize = 22.sp) }
-                    TextButton(
-                        onClick = { onNextMonth?.invoke() },
-                        enabled = onNextMonth != null,
-                        contentPadding = PaddingValues(0.dp),
-                        colors = ButtonDefaults.textButtonColors(
-                            contentColor = SelectionBlue,
-                            disabledContentColor = Muted,
-                        ),
-                    ) { Text("›", fontSize = 22.sp) }
-                }
-            }
+            Text(
+                text = "${statistics.year}年${statistics.month}月",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Medium,
+                color = Ink,
+            )
             Spacer(Modifier.height(16.dp))
             MonthlyIncomeExpenseBar(
                 label = "支出",
@@ -3636,6 +3568,87 @@ private fun MonthlyIncomeExpenseBarsCard(
                     color = MonthlyIncomeBarColor,
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun LedgerStatisticsDetailScreen(
+    entries: List<Entry>,
+    expenseCategories: List<LedgerCategory>,
+    modifier: Modifier = Modifier,
+    onCategoryExpenseSelected: (String) -> Unit,
+) {
+    val categoryStatistics = remember(entries) {
+        calculateLedgerCategoryExpenseStatistics(entries)
+    }
+    val categorySymbols = remember(expenseCategories) {
+        expenseCategories.associate { category -> category.name to category.symbol }
+    }
+    val pieStatistics = remember(categoryStatistics) {
+        summarizeMonthlyExpensePieStatistics(categoryStatistics)
+    }
+    val pieColorStartIndex = remember(pieStatistics) {
+        kotlin.random.Random.nextInt(MonthlyExpensePieColorCandidates.size)
+    }
+    val pieCategoryColors = remember(pieStatistics, pieColorStartIndex) {
+        val colors = highContrastPieColors(pieStatistics.size, pieColorStartIndex)
+        pieStatistics.mapIndexed { index, item ->
+            item.category to colors[index]
+        }.toMap()
+    }
+    val barCategoryColors = remember(categoryStatistics) {
+        categoryStatistics.mapIndexed { index, item ->
+            item.category to MonthlyExpenseCategoryBarColors[
+                index % MonthlyExpenseCategoryBarColors.size
+            ]
+        }.toMap()
+    }
+    val expenseTotal = remember(categoryStatistics) {
+        categoryStatistics.sumOf { item -> item.amount }
+    }
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        item {
+            LedgerExpenseBarCard(expenseTotal = expenseTotal)
+        }
+        item {
+            MonthlyExpensePieChart(
+                statistics = pieStatistics,
+                categoryColors = pieCategoryColors,
+                emptyMessage = "账本暂无支出记录",
+            )
+        }
+        item {
+            MonthlyCategoryExpenseChart(
+                statistics = categoryStatistics,
+                categorySymbols = categorySymbols,
+                categoryColors = barCategoryColors,
+                emptyMessage = "账本暂无支出记录",
+                onCategorySelected = onCategoryExpenseSelected,
+            )
+        }
+    }
+}
+
+@Composable
+private fun LedgerExpenseBarCard(expenseTotal: Double) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        shape = RoundedCornerShape(16.dp),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            MonthlyIncomeExpenseBar(
+                label = "支出",
+                amount = expenseTotal,
+                widthFraction = if (expenseTotal > 0.0) 1f else 0f,
+                color = MonthlyExpenseBarColor,
+            )
         }
     }
 }
@@ -3687,8 +3700,6 @@ private fun MonthlyBillStatisticsDetailScreen(
     modifier: Modifier = Modifier,
     applyStatusBarPadding: Boolean = true,
     showIncome: Boolean = true,
-    onPreviousMonth: (() -> Unit)? = null,
-    onNextMonth: (() -> Unit)? = null,
     onCategoryExpenseSelected: (String) -> Unit,
 ) {
     val categoryStatistics = remember(entries, statistics.year, statistics.month) {
@@ -3731,8 +3742,6 @@ private fun MonthlyBillStatisticsDetailScreen(
             MonthlyIncomeExpenseBarsCard(
                 statistics = statistics,
                 showIncome = showIncome,
-                onPreviousMonth = onPreviousMonth,
-                onNextMonth = onNextMonth,
             )
         }
         item {
@@ -7021,6 +7030,22 @@ internal fun calculateAnnualCategoryExpenseStatistics(
             .thenBy { item -> item.category },
     )
 
+private fun calculateLedgerCategoryExpenseStatistics(
+    entries: List<Entry>,
+): List<CategoryExpenseStatistics> = entries
+    .filter { entry -> entry.kind == "支出" }
+    .groupBy { entry -> entry.category }
+    .map { (category, categoryEntries) ->
+        CategoryExpenseStatistics(
+            category = category,
+            amount = categoryEntries.sumOf { entry -> entry.amount },
+        )
+    }
+    .sortedWith(
+        compareByDescending<CategoryExpenseStatistics> { item -> item.amount }
+            .thenBy { item -> item.category },
+    )
+
 internal fun calculateMonthlyCategoryExpenseStatistics(
     entries: List<Entry>,
     year: Int,
@@ -7077,7 +7102,7 @@ private fun refreshCategoryExpenseEntriesView(
     val scopeEntries = sourceEntries.filter { entry ->
         if (entry.kind != "支出") return@filter false
         Calendar.getInstance().apply { timeInMillis = entry.date }.let { calendar ->
-            calendar[Calendar.YEAR] == view.year &&
+            (view.year == null || calendar[Calendar.YEAR] == view.year) &&
                 (view.month == null || calendar[Calendar.MONTH] + 1 == view.month)
         }
     }
