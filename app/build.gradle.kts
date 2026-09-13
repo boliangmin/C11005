@@ -158,8 +158,8 @@ android {
         applicationId = "com.example.money_log"
         minSdk = 23
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.0.2_${LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))}"
+        versionCode = 3
+        versionName = "1.0.3_${LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))}"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
