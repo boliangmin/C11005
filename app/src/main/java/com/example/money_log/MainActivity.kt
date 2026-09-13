@@ -311,6 +311,9 @@ internal enum class TitleBarStyle(
 internal fun titleBarStyleFromStorage(storageKey: String?): TitleBarStyle =
     TitleBarStyle.entries.firstOrNull { it.storageKey == storageKey } ?: TitleBarStyle.DESIGN_ONE
 
+// blmcc：暂时屏蔽标题栏样式切换入口并固定使用沉浸样式，保留完整切换代码便于恢复。
+private const val TitleBarStyleFeatureEnabled = false
+
 private enum class AppPage {
     DETAILS,
     ADD_ENTRY,
@@ -722,7 +725,16 @@ class MainActivity : ComponentActivity() {
 private fun LedgerRoot() {
     val context = LocalContext.current
     val store = remember { Store(context.applicationContext) }
-    var titleBarStyle by remember { mutableStateOf(store.titleBarStyle()) }
+    var titleBarStyle by remember {
+        mutableStateOf(
+            if (TitleBarStyleFeatureEnabled) store.titleBarStyle() else TitleBarStyle.DESIGN_TWO,
+        )
+    }
+    LaunchedEffect(store) {
+        if (!TitleBarStyleFeatureEnabled && store.titleBarStyle() != TitleBarStyle.DESIGN_TWO) {
+            store.saveTitleBarStyle(TitleBarStyle.DESIGN_TWO)
+        }
+    }
     val appTextSelectionColors = remember {
         TextSelectionColors(
             handleColor = Color.Transparent,
@@ -738,8 +750,10 @@ private fun LedgerRoot() {
                 store = store,
                 selectedTitleBarStyle = titleBarStyle,
                 onTitleBarStyleSelected = { selected ->
-                    titleBarStyle = selected
-                    store.saveTitleBarStyle(selected)
+                    val effectiveStyle =
+                        if (TitleBarStyleFeatureEnabled) selected else TitleBarStyle.DESIGN_TWO
+                    titleBarStyle = effectiveStyle
+                    store.saveTitleBarStyle(effectiveStyle)
                 },
             )
         }
@@ -4374,15 +4388,17 @@ private fun MoreContent(
             onClick = onManageCategories,
         )
         Spacer(Modifier.height(12.dp))
-        MoreMenuItem(
-            title = "标题栏样式",
-            iconResource = R.drawable.ic_title_bar_style_color,
-            onClick = {
-                pendingTitleBarStyle = selectedTitleBarStyle
-                showTitleBarStyleDialog = true
-            },
-        )
-        Spacer(Modifier.height(12.dp))
+        if (TitleBarStyleFeatureEnabled) {
+            MoreMenuItem(
+                title = "标题栏样式",
+                iconResource = R.drawable.ic_title_bar_style_color,
+                onClick = {
+                    pendingTitleBarStyle = selectedTitleBarStyle
+                    showTitleBarStyleDialog = true
+                },
+            )
+            Spacer(Modifier.height(12.dp))
+        }
         MoreMenuItem(
             title = "数据导入导出",
             iconResource = R.drawable.ic_import_export_color,
@@ -4396,7 +4412,7 @@ private fun MoreContent(
         )
     }
 
-    if (showTitleBarStyleDialog) {
+    if (TitleBarStyleFeatureEnabled && showTitleBarStyleDialog) {
         AlertDialog(
             onDismissRequest = { showTitleBarStyleDialog = false },
             title = { Text("标题栏样式") },
