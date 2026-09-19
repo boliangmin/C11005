@@ -3979,7 +3979,7 @@ private fun MonthlyExpensePieLegend(
         } else {
             Arrangement.spacedBy(
                 space = monthlyExpensePieLegendGap(statistics.size),
-                alignment = Alignment.CenterVertically,
+                alignment = Alignment.Top,
             )
         },
     ) {
