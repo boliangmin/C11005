@@ -157,6 +157,12 @@ private val MonthlyExpensePieLegendCategoryWidth = 64.dp
 private val MonthlyExpensePieLegendPercentageWidth = 40.dp
 private val MonthlyExpensePieLegendSwatchGap = 4.dp
 
+private fun monthlyExpensePieLegendGap(itemCount: Int): Dp {
+    if (itemCount <= 1) return 0.dp
+    val progress = ((itemCount - 2).coerceIn(0, 6)) / 6f
+    return (18f + (2f - 18f) * progress).dp
+}
+
 private fun hueDistance(first: Float, second: Float): Float {
     val distance = abs(first - second)
     return minOf(distance, 360f - distance)
@@ -3971,7 +3977,10 @@ private fun MonthlyExpensePieLegend(
         verticalArrangement = if (statistics.size <= 1) {
             Arrangement.Center
         } else {
-            Arrangement.SpaceBetween
+            Arrangement.spacedBy(
+                space = monthlyExpensePieLegendGap(statistics.size),
+                alignment = Alignment.CenterVertically,
+            )
         },
     ) {
         statistics.forEach { item ->
