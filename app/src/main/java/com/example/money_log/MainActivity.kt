@@ -4998,13 +4998,18 @@ private fun EntryCategoryGroupCard(
         )
         return
     }
-    var expanded by remember(group.entries.map { it.id }) { mutableStateOf(false) }
+    var expanded by remember(group.kind, group.category, group.ledgerId) { mutableStateOf(false) }
     val categories = if (group.kind == "收入") incomeCategories else expenseCategories
     val symbol = categories.firstOrNull { it.name == group.category }?.symbol ?: defaultIcon(group.category)
     val total = group.entries.sumOf { it.amount }
     Card(
         modifier = Modifier.fillMaxWidth().combinedClickable(
-            onClick = { expanded = !expanded },
+            onClick = {
+                if (expanded && group.entries.any { it.id == revealedEntryId }) {
+                    revealedEntryId?.let { onRevealChange(it, false) }
+                }
+                expanded = !expanded
+            },
             onLongClick = { onLongClick(group.entries.first()) },
         ),
         colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -5073,16 +5078,106 @@ private fun EntryCategoryGroupCard(
             AnimatedVisibility(visible = expanded, enter = expandVertically(), exit = shrinkVertically()) {
                 Column(Modifier.padding(top = 10.dp)) {
                     group.entries.forEach { entry ->
-                        Row(
-                            Modifier.fillMaxWidth().combinedClickable(onClick = { onLongClick(entry) }, onLongClick = { onLongClick(entry) }).padding(vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(entry.note.ifBlank { entry.category }, Modifier.weight(1f), fontSize = 14.sp, color = NoteSlate, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text("${if (entry.kind == "收入") "+" else "−"}${money(entry.amount)}", fontSize = 14.sp, color = if (entry.kind == "收入") IncomeAmountGreen else Ink)
+                        key(entry.id) {
+                            EntryGroupDetailRow(
+                                entry = entry,
+                                revealed = revealedEntryId == entry.id,
+                                onRevealChange = { onRevealChange(entry.id, it) },
+                                onEditClick = { onLongClick(entry) },
+                                onDeleteClick = { onDeleteClick(entry) },
+                            )
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun EntryGroupDetailRow(
+    entry: Entry,
+    revealed: Boolean,
+    onRevealChange: (Boolean) -> Unit,
+    onEditClick: () -> Unit,
+    onDeleteClick: () -> Unit,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val maximumReveal = with(LocalDensity.current) { 72.dp.toPx() }
+    var horizontalOffset by remember(entry.id) { mutableFloatStateOf(0f) }
+    val currentRevealed by rememberUpdatedState(revealed)
+    val currentOnRevealChange by rememberUpdatedState(onRevealChange)
+
+    LaunchedEffect(revealed, maximumReveal) {
+        horizontalOffset = if (revealed) -maximumReveal else 0f
+    }
+
+    Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))) {
+        Box(
+            modifier = Modifier.matchParentSize().background(DeleteSwipeBackground),
+            contentAlignment = Alignment.CenterEnd,
+        ) {
+            Box(
+                modifier = Modifier.fillMaxHeight().width(72.dp).clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onDeleteClick,
+                ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_delete_bin_outline),
+                    contentDescription = "删除账单",
+                    modifier = Modifier.size(22.dp),
+                    tint = Color.White,
+                )
+            }
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .offset { IntOffset(horizontalOffset.roundToInt(), 0) }
+                .background(Color.White)
+                .pointerInput(entry.id, maximumReveal) {
+                    detectHorizontalDragGestures(
+                        onHorizontalDrag = { _, dragAmount ->
+                            horizontalOffset = (horizontalOffset + dragAmount).coerceIn(-maximumReveal, 0f)
+                        },
+                        onDragEnd = {
+                            val shouldReveal = horizontalOffset <= -maximumReveal / 2f
+                            horizontalOffset = if (shouldReveal) -maximumReveal else 0f
+                            currentOnRevealChange(shouldReveal)
+                        },
+                        onDragCancel = {
+                            horizontalOffset = if (currentRevealed) -maximumReveal else 0f
+                        },
+                    )
+                }
+                .combinedClickable(
+                    interactionSource = interactionSource,
+                    indication = null,
+                    onClick = {
+                        if (revealed) onRevealChange(false) else onEditClick()
+                    },
+                    onLongClick = onEditClick,
+                )
+                .padding(vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                entry.note.ifBlank { entry.category },
+                Modifier.weight(1f),
+                fontSize = 14.sp,
+                color = NoteSlate,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                "${if (entry.kind == "收入") "+" else "−"}${money(entry.amount)}",
+                fontSize = 14.sp,
+                color = if (entry.kind == "收入") IncomeAmountGreen else Ink,
+            )
         }
     }
 }
