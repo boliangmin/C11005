@@ -5003,14 +5003,13 @@ private fun EntryCategoryGroupCard(
     val symbol = categories.firstOrNull { it.name == group.category }?.symbol ?: defaultIcon(group.category)
     val total = group.entries.sumOf { it.amount }
     Card(
-        modifier = Modifier.fillMaxWidth().combinedClickable(
+        modifier = Modifier.fillMaxWidth().clickable(
             onClick = {
                 if (expanded && group.entries.any { it.id == revealedEntryId }) {
                     revealedEntryId?.let { onRevealChange(it, false) }
                 }
                 expanded = !expanded
             },
-            onLongClick = { onLongClick(group.entries.first()) },
         ),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
