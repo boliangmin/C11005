@@ -3341,16 +3341,10 @@ private fun AnnualBillStatisticsScreen(
                     items = annualStatistics,
                     key = { statistics -> statistics.year },
                 ) { statistics ->
-                    val monthlyExpenseTotals = remember(entries, statistics.year) {
-                        calculateMonthlyExpenseTotals(entries, statistics.year)
-                    }
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        AnnualBillStatisticsYearSection(
-                            statistics = statistics,
-                            onClick = { onYearSelected(statistics) },
-                        )
-                        MonthlyExpenseLineChartCard(monthlyExpenseTotals)
-                    }
+                    AnnualBillStatisticsYearSection(
+                        statistics = statistics,
+                        onClick = { onYearSelected(statistics) },
+                    )
                 }
             }
         }
@@ -4273,6 +4267,9 @@ private fun AnnualBillStatisticsDetailScreen(
             ]
         }.toMap()
     }
+    val monthlyExpenseTotals = remember(entries, statistics.year) {
+        calculateMonthlyExpenseTotals(entries, statistics.year)
+    }
     LazyColumn(
         modifier = Modifier.fillMaxSize().statusBarsPadding(),
         contentPadding = PaddingValues(16.dp),
@@ -4280,6 +4277,9 @@ private fun AnnualBillStatisticsDetailScreen(
     ) {
         item {
             AnnualIncomeExpenseBarsCard(statistics = statistics)
+        }
+        item {
+            MonthlyExpenseLineChartCard(monthlyExpenseTotals)
         }
         item {
             MonthlyExpensePieChart(
