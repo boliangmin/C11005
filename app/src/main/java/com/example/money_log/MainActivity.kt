@@ -4849,31 +4849,38 @@ private fun CategoryExpenseEntriesScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     if (amountSorting) {
-                        items(
-                            items = sortedEntries,
-                            key = { entry -> "category-expense-amount-${entry.id}" },
-                        ) { entry ->
-                            val categories = if (entry.kind == "收入") {
-                                incomeCategories
-                            } else {
-                                expenseCategories
+                        sortedEntries.forEach { entry ->
+                            val calendar = Calendar.getInstance().apply {
+                                timeInMillis = entry.date
                             }
-                            EntryCard(
-                                entry = entry,
-                                symbol = categories.firstOrNull { category ->
-                                    category.name == entry.category
-                                }?.symbol ?: defaultIcon(entry.category),
-                                dateLabel = day(entry.date),
-                                revealed = revealedEntryId == entry.id,
-                                onRevealChange = { reveal ->
-                                    revealedEntryId = if (reveal) entry.id else null
-                                },
-                                onLongClick = {
-                                    revealedEntryId = null
-                                    actionEntry = entry
-                                },
-                                onDeleteClick = { deleteEntryRequest = entry },
-                            )
+                            item(key = "category-expense-amount-date-${entry.id}") {
+                                EntryDayHeader(
+                                    month = calendar[Calendar.MONTH] + 1,
+                                    day = calendar[Calendar.DAY_OF_MONTH],
+                                )
+                            }
+                            item(key = "category-expense-amount-entry-${entry.id}") {
+                                val categories = if (entry.kind == "收入") {
+                                    incomeCategories
+                                } else {
+                                    expenseCategories
+                                }
+                                EntryCard(
+                                    entry = entry,
+                                    symbol = categories.firstOrNull { category ->
+                                        category.name == entry.category
+                                    }?.symbol ?: defaultIcon(entry.category),
+                                    revealed = revealedEntryId == entry.id,
+                                    onRevealChange = { reveal ->
+                                        revealedEntryId = if (reveal) entry.id else null
+                                    },
+                                    onLongClick = {
+                                        revealedEntryId = null
+                                        actionEntry = entry
+                                    },
+                                    onDeleteClick = { deleteEntryRequest = entry },
+                                )
+                            }
                         }
                     } else {
                         dayGroups.forEach { dayGroup ->
@@ -5899,7 +5906,6 @@ private fun EntryCard(
     onRevealChange: (Boolean) -> Unit,
     onLongClick: () -> Unit,
     onDeleteClick: () -> Unit,
-    dateLabel: String? = null,
 ) {
     val income = entry.kind == "收入"
     val interactionSource = remember { MutableInteractionSource() }
@@ -5971,13 +5977,9 @@ private fun EntryCard(
                 ) { Text(symbol, fontSize = 28.sp) }
                 Column(Modifier.weight(1f).padding(start = 14.dp)) {
                     Text(entry.category, fontSize = 17.sp, fontWeight = FontWeight.Medium)
-                    val secondaryText = listOfNotNull(
-                        dateLabel,
-                        entry.note.takeIf { note -> note.isNotBlank() },
-                    ).joinToString(" · ")
-                    if (secondaryText.isNotBlank()) {
+                    if (entry.note.isNotBlank()) {
                         Text(
-                            secondaryText,
+                            entry.note,
                             fontSize = 12.sp,
                             color = NoteSlate,
                             maxLines = 1,
