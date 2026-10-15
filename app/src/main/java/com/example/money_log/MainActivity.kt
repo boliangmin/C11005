@@ -64,9 +64,13 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -3933,7 +3937,10 @@ private fun LedgerStatisticsDetailScreen(
         }
         if (showMonthlyExpenseLineChart) {
             item {
-                MonthlyExpenseLineChartCard(monthlyExpenseTotals)
+                MonthlyExpenseLineChartCard(
+                    monthlyExpenseTotals = monthlyExpenseTotals,
+                    showPointAmountOnTap = true,
+                )
             }
         }
         item {
@@ -4002,7 +4009,16 @@ private fun LedgerExpenseBarCard(
 }
 
 @Composable
-private fun MonthlyExpenseLineChartCard(monthlyExpenseTotals: List<Double>) {
+private fun MonthlyExpenseLineChartCard(
+    monthlyExpenseTotals: List<Double>,
+    showPointAmountOnTap: Boolean = false,
+) {
+    var selectedMonthIndex by remember(monthlyExpenseTotals) { mutableIntStateOf(-1) }
+    val tooltipTextPaint = remember {
+        android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            textAlign = android.graphics.Paint.Align.CENTER
+        }
+    }
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -4020,7 +4036,44 @@ private fun MonthlyExpenseLineChartCard(monthlyExpenseTotals: List<Double>) {
             Canvas(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(150.dp),
+                    .height(150.dp)
+                    .then(
+                        if (showPointAmountOnTap) {
+                            Modifier.pointerInput(monthlyExpenseTotals) {
+                                detectTapGestures { tapPosition ->
+                                    val values = List(12) { index ->
+                                        monthlyExpenseTotals.getOrElse(index) { 0.0 }
+                                    }
+                                    val maximum = values.maxOrNull()?.coerceAtLeast(0.0) ?: 0.0
+                                    val chartTop = 8.dp.toPx()
+                                    val chartBottom = size.height - 8.dp.toPx()
+                                    val chartHeight = (chartBottom - chartTop).coerceAtLeast(0f)
+                                    val points = values.mapIndexed { index, amount ->
+                                        val x = size.width * (index + 0.5f) / values.size
+                                        val y = if (maximum > 0.0) {
+                                            chartBottom - (amount / maximum).toFloat() * chartHeight
+                                        } else {
+                                            chartBottom
+                                        }
+                                        Offset(x, y)
+                                    }
+                                    val nearestIndex = points.indices.minByOrNull { index ->
+                                        val deltaX = tapPosition.x - points[index].x
+                                        val deltaY = tapPosition.y - points[index].y
+                                        deltaX * deltaX + deltaY * deltaY
+                                    }
+                                    val hitRadius = 18.dp.toPx()
+                                    selectedMonthIndex = nearestIndex?.takeIf { index ->
+                                        val deltaX = tapPosition.x - points[index].x
+                                        val deltaY = tapPosition.y - points[index].y
+                                        deltaX * deltaX + deltaY * deltaY <= hitRadius * hitRadius
+                                    } ?: -1
+                                }
+                            }
+                        } else {
+                            Modifier
+                        },
+                    ),
             ) {
                 val chartTop = 8.dp.toPx()
                 val chartBottom = size.height - 8.dp.toPx()
@@ -4102,6 +4155,62 @@ private fun MonthlyExpenseLineChartCard(monthlyExpenseTotals: List<Double>) {
                             color = LedgerMonthlyExpenseLineColor,
                             radius = 3.25.dp.toPx(),
                             center = point,
+                        )
+                    }
+                    if (showPointAmountOnTap && selectedMonthIndex in points.indices) {
+                        val selectedPoint = points[selectedMonthIndex]
+                        drawCircle(
+                            color = LedgerMonthlyExpenseLineColor.copy(alpha = 0.18f),
+                            radius = 9.dp.toPx(),
+                            center = selectedPoint,
+                        )
+                        drawCircle(
+                            color = Color.White,
+                            radius = 5.dp.toPx(),
+                            center = selectedPoint,
+                        )
+                        drawCircle(
+                            color = LedgerMonthlyExpenseLineColor,
+                            radius = 3.25.dp.toPx(),
+                            center = selectedPoint,
+                        )
+
+                        val amountLabel = money(values[selectedMonthIndex])
+                        tooltipTextPaint.color = Ink.toArgb()
+                        tooltipTextPaint.textSize = 12.sp.toPx()
+                        val horizontalPadding = 9.dp.toPx()
+                        val verticalPadding = 6.dp.toPx()
+                        val textWidth = tooltipTextPaint.measureText(amountLabel)
+                        val fontMetrics = tooltipTextPaint.fontMetrics
+                        val tooltipWidth = textWidth + horizontalPadding * 2f
+                        val tooltipHeight = fontMetrics.bottom - fontMetrics.top + verticalPadding * 2f
+                        val tooltipLeft = (selectedPoint.x - tooltipWidth / 2f)
+                            .coerceIn(0f, (size.width - tooltipWidth).coerceAtLeast(0f))
+                        val preferredTop = selectedPoint.y - tooltipHeight - 10.dp.toPx()
+                        val tooltipTop = if (preferredTop >= 0f) {
+                            preferredTop
+                        } else {
+                            (selectedPoint.y + 10.dp.toPx())
+                                .coerceAtMost((size.height - tooltipHeight).coerceAtLeast(0f))
+                        }
+                        drawRoundRect(
+                            color = Color.White.copy(alpha = 0.96f),
+                            topLeft = Offset(tooltipLeft, tooltipTop),
+                            size = Size(tooltipWidth, tooltipHeight),
+                            cornerRadius = CornerRadius(8.dp.toPx()),
+                        )
+                        drawRoundRect(
+                            color = LedgerMonthlyExpenseLineColor.copy(alpha = 0.28f),
+                            topLeft = Offset(tooltipLeft, tooltipTop),
+                            size = Size(tooltipWidth, tooltipHeight),
+                            cornerRadius = CornerRadius(8.dp.toPx()),
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.dp.toPx()),
+                        )
+                        drawContext.canvas.nativeCanvas.drawText(
+                            amountLabel,
+                            tooltipLeft + tooltipWidth / 2f,
+                            tooltipTop + verticalPadding - fontMetrics.top,
+                            tooltipTextPaint,
                         )
                     }
                 }
@@ -4279,7 +4388,10 @@ private fun AnnualBillStatisticsDetailScreen(
             AnnualIncomeExpenseBarsCard(statistics = statistics)
         }
         item {
-            MonthlyExpenseLineChartCard(monthlyExpenseTotals)
+            MonthlyExpenseLineChartCard(
+                monthlyExpenseTotals = monthlyExpenseTotals,
+                showPointAmountOnTap = true,
+            )
         }
         item {
             MonthlyExpensePieChart(
