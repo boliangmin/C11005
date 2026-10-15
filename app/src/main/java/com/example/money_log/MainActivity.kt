@@ -333,6 +333,7 @@ private enum class AppPage {
     CATEGORIES,
 }
 private enum class DetailsSection { BILLS, LEDGER, STATISTICS, MORE }
+private enum class LedgerStatisticsMode { TOTAL, ANNUAL, MONTHLY }
 private const val DetailsSectionTransitionDurationMillis = 300
 private const val UncategorizedName = "未分类"
 private const val UncategorizedIcon = "⭕"
@@ -388,6 +389,12 @@ internal data class EntryFilter(
 private data class CategoryEditTarget(val kind: String, val category: LedgerCategory)
 private data class CategoryDeleteRequest(val target: CategoryEditTarget, val isFinalConfirmation: Boolean = false)
 private data class LedgerDeleteRequest(val ledger: LedgerBook, val isFinalConfirmation: Boolean = false)
+private data class LedgerStatisticsPeriod(val year: Int, val month: Int? = null)
+private data class LedgerStatisticsScope(
+    val mode: LedgerStatisticsMode,
+    val year: Int? = null,
+    val month: Int? = null,
+)
 private data class CategoryExpenseEntriesView(
     val category: String,
     val periodLabel: String,
@@ -878,18 +885,23 @@ private fun LedgerApp(
                     },
                     onUpdateEntry = updateStoredEntry,
                     onDeleteEntry = deleteStoredEntry,
-                    onCategoryExpenseSelected = { category ->
+                    onCategoryExpenseSelected = { category, scope ->
                         val ledgerEntries = entries.filter { it.ledgerId == selectedLedger.id }
-                        val categoryEntries = ledgerEntries.filter { entry ->
+                        val scopedEntries = filterLedgerStatisticsEntries(ledgerEntries, scope)
+                        val categoryEntries = scopedEntries.filter { entry ->
                             entry.kind == "支出" && entry.category == category
                         }.sortedByDescending { entry -> entry.date }
                         categoryExpenseEntriesView = CategoryExpenseEntriesView(
                             category = category,
-                            periodLabel = selectedLedger.name,
-                            year = null,
-                            month = null,
+                            periodLabel = when (scope.mode) {
+                                LedgerStatisticsMode.TOTAL -> selectedLedger.name
+                                LedgerStatisticsMode.ANNUAL -> "${scope.year}年"
+                                LedgerStatisticsMode.MONTHLY -> "${scope.year}年${scope.month}月"
+                            },
+                            year = scope.year,
+                            month = scope.month,
                             ledgerId = selectedLedger.id,
-                            scopeExpenseTotal = ledgerEntries
+                            scopeExpenseTotal = scopedEntries
                                 .filter { entry -> entry.kind == "支出" }
                                 .sumOf { entry -> entry.amount },
                             entries = categoryEntries,
@@ -1941,7 +1953,7 @@ private fun LedgerDetailScreen(
     onAddButtonPositionChange: (Float, Float) -> Unit,
     onUpdateEntry: (Entry) -> Unit,
     onDeleteEntry: (Entry) -> Unit,
-    onCategoryExpenseSelected: (String) -> Unit,
+    onCategoryExpenseSelected: (String, LedgerStatisticsScope) -> Unit,
 ) {
     var actionEntry by remember { mutableStateOf<Entry?>(null) }
     var mergingEntry by remember { mutableStateOf<Entry?>(null) }
@@ -1950,8 +1962,82 @@ private fun LedgerDetailScreen(
     var revealedEntryId by remember { mutableStateOf<String?>(null) }
     var showBillOptions by remember { mutableStateOf(false) }
     var showEntryFilter by remember { mutableStateOf(false) }
+    var showLedgerStatisticsModeDialog by remember { mutableStateOf(false) }
+    var showLedgerStatisticsPeriodDialog by remember { mutableStateOf(false) }
     var selectedSection by remember(ledger.id) { mutableStateOf(DetailsSection.BILLS) }
+    var ledgerStatisticsMode by remember(ledger.id) {
+        mutableStateOf(LedgerStatisticsMode.TOTAL)
+    }
     val ledgerSections = remember { listOf(DetailsSection.BILLS, DetailsSection.STATISTICS) }
+    val ledgerStatisticsMonths = remember(entries) {
+        groupEntriesByMonth(entries).map { monthGroup ->
+            LedgerStatisticsPeriod(year = monthGroup.year, month = monthGroup.month)
+        }
+    }
+    val ledgerStatisticsYears = remember(ledgerStatisticsMonths) {
+        ledgerStatisticsMonths.map { period -> period.year }.distinct().map { year ->
+            LedgerStatisticsPeriod(year = year)
+        }
+    }
+    val latestStatisticsCalendar = remember(ledger.id) {
+        Calendar.getInstance().apply {
+            timeInMillis = entries.maxOfOrNull { entry -> entry.date } ?: System.currentTimeMillis()
+        }
+    }
+    var selectedLedgerStatisticsYear by remember(ledger.id) {
+        mutableIntStateOf(
+            ledgerStatisticsYears.firstOrNull()?.year
+                ?: latestStatisticsCalendar[Calendar.YEAR],
+        )
+    }
+    var selectedLedgerStatisticsMonth by remember(ledger.id) {
+        mutableStateOf(
+            ledgerStatisticsMonths.firstOrNull()
+                ?: LedgerStatisticsPeriod(
+                    year = latestStatisticsCalendar[Calendar.YEAR],
+                    month = latestStatisticsCalendar[Calendar.MONTH] + 1,
+                ),
+        )
+    }
+    LaunchedEffect(ledger.id, ledgerStatisticsYears) {
+        if (ledgerStatisticsYears.isNotEmpty() &&
+            ledgerStatisticsYears.none { period -> period.year == selectedLedgerStatisticsYear }
+        ) {
+            selectedLedgerStatisticsYear = ledgerStatisticsYears.first().year
+        }
+    }
+    LaunchedEffect(ledger.id, ledgerStatisticsMonths) {
+        if (ledgerStatisticsMonths.isNotEmpty() && selectedLedgerStatisticsMonth !in ledgerStatisticsMonths) {
+            selectedLedgerStatisticsMonth = ledgerStatisticsMonths.first()
+        }
+    }
+    val ledgerStatisticsScope = remember(
+        ledgerStatisticsMode,
+        selectedLedgerStatisticsYear,
+        selectedLedgerStatisticsMonth,
+    ) {
+        when (ledgerStatisticsMode) {
+            LedgerStatisticsMode.TOTAL -> LedgerStatisticsScope(LedgerStatisticsMode.TOTAL)
+            LedgerStatisticsMode.ANNUAL -> LedgerStatisticsScope(
+                mode = LedgerStatisticsMode.ANNUAL,
+                year = selectedLedgerStatisticsYear,
+            )
+            LedgerStatisticsMode.MONTHLY -> LedgerStatisticsScope(
+                mode = LedgerStatisticsMode.MONTHLY,
+                year = selectedLedgerStatisticsMonth.year,
+                month = selectedLedgerStatisticsMonth.month,
+            )
+        }
+    }
+    val ledgerStatisticsEntries = remember(entries, ledgerStatisticsScope) {
+        filterLedgerStatisticsEntries(entries, ledgerStatisticsScope)
+    }
+    val ledgerStatisticsPeriodLabel = when (ledgerStatisticsMode) {
+        LedgerStatisticsMode.TOTAL -> null
+        LedgerStatisticsMode.ANNUAL -> "${selectedLedgerStatisticsYear}年"
+        LedgerStatisticsMode.MONTHLY ->
+            "${selectedLedgerStatisticsMonth.year}年${selectedLedgerStatisticsMonth.month}月"
+    }
     val initialFilter = remember(ledger.id) {
         val currentTime = System.currentTimeMillis()
         val latestDate = entries.maxOfOrNull { it.date } ?: currentTime
@@ -2055,6 +2141,7 @@ private fun LedgerDetailScreen(
                         revealedEntryId = null
                     },
                     onBillLongClick = { showBillOptions = true },
+                    onStatisticsLongClick = { showLedgerStatisticsModeDialog = true },
                     sections = ledgerSections,
                 )
                 TitleBarStyle.DESIGN_TWO -> Box(
@@ -2073,6 +2160,7 @@ private fun LedgerDetailScreen(
                             revealedEntryId = null
                         },
                         onBillLongClick = { showBillOptions = true },
+                        onStatisticsLongClick = { showLedgerStatisticsModeDialog = true },
                         sections = ledgerSections,
                     )
                 }
@@ -2086,10 +2174,18 @@ private fun LedgerDetailScreen(
                 when (ledgerSections[pageIndex]) {
                     DetailsSection.STATISTICS -> if (entries.isNotEmpty()) {
                         LedgerStatisticsDetailScreen(
-                            entries = entries,
+                            entries = ledgerStatisticsEntries,
                             expenseCategories = expenseCategories,
                             modifier = Modifier.fillMaxSize(),
-                            onCategoryExpenseSelected = onCategoryExpenseSelected,
+                            periodLabel = ledgerStatisticsPeriodLabel,
+                            onPeriodClick = if (ledgerStatisticsMode == LedgerStatisticsMode.TOTAL) {
+                                null
+                            } else {
+                                { showLedgerStatisticsPeriodDialog = true }
+                            },
+                            onCategoryExpenseSelected = { category ->
+                                onCategoryExpenseSelected(category, ledgerStatisticsScope)
+                            },
                         )
                     } else Box(
                         modifier = Modifier.fillMaxSize(),
@@ -2270,6 +2366,50 @@ private fun LedgerDetailScreen(
                 revealedEntryId = null
             },
         )
+    }
+    if (showLedgerStatisticsModeDialog) {
+        LedgerStatisticsModeDialog(
+            selectedMode = ledgerStatisticsMode,
+            onDismiss = { showLedgerStatisticsModeDialog = false },
+            onModeSelected = { selectedMode ->
+                ledgerStatisticsMode = selectedMode
+                selectedSection = DetailsSection.STATISTICS
+                revealedEntryId = null
+                showLedgerStatisticsModeDialog = false
+            },
+        )
+    }
+    if (showLedgerStatisticsPeriodDialog) {
+        val periods = when (ledgerStatisticsMode) {
+            LedgerStatisticsMode.ANNUAL -> ledgerStatisticsYears
+            LedgerStatisticsMode.MONTHLY -> ledgerStatisticsMonths
+            LedgerStatisticsMode.TOTAL -> emptyList()
+        }
+        val selectedPeriod = when (ledgerStatisticsMode) {
+            LedgerStatisticsMode.ANNUAL -> LedgerStatisticsPeriod(selectedLedgerStatisticsYear)
+            LedgerStatisticsMode.MONTHLY -> selectedLedgerStatisticsMonth
+            LedgerStatisticsMode.TOTAL -> null
+        }
+        if (selectedPeriod != null && periods.isNotEmpty()) {
+            LedgerStatisticsPeriodDialog(
+                title = if (ledgerStatisticsMode == LedgerStatisticsMode.ANNUAL) {
+                    "选择年份"
+                } else {
+                    "选择月份"
+                },
+                periods = periods,
+                selectedPeriod = selectedPeriod,
+                onDismiss = { showLedgerStatisticsPeriodDialog = false },
+                onPeriodSelected = { period ->
+                    if (ledgerStatisticsMode == LedgerStatisticsMode.ANNUAL) {
+                        selectedLedgerStatisticsYear = period.year
+                    } else {
+                        selectedLedgerStatisticsMonth = period
+                    }
+                    showLedgerStatisticsPeriodDialog = false
+                },
+            )
+        }
     }
 }
 
@@ -2588,6 +2728,7 @@ private fun DetailsFeatureBar(
     selectedSection: DetailsSection,
     onSectionSelected: (DetailsSection) -> Unit,
     onBillLongClick: () -> Unit,
+    onStatisticsLongClick: (() -> Unit)? = null,
     largeIcons: Boolean = false,
     sections: List<DetailsSection> = DetailsSection.entries,
 ) {
@@ -2633,7 +2774,11 @@ private fun DetailsFeatureBar(
                             selected = selectedSection == section,
                             largeIcon = largeIcons,
                             onClick = { onSectionSelected(section) },
-                            onLongClick = if (section == DetailsSection.BILLS) onBillLongClick else null,
+                            onLongClick = when (section) {
+                                DetailsSection.BILLS -> onBillLongClick
+                                DetailsSection.STATISTICS -> onStatisticsLongClick
+                                else -> null
+                            },
                         )
                     }
                 }
@@ -2678,6 +2823,7 @@ private fun DetailsAutoCollapsingFeatureBar(
     selectedSection: DetailsSection,
     onSectionSelected: (DetailsSection) -> Unit,
     onBillLongClick: () -> Unit,
+    onStatisticsLongClick: (() -> Unit)? = null,
     largeIcons: Boolean = false,
     sections: List<DetailsSection> = DetailsSection.entries,
 ) {
@@ -2704,7 +2850,11 @@ private fun DetailsAutoCollapsingFeatureBar(
                         selected = selectedSection == section,
                         largeIcon = largeIcons,
                         onClick = { onSectionSelected(section) },
-                        onLongClick = if (section == DetailsSection.BILLS) onBillLongClick else null,
+                        onLongClick = when (section) {
+                            DetailsSection.BILLS -> onBillLongClick
+                            DetailsSection.STATISTICS -> onStatisticsLongClick
+                            else -> null
+                        },
                     )
                 }
             }
@@ -2987,6 +3137,138 @@ private fun FilterNumberPicker(
                     disabledContentColor = Muted,
                 ),
             ) { Text("›", fontSize = 22.sp) }
+        }
+    }
+}
+
+@Composable
+private fun LedgerStatisticsModeDialog(
+    selectedMode: LedgerStatisticsMode,
+    onDismiss: () -> Unit,
+    onModeSelected: (LedgerStatisticsMode) -> Unit,
+) {
+    val fixedPrimaryDark = colorResource(R.color.app_primary_dark)
+    val modes = remember {
+        listOf(
+            LedgerStatisticsMode.TOTAL,
+            LedgerStatisticsMode.ANNUAL,
+            LedgerStatisticsMode.MONTHLY,
+        )
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("统计方式") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                modes.forEach { mode ->
+                    LedgerStatisticsPickerOption(
+                        label = when (mode) {
+                            LedgerStatisticsMode.TOTAL -> "总计"
+                            LedgerStatisticsMode.ANNUAL -> "按年"
+                            LedgerStatisticsMode.MONTHLY -> "按月"
+                        },
+                        selected = mode == selectedMode,
+                        onClick = { onModeSelected(mode) },
+                    )
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.textButtonColors(contentColor = fixedPrimaryDark),
+            ) { Text("取消") }
+        },
+    )
+}
+
+@Composable
+private fun LedgerStatisticsPeriodDialog(
+    title: String,
+    periods: List<LedgerStatisticsPeriod>,
+    selectedPeriod: LedgerStatisticsPeriod,
+    onDismiss: () -> Unit,
+    onPeriodSelected: (LedgerStatisticsPeriod) -> Unit,
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = Color.White,
+            shape = RoundedCornerShape(24.dp),
+            shadowElevation = 12.dp,
+        ) {
+            Column(Modifier.padding(20.dp)) {
+                Text(
+                    text = title,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Ink,
+                )
+                Spacer(Modifier.height(14.dp))
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 280.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    items(
+                        items = periods,
+                        key = { period -> period.year * 100 + (period.month ?: 0) },
+                    ) { period ->
+                        LedgerStatisticsPickerOption(
+                            label = period.month?.let { month ->
+                                "${period.year}年${month}月"
+                            } ?: "${period.year}年",
+                            selected = period == selectedPeriod,
+                            onClick = { onPeriodSelected(period) },
+                        )
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("取消", color = SelectionBlue)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LedgerStatisticsPickerOption(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (selected) SelectionBlueContainer else Color.Transparent)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            )
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.weight(1f),
+            fontSize = 17.sp,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            color = if (selected) SelectionBlue else Ink,
+        )
+        if (selected) {
+            Text(
+                text = "✓",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = SelectionBlue,
+            )
         }
     }
 }
@@ -3597,6 +3879,8 @@ private fun LedgerStatisticsDetailScreen(
     entries: List<Entry>,
     expenseCategories: List<LedgerCategory>,
     modifier: Modifier = Modifier,
+    periodLabel: String? = null,
+    onPeriodClick: (() -> Unit)? = null,
     onCategoryExpenseSelected: (String) -> Unit,
 ) {
     val categoryStatistics = remember(entries) {
@@ -3633,7 +3917,11 @@ private fun LedgerStatisticsDetailScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            LedgerExpenseBarCard(expenseTotal = expenseTotal)
+            LedgerExpenseBarCard(
+                expenseTotal = expenseTotal,
+                periodLabel = periodLabel,
+                onPeriodClick = onPeriodClick,
+            )
         }
         item {
             MonthlyExpensePieChart(
@@ -3655,7 +3943,11 @@ private fun LedgerStatisticsDetailScreen(
 }
 
 @Composable
-private fun LedgerExpenseBarCard(expenseTotal: Double) {
+private fun LedgerExpenseBarCard(
+    expenseTotal: Double,
+    periodLabel: String? = null,
+    onPeriodClick: (() -> Unit)? = null,
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -3663,6 +3955,29 @@ private fun LedgerExpenseBarCard(expenseTotal: Double) {
         shape = RoundedCornerShape(16.dp),
     ) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            periodLabel?.let { label ->
+                Text(
+                    text = label,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(
+                            if (onPeriodClick != null) {
+                                Modifier.clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                    onClick = onPeriodClick,
+                                )
+                            } else {
+                                Modifier
+                            },
+                        )
+                        .padding(vertical = 2.dp),
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Normal,
+                    color = Ink,
+                )
+                Spacer(Modifier.height(14.dp))
+            }
             MonthlyIncomeExpenseBar(
                 label = "支出",
                 amount = expenseTotal,
@@ -7127,6 +7442,22 @@ internal fun calculateAnnualBillStatistics(entries: List<Entry>, year: Int): Ann
         expenseTotal = annualEntries.filter { entry -> entry.kind == "支出" }.sumOf { entry -> entry.amount },
         incomeTotal = annualEntries.filter { entry -> entry.kind == "收入" }.sumOf { entry -> entry.amount },
     )
+}
+
+private fun filterLedgerStatisticsEntries(
+    entries: List<Entry>,
+    scope: LedgerStatisticsScope,
+): List<Entry> = when (scope.mode) {
+    LedgerStatisticsMode.TOTAL -> entries
+    LedgerStatisticsMode.ANNUAL -> entries.filter { entry ->
+        Calendar.getInstance().apply { timeInMillis = entry.date }[Calendar.YEAR] == scope.year
+    }
+    LedgerStatisticsMode.MONTHLY -> entries.filter { entry ->
+        Calendar.getInstance().apply { timeInMillis = entry.date }.let { calendar ->
+            calendar[Calendar.YEAR] == scope.year &&
+                calendar[Calendar.MONTH] + 1 == scope.month
+        }
+    }
 }
 
 internal fun calculateAnnualCategoryExpenseStatistics(
