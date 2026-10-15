@@ -340,6 +340,7 @@ private enum class AppPage {
 }
 private enum class DetailsSection { BILLS, LEDGER, STATISTICS, MORE }
 private enum class LedgerStatisticsMode { TOTAL, ANNUAL, MONTHLY }
+private enum class CategoryExpenseSortMode { TIME_ASC, TIME_DESC, AMOUNT_ASC, AMOUNT_DESC }
 private const val DetailsSectionTransitionDurationMillis = 300
 private const val UncategorizedName = "未分类"
 private const val UncategorizedIcon = "⭕"
@@ -4730,7 +4731,36 @@ private fun CategoryExpenseEntriesScreen(
     var editingEntry by remember { mutableStateOf<Entry?>(null) }
     var deleteEntryRequest by remember { mutableStateOf<Entry?>(null) }
     var revealedEntryId by remember { mutableStateOf<String?>(null) }
-    val dayGroups = remember(view.entries) { groupEntriesByDay(view.entries) }
+    var showSortDialog by remember { mutableStateOf(false) }
+    var sortMode by remember(view.category, view.periodLabel, view.year, view.month, view.ledgerId) {
+        mutableStateOf(CategoryExpenseSortMode.TIME_DESC)
+    }
+    val sortedEntries = remember(view.entries, sortMode) {
+        when (sortMode) {
+            CategoryExpenseSortMode.TIME_ASC -> view.entries.sortedWith(
+                compareBy<Entry> { entry -> entry.date }.thenBy { entry -> entry.id },
+            )
+            CategoryExpenseSortMode.TIME_DESC -> view.entries.sortedWith(
+                compareByDescending<Entry> { entry -> entry.date }.thenBy { entry -> entry.id },
+            )
+            CategoryExpenseSortMode.AMOUNT_ASC -> view.entries.sortedWith(
+                compareBy<Entry> { entry -> entry.amount }
+                    .thenByDescending { entry -> entry.date }
+                    .thenBy { entry -> entry.id },
+            )
+            CategoryExpenseSortMode.AMOUNT_DESC -> view.entries.sortedWith(
+                compareByDescending<Entry> { entry -> entry.amount }
+                    .thenByDescending { entry -> entry.date }
+                    .thenBy { entry -> entry.id },
+            )
+        }
+    }
+    val amountSorting = sortMode == CategoryExpenseSortMode.AMOUNT_ASC ||
+        sortMode == CategoryExpenseSortMode.AMOUNT_DESC
+    val dayGroups = remember(sortedEntries, amountSorting) {
+        if (amountSorting) emptyList() else groupEntriesByDayPreservingOrder(sortedEntries)
+    }
+    val listState = rememberLazyListState()
     val categoryExpenseTotal = remember(view.entries) { view.entries.sumOf { entry -> entry.amount } }
     val expenseWidthFraction = if (view.scopeExpenseTotal > 0.0) {
         (categoryExpenseTotal / view.scopeExpenseTotal).toFloat().coerceIn(0f, 1f)
@@ -4751,6 +4781,9 @@ private fun CategoryExpenseEntriesScreen(
                 return Offset(x = 0f, y = autoHeaderOffsetPx - previousOffset)
             }
         }
+    }
+    LaunchedEffect(sortMode) {
+        listState.scrollToItem(0)
     }
     BackHandler(onBack = onBack)
     Surface(
@@ -4795,34 +4828,76 @@ private fun CategoryExpenseEntriesScreen(
                     }
                 }
             }
-            LazyColumn(
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
-                    .navigationBarsPadding(),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                    .navigationBarsPadding()
+                    .pointerInput(view.category, view.year, view.month, view.ledgerId) {
+                        detectTapGestures(
+                            onLongPress = {
+                                revealedEntryId = null
+                                showSortDialog = true
+                            },
+                        )
+                    },
             ) {
-                dayGroups.forEach { dayGroup ->
-                    item(key = "category-expense-day-${dayGroup.year}-${dayGroup.month}-${dayGroup.day}") {
-                        EntryDayHeader(dayGroup.month, dayGroup.day)
-                    }
-                    groupEntriesByCategory(dayGroup.entries).forEach { group ->
-                        item(key = "category-expense-entry-group-${dayGroup.year}-${dayGroup.month}-${dayGroup.day}-${group.kind}-${group.category}-${group.ledgerId}") {
-                            EntryCategoryGroupCard(
-                                group = group,
-                                expenseCategories = expenseCategories,
-                                incomeCategories = incomeCategories,
-                                revealedEntryId = revealedEntryId,
-                                onRevealChange = { entryId, reveal ->
-                                    revealedEntryId = if (reveal) entryId else null
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    state = listState,
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    if (amountSorting) {
+                        items(
+                            items = sortedEntries,
+                            key = { entry -> "category-expense-amount-${entry.id}" },
+                        ) { entry ->
+                            val categories = if (entry.kind == "收入") {
+                                incomeCategories
+                            } else {
+                                expenseCategories
+                            }
+                            EntryCard(
+                                entry = entry,
+                                symbol = categories.firstOrNull { category ->
+                                    category.name == entry.category
+                                }?.symbol ?: defaultIcon(entry.category),
+                                dateLabel = day(entry.date),
+                                revealed = revealedEntryId == entry.id,
+                                onRevealChange = { reveal ->
+                                    revealedEntryId = if (reveal) entry.id else null
                                 },
-                                onLongClick = { entry ->
+                                onLongClick = {
                                     revealedEntryId = null
                                     actionEntry = entry
                                 },
-                                onDeleteClick = { deleteEntryRequest = it },
+                                onDeleteClick = { deleteEntryRequest = entry },
                             )
+                        }
+                    } else {
+                        dayGroups.forEach { dayGroup ->
+                            item(key = "category-expense-day-${dayGroup.year}-${dayGroup.month}-${dayGroup.day}") {
+                                EntryDayHeader(dayGroup.month, dayGroup.day)
+                            }
+                            groupEntriesByCategory(dayGroup.entries).forEach { group ->
+                                item(key = "category-expense-entry-group-${dayGroup.year}-${dayGroup.month}-${dayGroup.day}-${group.kind}-${group.category}-${group.ledgerId}") {
+                                    EntryCategoryGroupCard(
+                                        group = group,
+                                        expenseCategories = expenseCategories,
+                                        incomeCategories = incomeCategories,
+                                        revealedEntryId = revealedEntryId,
+                                        onRevealChange = { entryId, reveal ->
+                                            revealedEntryId = if (reveal) entryId else null
+                                        },
+                                        onLongClick = { entry ->
+                                            revealedEntryId = null
+                                            actionEntry = entry
+                                        },
+                                        onDeleteClick = { deleteEntryRequest = it },
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -4883,6 +4958,59 @@ private fun CategoryExpenseEntriesScreen(
             },
         )
     }
+    if (showSortDialog) {
+        CategoryExpenseSortDialog(
+            selectedMode = sortMode,
+            onDismiss = { showSortDialog = false },
+            onModeSelected = { selectedMode ->
+                sortMode = selectedMode
+                revealedEntryId = null
+                showSortDialog = false
+            },
+        )
+    }
+}
+
+@Composable
+private fun CategoryExpenseSortDialog(
+    selectedMode: CategoryExpenseSortMode,
+    onDismiss: () -> Unit,
+    onModeSelected: (CategoryExpenseSortMode) -> Unit,
+) {
+    val modes = remember {
+        listOf(
+            CategoryExpenseSortMode.TIME_ASC,
+            CategoryExpenseSortMode.TIME_DESC,
+            CategoryExpenseSortMode.AMOUNT_ASC,
+            CategoryExpenseSortMode.AMOUNT_DESC,
+        )
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("排序方式") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                modes.forEach { mode ->
+                    LedgerStatisticsPickerOption(
+                        label = when (mode) {
+                            CategoryExpenseSortMode.TIME_ASC -> "按照时间升序显示"
+                            CategoryExpenseSortMode.TIME_DESC -> "按照时间降序显示"
+                            CategoryExpenseSortMode.AMOUNT_ASC -> "按照金额升序显示"
+                            CategoryExpenseSortMode.AMOUNT_DESC -> "按照金额降序显示"
+                        },
+                        selected = mode == selectedMode,
+                        onClick = { onModeSelected(mode) },
+                    )
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("取消", color = SelectionBlue)
+            }
+        },
+    )
 }
 
 @Composable
@@ -5771,6 +5899,7 @@ private fun EntryCard(
     onRevealChange: (Boolean) -> Unit,
     onLongClick: () -> Unit,
     onDeleteClick: () -> Unit,
+    dateLabel: String? = null,
 ) {
     val income = entry.kind == "收入"
     val interactionSource = remember { MutableInteractionSource() }
@@ -5842,8 +5971,18 @@ private fun EntryCard(
                 ) { Text(symbol, fontSize = 28.sp) }
                 Column(Modifier.weight(1f).padding(start = 14.dp)) {
                     Text(entry.category, fontSize = 17.sp, fontWeight = FontWeight.Medium)
-                    if (entry.note.isNotBlank()) {
-                        Text(entry.note, fontSize = 12.sp, color = NoteSlate, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    val secondaryText = listOfNotNull(
+                        dateLabel,
+                        entry.note.takeIf { note -> note.isNotBlank() },
+                    ).joinToString(" · ")
+                    if (secondaryText.isNotBlank()) {
+                        Text(
+                            secondaryText,
+                            fontSize = 12.sp,
+                            color = NoteSlate,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     }
                 }
                 Text(
@@ -7862,6 +8001,19 @@ internal fun groupEntriesByDay(entries: List<Entry>): List<EntryDayGroup> =
         .map { (date, dayEntries) ->
             EntryDayGroup(year = date.first, month = date.second, day = date.third, entries = dayEntries)
         }
+
+private fun groupEntriesByDayPreservingOrder(entries: List<Entry>): List<EntryDayGroup> =
+    entries.groupBy { entry ->
+        Calendar.getInstance().apply { timeInMillis = entry.date }.let { calendar ->
+            Triple(
+                calendar[Calendar.YEAR],
+                calendar[Calendar.MONTH] + 1,
+                calendar[Calendar.DAY_OF_MONTH],
+            )
+        }
+    }.map { (date, dayEntries) ->
+        EntryDayGroup(year = date.first, month = date.second, day = date.third, entries = dayEntries)
+    }
 
 internal fun groupEntriesByCategory(entries: List<Entry>): List<EntryCategoryGroup> =
     entries.groupBy { entry -> Triple(entry.kind, entry.category, entry.ledgerId) }
