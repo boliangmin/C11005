@@ -3180,17 +3180,39 @@ private fun LedgerStatisticsModeDialog(
         onDismissRequest = onDismiss,
         title = { Text("统计方式") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                modes.forEach { mode ->
-                    LedgerStatisticsPickerOption(
-                        label = when (mode) {
-                            LedgerStatisticsMode.TOTAL -> "总计"
-                            LedgerStatisticsMode.ANNUAL -> "按年"
-                            LedgerStatisticsMode.MONTHLY -> "按月"
+            Column {
+                modes.forEachIndexed { index, mode ->
+                    val title = when (mode) {
+                        LedgerStatisticsMode.TOTAL -> "总计"
+                        LedgerStatisticsMode.ANNUAL -> "按年"
+                        LedgerStatisticsMode.MONTHLY -> "按月"
+                    }
+                    val description = when (mode) {
+                        LedgerStatisticsMode.TOTAL -> "查看账本全部时间的统计"
+                        LedgerStatisticsMode.ANNUAL -> "查看指定年份的统计"
+                        LedgerStatisticsMode.MONTHLY -> "查看指定月份的统计"
+                    }
+                    CategoryActionItem(
+                        symbol = "",
+                        title = title,
+                        subtitle = if (mode == selectedMode) {
+                            "当前选择 · $description"
+                        } else {
+                            description
                         },
-                        selected = mode == selectedMode,
+                        iconResource = when (mode) {
+                            LedgerStatisticsMode.TOTAL -> R.drawable.ic_statistics_total_option_color
+                            LedgerStatisticsMode.ANNUAL -> R.drawable.ic_statistics_annual_option_color
+                            LedgerStatisticsMode.MONTHLY -> R.drawable.ic_statistics_monthly_option_color
+                        },
+                        iconBackgroundColor = Color.Transparent,
+                        preserveIconColors = true,
+                        expandIconToBackground = true,
                         onClick = { onModeSelected(mode) },
                     )
+                    if (index != modes.lastIndex) {
+                        Spacer(Modifier.height(10.dp))
+                    }
                 }
             }
         },
@@ -4984,6 +5006,7 @@ private fun CategoryExpenseSortDialog(
     onDismiss: () -> Unit,
     onModeSelected: (CategoryExpenseSortMode) -> Unit,
 ) {
+    val fixedPrimaryDark = colorResource(R.color.app_primary_dark)
     val modes = remember {
         listOf(
             CategoryExpenseSortMode.TIME_ASC,
@@ -4996,26 +5019,51 @@ private fun CategoryExpenseSortDialog(
         onDismissRequest = onDismiss,
         title = { Text("排序方式") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                modes.forEach { mode ->
-                    LedgerStatisticsPickerOption(
-                        label = when (mode) {
-                            CategoryExpenseSortMode.TIME_ASC -> "按照时间升序显示"
-                            CategoryExpenseSortMode.TIME_DESC -> "按照时间降序显示"
-                            CategoryExpenseSortMode.AMOUNT_ASC -> "按照金额升序显示"
-                            CategoryExpenseSortMode.AMOUNT_DESC -> "按照金额降序显示"
+            Column {
+                modes.forEachIndexed { index, mode ->
+                    val title = when (mode) {
+                        CategoryExpenseSortMode.TIME_ASC -> "时间升序"
+                        CategoryExpenseSortMode.TIME_DESC -> "时间降序"
+                        CategoryExpenseSortMode.AMOUNT_ASC -> "金额升序"
+                        CategoryExpenseSortMode.AMOUNT_DESC -> "金额降序"
+                    }
+                    val description = when (mode) {
+                        CategoryExpenseSortMode.TIME_ASC -> "较早的交易记录排在前面"
+                        CategoryExpenseSortMode.TIME_DESC -> "较新的交易记录排在前面"
+                        CategoryExpenseSortMode.AMOUNT_ASC -> "金额较小的交易记录排在前面"
+                        CategoryExpenseSortMode.AMOUNT_DESC -> "金额较大的交易记录排在前面"
+                    }
+                    CategoryActionItem(
+                        symbol = "",
+                        title = title,
+                        subtitle = if (mode == selectedMode) {
+                            "当前选择 · $description"
+                        } else {
+                            description
                         },
-                        selected = mode == selectedMode,
+                        iconResource = when (mode) {
+                            CategoryExpenseSortMode.TIME_ASC -> R.drawable.ic_sort_time_ascending_color
+                            CategoryExpenseSortMode.TIME_DESC -> R.drawable.ic_sort_time_descending_color
+                            CategoryExpenseSortMode.AMOUNT_ASC -> R.drawable.ic_sort_amount_ascending_color
+                            CategoryExpenseSortMode.AMOUNT_DESC -> R.drawable.ic_sort_amount_descending_color
+                        },
+                        iconBackgroundColor = Color.Transparent,
+                        preserveIconColors = true,
+                        expandIconToBackground = true,
                         onClick = { onModeSelected(mode) },
                     )
+                    if (index != modes.lastIndex) {
+                        Spacer(Modifier.height(10.dp))
+                    }
                 }
             }
         },
         confirmButton = {},
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("取消", color = SelectionBlue)
-            }
+            TextButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.textButtonColors(contentColor = fixedPrimaryDark),
+            ) { Text("取消") }
         },
     )
 }
