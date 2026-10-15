@@ -223,6 +223,8 @@ private val MonthlyExpenseCategoryBarColors = listOf(
 // private val MonthlyIncomeBarColor = Color(0xFFB7BEC6)
 private val MonthlyExpenseBarColor = Color(0xFFB7BEC6)
 private val MonthlyIncomeBarColor = Color(0xFF82A8C4)
+private val LedgerMonthlyExpenseLineColor = Color(0xFF82A8C4)
+private val LedgerMonthlyExpenseGridColor = Color(0xFFECEEF1)
 private const val GoldenRatio = 1.618f
 private const val BookkeepingDialogWidthFraction = 0.8f
 private val CalculatorKeyboardHeight = 340.dp
@@ -2178,6 +2180,8 @@ private fun LedgerDetailScreen(
                             expenseCategories = expenseCategories,
                             modifier = Modifier.fillMaxSize(),
                             periodLabel = ledgerStatisticsPeriodLabel,
+                            showMonthlyExpenseLineChart =
+                                ledgerStatisticsMode == LedgerStatisticsMode.ANNUAL,
                             onPeriodClick = if (ledgerStatisticsMode == LedgerStatisticsMode.TOTAL) {
                                 null
                             } else {
@@ -3880,6 +3884,7 @@ private fun LedgerStatisticsDetailScreen(
     expenseCategories: List<LedgerCategory>,
     modifier: Modifier = Modifier,
     periodLabel: String? = null,
+    showMonthlyExpenseLineChart: Boolean = false,
     onPeriodClick: (() -> Unit)? = null,
     onCategoryExpenseSelected: (String) -> Unit,
 ) {
@@ -3911,6 +3916,9 @@ private fun LedgerStatisticsDetailScreen(
     val expenseTotal = remember(categoryStatistics) {
         categoryStatistics.sumOf { item -> item.amount }
     }
+    val monthlyExpenseTotals = remember(entries, showMonthlyExpenseLineChart) {
+        if (showMonthlyExpenseLineChart) calculateLedgerMonthlyExpenseTotals(entries) else emptyList()
+    }
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
@@ -3922,6 +3930,11 @@ private fun LedgerStatisticsDetailScreen(
                 periodLabel = periodLabel,
                 onPeriodClick = onPeriodClick,
             )
+        }
+        if (showMonthlyExpenseLineChart) {
+            item {
+                LedgerMonthlyExpenseLineChartCard(monthlyExpenseTotals)
+            }
         }
         item {
             MonthlyExpensePieChart(
@@ -3984,6 +3997,129 @@ private fun LedgerExpenseBarCard(
                 widthFraction = if (expenseTotal > 0.0) 1f else 0f,
                 color = MonthlyExpenseBarColor,
             )
+        }
+    }
+}
+
+@Composable
+private fun LedgerMonthlyExpenseLineChartCard(monthlyExpenseTotals: List<Double>) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        shape = RoundedCornerShape(16.dp),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Text(
+                text = "月度支出",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Medium,
+                color = Ink,
+            )
+            Spacer(Modifier.height(14.dp))
+            Canvas(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(150.dp),
+            ) {
+                val chartTop = 8.dp.toPx()
+                val chartBottom = size.height - 8.dp.toPx()
+                val chartHeight = (chartBottom - chartTop).coerceAtLeast(0f)
+                val gridPathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(
+                    floatArrayOf(5.dp.toPx(), 5.dp.toPx()),
+                )
+                repeat(3) { index ->
+                    val y = chartTop + chartHeight * index / 2f
+                    drawLine(
+                        color = LedgerMonthlyExpenseGridColor,
+                        start = Offset(0f, y),
+                        end = Offset(size.width, y),
+                        strokeWidth = 1.dp.toPx(),
+                        pathEffect = gridPathEffect,
+                    )
+                }
+
+                val values = List(12) { index -> monthlyExpenseTotals.getOrElse(index) { 0.0 } }
+                val maximum = values.maxOrNull()?.coerceAtLeast(0.0) ?: 0.0
+                val points = values.mapIndexed { index, amount ->
+                    val x = size.width * (index + 0.5f) / values.size
+                    val y = if (maximum > 0.0) {
+                        chartBottom - (amount / maximum).toFloat() * chartHeight
+                    } else {
+                        chartBottom
+                    }
+                    Offset(x, y)
+                }
+                if (points.isNotEmpty()) {
+                    fun createCurvePath() = androidx.compose.ui.graphics.Path().apply {
+                        moveTo(points.first().x, points.first().y)
+                        points.drop(1).forEachIndexed { index, current ->
+                            val previous = points[index]
+                            val controlX = (previous.x + current.x) / 2f
+                            cubicTo(
+                                controlX,
+                                previous.y,
+                                controlX,
+                                current.y,
+                                current.x,
+                                current.y,
+                            )
+                        }
+                    }
+                    val linePath = createCurvePath()
+                    val fillPath = createCurvePath().apply {
+                        lineTo(points.last().x, chartBottom)
+                        lineTo(points.first().x, chartBottom)
+                        close()
+                    }
+                    drawPath(
+                        path = fillPath,
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                LedgerMonthlyExpenseLineColor.copy(alpha = 0.18f),
+                                Color.Transparent,
+                            ),
+                            startY = chartTop,
+                            endY = chartBottom,
+                        ),
+                    )
+                    drawPath(
+                        path = linePath,
+                        color = LedgerMonthlyExpenseLineColor,
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(
+                            width = 2.5.dp.toPx(),
+                            cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                            join = androidx.compose.ui.graphics.StrokeJoin.Round,
+                        ),
+                    )
+                    points.forEach { point ->
+                        drawCircle(
+                            color = Color.White,
+                            radius = 4.5.dp.toPx(),
+                            center = point,
+                        )
+                        drawCircle(
+                            color = LedgerMonthlyExpenseLineColor,
+                            radius = 3.25.dp.toPx(),
+                            center = point,
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+            Row(Modifier.fillMaxWidth()) {
+                (1..12).forEach { month ->
+                    Text(
+                        text = "${month}月",
+                        modifier = Modifier.weight(1f),
+                        fontSize = 9.sp,
+                        lineHeight = 10.sp,
+                        color = Muted,
+                        maxLines = 1,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
         }
     }
 }
@@ -7458,6 +7594,19 @@ private fun filterLedgerStatisticsEntries(
                 calendar[Calendar.MONTH] + 1 == scope.month
         }
     }
+}
+
+private fun calculateLedgerMonthlyExpenseTotals(entries: List<Entry>): List<Double> {
+    val totals = MutableList(12) { 0.0 }
+    entries.forEach { entry ->
+        if (entry.kind == "支出") {
+            val monthIndex = Calendar.getInstance().apply {
+                timeInMillis = entry.date
+            }[Calendar.MONTH]
+            totals[monthIndex] += entry.amount
+        }
+    }
+    return totals
 }
 
 internal fun calculateAnnualCategoryExpenseStatistics(
