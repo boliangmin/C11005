@@ -3341,10 +3341,16 @@ private fun AnnualBillStatisticsScreen(
                     items = annualStatistics,
                     key = { statistics -> statistics.year },
                 ) { statistics ->
-                    AnnualBillStatisticsYearSection(
-                        statistics = statistics,
-                        onClick = { onYearSelected(statistics) },
-                    )
+                    val monthlyExpenseTotals = remember(entries, statistics.year) {
+                        calculateMonthlyExpenseTotals(entries, statistics.year)
+                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        AnnualBillStatisticsYearSection(
+                            statistics = statistics,
+                            onClick = { onYearSelected(statistics) },
+                        )
+                        MonthlyExpenseLineChartCard(monthlyExpenseTotals)
+                    }
                 }
             }
         }
@@ -3917,7 +3923,7 @@ private fun LedgerStatisticsDetailScreen(
         categoryStatistics.sumOf { item -> item.amount }
     }
     val monthlyExpenseTotals = remember(entries, showMonthlyExpenseLineChart) {
-        if (showMonthlyExpenseLineChart) calculateLedgerMonthlyExpenseTotals(entries) else emptyList()
+        if (showMonthlyExpenseLineChart) calculateMonthlyExpenseTotals(entries) else emptyList()
     }
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -3933,7 +3939,7 @@ private fun LedgerStatisticsDetailScreen(
         }
         if (showMonthlyExpenseLineChart) {
             item {
-                LedgerMonthlyExpenseLineChartCard(monthlyExpenseTotals)
+                MonthlyExpenseLineChartCard(monthlyExpenseTotals)
             }
         }
         item {
@@ -4002,7 +4008,7 @@ private fun LedgerExpenseBarCard(
 }
 
 @Composable
-private fun LedgerMonthlyExpenseLineChartCard(monthlyExpenseTotals: List<Double>) {
+private fun MonthlyExpenseLineChartCard(monthlyExpenseTotals: List<Double>) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -7596,14 +7602,19 @@ private fun filterLedgerStatisticsEntries(
     }
 }
 
-private fun calculateLedgerMonthlyExpenseTotals(entries: List<Entry>): List<Double> {
+private fun calculateMonthlyExpenseTotals(
+    entries: List<Entry>,
+    year: Int? = null,
+): List<Double> {
     val totals = MutableList(12) { 0.0 }
     entries.forEach { entry ->
         if (entry.kind == "支出") {
-            val monthIndex = Calendar.getInstance().apply {
+            val calendar = Calendar.getInstance().apply {
                 timeInMillis = entry.date
-            }[Calendar.MONTH]
-            totals[monthIndex] += entry.amount
+            }
+            if (year == null || calendar[Calendar.YEAR] == year) {
+                totals[calendar[Calendar.MONTH]] += entry.amount
+            }
         }
     }
     return totals
