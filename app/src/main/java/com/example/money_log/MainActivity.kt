@@ -1517,6 +1517,11 @@ private fun LedgerListContent(
     var mergingLedger by remember { mutableStateOf<LedgerBook?>(null) }
     var incomeVisibilityLedger by remember { mutableStateOf<LedgerBook?>(null) }
     var deleteLedgerRequest by remember { mutableStateOf<LedgerDeleteRequest?>(null) }
+    val expenseTotalsByLedger = entries
+        .asSequence()
+        .filter { entry -> entry.kind == "支出" && entry.ledgerId != null }
+        .groupBy { entry -> entry.ledgerId }
+        .mapValues { (_, ledgerEntries) -> ledgerEntries.sumOf { entry -> entry.amount } }
     val ledgerDayGroups = ledgers.sortedByDescending { it.date }.groupBy { ledger ->
         Calendar.getInstance().apply { timeInMillis = ledger.date }.let { calendar ->
             Triple(
@@ -1548,6 +1553,7 @@ private fun LedgerListContent(
                 items(dayLedgers, key = { it.id }) { ledger ->
                     LedgerCard(
                         ledger = ledger,
+                        expenseTotal = expenseTotalsByLedger[ledger.id] ?: 0.0,
                         onClick = { onOpenLedger(ledger) },
                         onLongClick = { actionLedger = ledger },
                     )
@@ -1631,6 +1637,7 @@ private fun LedgerListContent(
 @Composable
 private fun LedgerCard(
     ledger: LedgerBook,
+    expenseTotal: Double,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
 ) {
@@ -1682,7 +1689,12 @@ private fun LedgerCard(
                 }
             }
             Spacer(Modifier.width(8.dp))
-            Text("›", fontSize = 28.sp, color = Muted)
+            Text(
+                text = "−${money(expenseTotal)}",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Ink,
+            )
         }
     }
 }
